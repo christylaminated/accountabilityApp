@@ -4,16 +4,17 @@ struct MessageBubbleView: View {
     let text: String
     let timestamp: Date
     let isMe: Bool
-    let senderEmoji: String
+    let senderSymbol: String
     let senderName: String
     let showSender: Bool
 
     var body: some View {
         HStack(alignment: .bottom, spacing: 6) {
             if !isMe {
-                Text(senderEmoji)
-                    .font(.system(size: 16))
+                Image(systemName: senderSymbol)
+                    .font(.system(size: 13, weight: .medium))
                     .frame(width: 28, height: 28)
+                    .foregroundStyle(Color.tallyAccent)
                     .background(Color.tallyAccent.opacity(0.15))
                     .clipShape(Circle())
             }

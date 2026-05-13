@@ -46,9 +46,10 @@ private struct FeedRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Text(appState.activeCircle.emoji ?? "✨")
-                .font(.system(size: 24))
+            Image(systemName: "bubble.left.and.bubble.right.fill")
+                .font(.system(size: 18, weight: .medium))
                 .frame(width: 44, height: 44)
+                .foregroundStyle(Color.tallyAccent)
                 .background(Color.tallyAccent.opacity(0.15))
                 .clipShape(Circle())
             VStack(alignment: .leading, spacing: 2) {
@@ -94,7 +95,7 @@ private struct DMThreadRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            AvatarView(emoji: otherUser.avatarEmoji, size: 44)
+            AvatarView(symbolName: otherUser.avatarSymbol, size: 44)
             VStack(alignment: .leading, spacing: 2) {
                 HStack {
                     Text(otherUser.displayName)

@@ -4,8 +4,8 @@ import UIKit
 #endif
 
 extension Color {
-    /// Warm coral — primary accent.
-    static let tallyAccent = Color(red: 230/255, green: 113/255, blue: 88/255)
+    /// Soft dusty pink — primary accent.
+    static let tallyAccent = Color(red: 245/255, green: 166/255, blue: 193/255)
 
     #if canImport(UIKit)
     /// Page background. Adapts to light/dark via system color.
@@ -25,9 +25,9 @@ extension Color {
     static let tallyHeat0 = Color.gray.opacity(0.1)
     #endif
 
-    // Heatmap (history calendar): coral with increasing opacity.
-    static let tallyHeat1 = Color(red: 230/255, green: 113/255, blue: 88/255).opacity(0.25)
-    static let tallyHeat2 = Color(red: 230/255, green: 113/255, blue: 88/255).opacity(0.50)
-    static let tallyHeat3 = Color(red: 230/255, green: 113/255, blue: 88/255).opacity(0.75)
-    static let tallyHeat4 = Color(red: 230/255, green: 113/255, blue: 88/255)
+    // Heatmap (history calendar): accent pink with increasing opacity.
+    static let tallyHeat1 = Color(red: 245/255, green: 166/255, blue: 193/255).opacity(0.25)
+    static let tallyHeat2 = Color(red: 245/255, green: 166/255, blue: 193/255).opacity(0.50)
+    static let tallyHeat3 = Color(red: 245/255, green: 166/255, blue: 193/255).opacity(0.75)
+    static let tallyHeat4 = Color(red: 245/255, green: 166/255, blue: 193/255)
 }

@@ -56,7 +56,7 @@ struct DirectMessageThreadView: View {
             text: msg.body,
             timestamp: msg.createdAt,
             isMe: isMe,
-            senderEmoji: otherUser?.avatarEmoji ?? "",
+            senderSymbol: otherUser?.avatarSymbol ?? "person",
             senderName: otherUser?.displayName ?? "",
             showSender: false
         )

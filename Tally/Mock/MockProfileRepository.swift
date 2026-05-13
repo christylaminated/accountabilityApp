@@ -11,8 +11,8 @@ final class MockProfileRepository: ProfileRepository, @unchecked Sendable {
     private(set) var stored: UserProfile?
 
     init(profile: UserProfile? = UserProfile(
-        displayName: "Christy",
-        avatarEmoji: "🌿",
+        displayName: "You",
+        avatarSymbol: "leaf",
         createdAt: .now
     )) {
         self.stored = profile
@@ -22,10 +22,10 @@ final class MockProfileRepository: ProfileRepository, @unchecked Sendable {
         return stored
     }
 
-    func saveOwnProfile(displayName: String, avatarEmoji: String) async throws -> UserProfile {
+    func saveOwnProfile(displayName: String, avatarSymbol: String) async throws -> UserProfile {
         let profile = UserProfile(
             displayName: displayName,
-            avatarEmoji: avatarEmoji,
+            avatarSymbol: avatarSymbol,
             createdAt: stored?.createdAt ?? .now
         )
         stored = profile

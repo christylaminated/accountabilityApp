@@ -40,7 +40,7 @@ struct CircleFeedView: View {
             MessageComposerView(text: $composerText) { send() }
         }
         .background(Color.tallyCanvas)
-        .navigationTitle("\(appState.activeCircle.emoji ?? "✨") \(appState.activeCircle.name)")
+        .navigationTitle(appState.activeCircle.name)
         .navigationBarTitleDisplayMode(.inline)
     }
 
@@ -51,7 +51,7 @@ struct CircleFeedView: View {
             text: msg.body,
             timestamp: msg.createdAt,
             isMe: isMe,
-            senderEmoji: profile?.avatarEmoji ?? "",
+            senderSymbol: profile?.avatarSymbol ?? "person",
             senderName: profile?.displayName ?? "",
             showSender: !isMe
         )

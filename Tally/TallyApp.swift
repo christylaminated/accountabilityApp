@@ -17,6 +17,9 @@ struct TallyApp: App {
                 // environmentObject injection. Deep links can arrive before AppState
                 // is fully initialized, so one source of truth there is cleaner.
                 .environmentObject(appDelegate.pendingShares)
+                // App-wide rounded design — softer typographic feel without per-view font work.
+                .fontDesign(.rounded)
+                .tint(.tallyAccent)
         }
     }
 }

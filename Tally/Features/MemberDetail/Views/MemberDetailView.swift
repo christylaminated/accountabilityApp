@@ -97,11 +97,10 @@ struct MemberDetailView: View {
 
     private func header(_ profile: Profile) -> some View {
         HStack(spacing: 16) {
-            AvatarView(emoji: profile.avatarEmoji, size: 72)
+            AvatarView(symbolName: profile.avatarSymbol, size: 72)
             VStack(alignment: .leading, spacing: 4) {
-                Text(profile.displayName).font(.title2.weight(.semibold))
-                Text("@\(profile.username)")
-                    .foregroundStyle(.secondary)
+                Text(profile.displayName)
+                    .font(.system(.title2, design: .rounded, weight: .semibold))
             }
             Spacer()
         }

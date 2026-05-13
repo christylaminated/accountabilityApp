@@ -21,26 +21,22 @@ struct MemberRowView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
-                AvatarView(emoji: profile.avatarEmoji, size: 44)
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 6) {
-                        Text(profile.displayName).font(.headline)
-                        if isMe {
-                            Text("you")
-                                .font(.caption2.weight(.semibold))
-                                .padding(.horizontal, 6).padding(.vertical, 2)
-                                .background(Color.tallyAccent.opacity(0.15))
-                                .foregroundStyle(Color.tallyAccent)
-                                .clipShape(Capsule())
-                        }
+                AvatarView(symbolName: profile.avatarSymbol, size: 44)
+                HStack(spacing: 6) {
+                    Text(profile.displayName)
+                        .font(.system(.headline, design: .rounded, weight: .semibold))
+                    if isMe {
+                        Text("you")
+                            .font(.caption2.weight(.semibold))
+                            .padding(.horizontal, 6).padding(.vertical, 2)
+                            .background(Color.tallyAccent.opacity(0.15))
+                            .foregroundStyle(Color.tallyAccent)
+                            .clipShape(Capsule())
                     }
-                    Text("@\(profile.username)")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
                 }
                 Spacer()
                 Text("\(completedCount)/\(todayHabits.count)")
-                    .font(.subheadline.monospacedDigit().weight(.semibold))
+                    .font(.system(.subheadline, design: .rounded, weight: .semibold).monospacedDigit())
                     .foregroundStyle(allDone ? Color.tallyAccent : .secondary)
             }
 

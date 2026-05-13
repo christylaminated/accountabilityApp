@@ -1,22 +1,22 @@
 import SwiftUI
 
-/// First-launch profile setup. Takes a display name + avatar emoji and hands the
-/// pair off to a parent-supplied async closure (typically `AppState.saveProfile`).
-/// On success, parent transitions onboarding state — this view doesn't dismiss
-/// itself; the state machine drives navigation.
+/// First-launch profile setup. Takes a display name + an SF Symbol avatar and
+/// hands the pair to a parent-supplied async closure (typically `AppState.saveProfile`).
 struct ProfileSetupView: View {
-    /// Invoked when the user taps Continue with valid input.
-    /// Throws so failures (network, CloudKit) surface back in this view.
+    /// Invoked with `(displayName, avatarSymbol)`. Throws so failures surface here.
     let onSubmit: (String, String) async throws -> Void
 
     @State private var displayName: String = ""
-    @State private var emoji: String = "🌿"
+    @State private var avatarSymbol: String = "leaf"
     @State private var isSubmitting = false
     @State private var errorMessage: String?
 
-    private static let emojiChoices: [String] = [
-        "🌿", "☕", "🔥", "🌊", "🌙", "✨",
-        "🍃", "🎯", "🧘", "💪", "📚", "🌸"
+    /// Curated, Lucide-feeling SF Symbol options. Intentionally generic — not
+    /// activity-specific — so they fit any user.
+    private static let symbolChoices: [String] = [
+        "leaf", "mountain.2", "flame", "drop",
+        "moon", "sparkle", "book", "pencil",
+        "target", "heart", "star", "sun.max"
     ]
 
     private var trimmedName: String {
@@ -32,31 +32,32 @@ struct ProfileSetupView: View {
             VStack(spacing: 28) {
                 header
                 nameField
-                emojiPicker
+                symbolPicker
 
                 if let errorMessage {
                     Text(errorMessage)
-                        .font(.footnote)
+                        .font(.system(.footnote, design: .rounded))
                         .foregroundStyle(.red)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
                 submitButton
-
                 Spacer().frame(height: 24)
             }
             .padding(.horizontal, 24)
             .padding(.top, 32)
         }
         .background(Color.tallyCanvas)
+        .scrollDismissesKeyboard(.interactively)
     }
 
     private var header: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 10) {
             Text("Welcome to Tally")
-                .font(.largeTitle.weight(.bold))
-            Text("Pick a name and emoji your partner will see.")
-                .font(.body)
+                .font(.system(.largeTitle, design: .rounded, weight: .bold))
+                .multilineTextAlignment(.center)
+            Text("Pick a name and an icon your partner will see.")
+                .font(.system(.body, design: .rounded))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
         }
@@ -65,44 +66,47 @@ struct ProfileSetupView: View {
     private var nameField: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Your name")
-                .font(.subheadline.weight(.semibold))
+                .font(.system(.subheadline, design: .rounded, weight: .semibold))
                 .foregroundStyle(.secondary)
             TextField("e.g. Christy", text: $displayName)
                 .textInputAutocapitalization(.words)
                 .autocorrectionDisabled(false)
                 .padding(14)
                 .background(Color.tallyCard)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
     }
 
-    private var emojiPicker: some View {
+    private var symbolPicker: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Avatar emoji")
-                .font(.subheadline.weight(.semibold))
+            Text("Your icon")
+                .font(.system(.subheadline, design: .rounded, weight: .semibold))
                 .foregroundStyle(.secondary)
             let columns = Array(
-                repeating: GridItem(.flexible(), spacing: 8),
+                repeating: GridItem(.flexible(), spacing: 10),
                 count: 6
             )
-            LazyVGrid(columns: columns, spacing: 8) {
-                ForEach(Self.emojiChoices, id: \.self) { choice in
+            LazyVGrid(columns: columns, spacing: 10) {
+                ForEach(Self.symbolChoices, id: \.self) { choice in
                     Button {
-                        emoji = choice
+                        avatarSymbol = choice
                     } label: {
-                        Text(choice)
-                            .font(.title)
-                            .frame(width: 48, height: 48)
+                        Image(systemName: choice)
+                            .font(.system(size: 20, weight: .medium))
+                            .frame(width: 52, height: 52)
+                            .foregroundStyle(
+                                avatarSymbol == choice ? Color.tallyAccent : Color.secondary
+                            )
                             .background(
-                                emoji == choice
-                                ? Color.tallyAccent.opacity(0.2)
+                                avatarSymbol == choice
+                                ? Color.tallyAccent.opacity(0.18)
                                 : Color.tallyCard
                             )
                             .clipShape(Circle())
                             .overlay(
                                 Circle().stroke(
-                                    emoji == choice ? Color.tallyAccent : .clear,
-                                    lineWidth: 2
+                                    avatarSymbol == choice ? Color.tallyAccent : .clear,
+                                    lineWidth: 1.5
                                 )
                             )
                     }
@@ -121,7 +125,7 @@ struct ProfileSetupView: View {
                         .tint(.white)
                 }
                 Text(isSubmitting ? "Saving…" : "Continue")
-                    .font(.body.weight(.semibold))
+                    .font(.system(.body, design: .rounded, weight: .semibold))
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 16)
@@ -131,7 +135,7 @@ struct ProfileSetupView: View {
                 : Color.gray.opacity(0.3)
             )
             .foregroundStyle(.white)
-            .clipShape(RoundedRectangle(cornerRadius: 14))
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
         .disabled(!isValid || isSubmitting)
     }
@@ -142,8 +146,7 @@ struct ProfileSetupView: View {
         errorMessage = nil
         Task {
             do {
-                try await onSubmit(trimmedName, emoji)
-                // Parent will transition state; this view goes away.
+                try await onSubmit(trimmedName, avatarSymbol)
             } catch {
                 errorMessage = error.localizedDescription
                 isSubmitting = false

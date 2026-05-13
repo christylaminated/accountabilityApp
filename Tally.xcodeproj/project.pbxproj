@@ -24,6 +24,7 @@
 		3E4949B44A008C857DFB0D64 /* MockProfileStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFC71190C85283D3E1DDE9D3 /* MockProfileStore.swift */; };
 		42F0CCD6C46D493A9DCE34C9 /* AddHabitSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87073D927C36A87500F56727 /* AddHabitSheet.swift */; };
 		43365BBD43AD94F1B2ACEE61 /* StreakCalculatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B233A82FD765774DB7E9A02 /* StreakCalculatorTests.swift */; };
+		4E0D613B82DDFD9130A82EAE /* GoalsSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 572BA4BB19728F7A9F7AED04 /* GoalsSetupView.swift */; };
 		4FBAFB8286AB96CC930DCDC9 /* AddGoalSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21D2909605717F549577D7B2 /* AddGoalSheet.swift */; };
 		5463BAB7233583B1CE0CC2DB /* DirectMessageListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A96D357A003369225937AA7 /* DirectMessageListView.swift */; };
 		5CF7076A7D942EE6B9F78F6C /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F9632183DC480FF9013A5DE /* Constants.swift */; };
@@ -54,6 +55,7 @@
 		D5E7F9B7014514226A1A68DC /* MemberRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DFE77214583F77CB5A7185D /* MemberRowView.swift */; };
 		D7539724508FDA45F5EF819E /* UserProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A984F64EB765CBCA58109CA /* UserProfile.swift */; };
 		DD3C34BA9BCF58E4313CF34C /* HistoryCalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B23EFD69AE88007BCFBA851F /* HistoryCalendarView.swift */; };
+		DFA18036DC32AFE857E88F4C /* HabitsSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 426A21943CB544027A7E415A /* HabitsSetupView.swift */; };
 		E28B30A6239671ECAF22C253 /* StreakCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA662DA00B39395D803F0197 /* StreakCalculator.swift */; };
 		EDFE55DC3E2EB37143364FE6 /* CKRecordConvertible.swift in Sources */ = {isa = PBXBuildFile; fileRef = 530F6020C6942EAEAB383940 /* CKRecordConvertible.swift */; };
 		F0FD4C70A123C625BC14A7E0 /* ProfileSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E512FAB643E4155FF24466F1 /* ProfileSetupView.swift */; };
@@ -86,12 +88,14 @@
 		3299AC9D570A5254E7ECF943 /* CircleMember.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CircleMember.swift; sourceTree = "<group>"; };
 		35137C828BEDFE0F1A23F7C2 /* EmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyStateView.swift; sourceTree = "<group>"; };
 		370BFA08DA98388F57FA9FE3 /* Date+Tally.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Date+Tally.swift"; sourceTree = "<group>"; };
+		426A21943CB544027A7E415A /* HabitsSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HabitsSetupView.swift; sourceTree = "<group>"; };
 		46E01DF37CD02C2EC6B10B54 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		4C0DCF5404863ACA6CB96F03 /* CircleFeedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CircleFeedView.swift; sourceTree = "<group>"; };
 		4DCF1A5BC6FA366C4B658D35 /* Tally.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Tally.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		530F6020C6942EAEAB383940 /* CKRecordConvertible.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CKRecordConvertible.swift; sourceTree = "<group>"; };
 		5497A22187182B52574D38E9 /* MockHabitStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockHabitStore.swift; sourceTree = "<group>"; };
 		56F319D35E92BE520565AEBF /* MessageBubbleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageBubbleView.swift; sourceTree = "<group>"; };
+		572BA4BB19728F7A9F7AED04 /* GoalsSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoalsSetupView.swift; sourceTree = "<group>"; };
 		596710D632C92CA7D6341EB9 /* HabitListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HabitListView.swift; sourceTree = "<group>"; };
 		6A96D357A003369225937AA7 /* DirectMessageListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DirectMessageListView.swift; sourceTree = "<group>"; };
 		6A9A9D1DF334A01ADC0012B0 /* DirectMessage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DirectMessage.swift; sourceTree = "<group>"; };
@@ -328,6 +332,8 @@
 		A8383413992091147DD0BABA /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				572BA4BB19728F7A9F7AED04 /* GoalsSetupView.swift */,
+				426A21943CB544027A7E415A /* HabitsSetupView.swift */,
 				6AE3DEBFEA97C34B7EC75584 /* ICloudStatusGate.swift */,
 				E512FAB643E4155FF24466F1 /* ProfileSetupView.swift */,
 			);
@@ -510,11 +516,13 @@
 				5463BAB7233583B1CE0CC2DB /* DirectMessageListView.swift in Sources */,
 				140D4F90BABD9336827F0C43 /* DirectMessageThreadView.swift in Sources */,
 				0024E4E9B5BE578D82C70491 /* EmptyStateView.swift in Sources */,
+				4E0D613B82DDFD9130A82EAE /* GoalsSetupView.swift in Sources */,
 				C1BB2E44C03E14D3F6C57E01 /* Habit.swift in Sources */,
 				C6DEA3365130BE06EC19FBB8 /* HabitCelebrationView.swift in Sources */,
 				290BABB86CBD2D9826AC33E4 /* HabitCompletion.swift in Sources */,
 				9CA3820E0FFE03E11541EF54 /* HabitListView.swift in Sources */,
 				F77430C360961BD259B915CF /* HabitRowView.swift in Sources */,
+				DFA18036DC32AFE857E88F4C /* HabitsSetupView.swift in Sources */,
 				DD3C34BA9BCF58E4313CF34C /* HistoryCalendarView.swift in Sources */,
 				7332561AE65743C77CF70FBE /* ICloudStatusGate.swift in Sources */,
 				A8F02C6763DBED2031D9F423 /* MainTabView.swift in Sources */,
