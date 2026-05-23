@@ -106,9 +106,9 @@ struct CloudKitUsernameRepository: UsernameRepository {
         let myUserID = try await client.userRecordID()
 
         // Release the old claim first (so re-naming "alice" → "alyce" frees
-        // "alice" for someone else).
+        // "alice" for someone else). Best-effort: ignore any delete failure.
         if let prev = previousUsername, prev != normalized {
-            try? await publicDB.deleteRecord(withID: CKRecord.ID(recordName: prev))
+            _ = try? await publicDB.deleteRecord(withID: CKRecord.ID(recordName: prev))
         }
 
         let recordID = CKRecord.ID(recordName: normalized)
@@ -131,7 +131,7 @@ struct CloudKitUsernameRepository: UsernameRepository {
     }
 
     func release(_ normalized: String) async throws {
-        try? await publicDB.deleteRecord(withID: CKRecord.ID(recordName: normalized))
+        _ = try? await publicDB.deleteRecord(withID: CKRecord.ID(recordName: normalized))
     }
 
     func lookup(_ normalized: String) async throws -> UserSearchResult? {
