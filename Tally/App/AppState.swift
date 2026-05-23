@@ -51,6 +51,7 @@ final class AppState {
     let profileRepository: any ProfileRepository
     let circleRepository: any CircleRepository
     let personalRepository: any PersonalRepository
+    let usernameRepository: any UsernameRepository
     let shareCoordinator: ShareCoordinator
 
     /// Live data for the active Circle — members + chat. Habits and goals
@@ -97,6 +98,7 @@ final class AppState {
         profileRepository: any ProfileRepository = CloudKitProfileRepository(),
         circleRepository: any CircleRepository = CloudKitCircleRepository(),
         personalRepository: any PersonalRepository = CloudKitPersonalRepository(),
+        usernameRepository: any UsernameRepository = CloudKitUsernameRepository(),
         shareCoordinator: ShareCoordinator = ShareCoordinator(),
         circleStore: CircleStore? = nil,
         personalStore: PersonalStore? = nil
@@ -104,6 +106,7 @@ final class AppState {
         self.profileRepository = profileRepository
         self.circleRepository = circleRepository
         self.personalRepository = personalRepository
+        self.usernameRepository = usernameRepository
         self.shareCoordinator = shareCoordinator
         self.circleStore = circleStore ?? CircleStore()
         self.personalStore = personalStore ?? PersonalStore(repository: personalRepository)
@@ -251,7 +254,8 @@ final class AppState {
     func saveProfile(displayName: String, avatarSymbol: String) async throws {
         let profile = try await profileRepository.saveOwnProfile(
             displayName: displayName,
-            avatarSymbol: avatarSymbol
+            avatarSymbol: avatarSymbol,
+            username: nil
         )
         isFirstRunOnboarding = true
 
@@ -355,22 +359,70 @@ final class AppState {
 
     // MARK: - Profile editing
 
-    /// Update the user's display name + avatar post-onboarding. Saves to
-    /// CloudKit (UserProfile + PersonalRoot so friends see the change) and
-    /// refreshes the local cache.
-    func updateProfile(displayName: String, avatarSymbol: String) async throws {
-        let trimmed = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+    /// Update the user's display name, avatar, and optional username
+    /// post-onboarding. Saves to CloudKit (UserProfile + PersonalRoot so
+    /// friends see the change) and refreshes the local cache. If a username
+    /// is provided, it's claimed in the public DB (which throws if taken).
+    func updateProfile(
+        displayName: String,
+        avatarSymbol: String,
+        username: String?
+    ) async throws {
+        let trimmedName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalized: String? = username.flatMap { usernameRepository.normalize($0) }
+
+        // If a non-empty raw username was provided but it doesn't normalize,
+        // surface that as an error rather than silently dropping it.
+        if let raw = username, !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, normalized == nil {
+            throw UsernameError.invalid
+        }
+
+        // Claim or release the username (against the public directory) BEFORE
+        // saving the profile, so a failure to claim doesn't leave the profile
+        // pointing at an unowned name.
+        let previous = ownCloudProfile?.username
+        if let normalized {
+            try await usernameRepository.claim(
+                normalized,
+                previousUsername: previous,
+                displayName: trimmedName,
+                avatarSymbol: avatarSymbol
+            )
+        } else if let previous {
+            try? await usernameRepository.release(previous)
+        }
+
         let profile = try await profileRepository.saveOwnProfile(
-            displayName: trimmed,
-            avatarSymbol: avatarSymbol
+            displayName: trimmedName,
+            avatarSymbol: avatarSymbol,
+            username: normalized
         )
         persistProfile(profile)
 
         // Push to PersonalRoot so friends see the new name + avatar.
         try? await personalRepository.updatePersonalRootProfile(
-            displayName: trimmed,
+            displayName: trimmedName,
             avatarSymbol: avatarSymbol
         )
+    }
+
+    // MARK: - Friend search + requests
+
+    /// Look up a user by exact (case-insensitive) username. Returns nil if
+    /// nobody has claimed that handle.
+    func searchUser(byUsername raw: String) async throws -> UserSearchResult? {
+        guard let normalized = usernameRepository.normalize(raw) else { return nil }
+        return try await usernameRepository.lookup(normalized)
+    }
+
+    /// Send a friend request to a specific user — adds them as a participant
+    /// on my personal CKShare. They receive an iOS system notification and
+    /// become a friend when they accept. Their app reciprocally shares back
+    /// via the existing `handleIncomingShareIfNeeded` flow.
+    func sendFriendRequest(to userRecordName: String) async throws {
+        let recordID = CKRecord.ID(recordName: userRecordName)
+        try await personalRepository.addFriendParticipant(userRecordID: recordID)
+        await personalStore.refresh()
     }
 
     /// Set the user's accent-color preset. Local-only — no CloudKit round-trip.

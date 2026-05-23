@@ -7,6 +7,7 @@ struct FriendsView: View {
     @Environment(\.tallyAccent) private var tallyAccent
     @Environment(AppState.self) private var appState
     @State private var showCreateGroup = false
+    @State private var showFriendSearch = false
     @State private var groupToDelete: TallyCircle?
     @State private var groupToLeave: TallyCircle?
 
@@ -27,6 +28,7 @@ struct FriendsView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     addFriendButton
+                    findByUsernameButton
 
                     section("Friends") {
                         if friends.isEmpty {
@@ -86,6 +88,9 @@ struct FriendsView: View {
             .sheet(isPresented: $showCreateGroup) {
                 CreateCircleView { _ in /* no auto-invite for groups */ }
             }
+            .sheet(isPresented: $showFriendSearch) {
+                FriendSearchView()
+            }
             .confirmationDialog(
                 "Delete this group?",
                 isPresented: Binding(
@@ -136,6 +141,28 @@ struct FriendsView: View {
                 Image(systemName: "person.crop.circle.badge.plus")
                     .font(.title3)
                 Text("Add a friend")
+                    .font(.system(.body, design: .rounded, weight: .semibold))
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(14)
+            .background(Color.tallyCard)
+            .foregroundStyle(tallyAccent)
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var findByUsernameButton: some View {
+        Button {
+            showFriendSearch = true
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "magnifyingglass")
+                    .font(.title3)
+                Text("Find by username")
                     .font(.system(.body, design: .rounded, weight: .semibold))
                 Spacer()
                 Image(systemName: "chevron.right")

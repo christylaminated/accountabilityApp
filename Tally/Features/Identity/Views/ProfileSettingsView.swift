@@ -1,14 +1,17 @@
 import SwiftUI
 
-/// Profile + appearance settings. Edit name, change avatar, pick the app's
-/// accent color. Saves name + avatar to CloudKit (so friends see the
-/// updated identity); theme color is a local preference.
+/// Profile + appearance settings. Edit name, username, avatar, and the app's
+/// accent color. Saves name + avatar + username to CloudKit (name/avatar go
+/// in the personal zone so friends see them; username goes in the public DB
+/// so people can find you by it). Theme color is a local preference.
 struct ProfileSettingsView: View {
+    @Environment(\.tallyAccent) private var tallyAccent
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
 
     @State private var displayName: String = ""
     @State private var avatarSymbol: String = "leaf"
+    @State private var username: String = ""
     @State private var themeColor: ThemeColor = .pink
     @State private var isSaving = false
     @State private var errorMessage: String?
@@ -24,8 +27,19 @@ struct ProfileSettingsView: View {
         displayName.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    private var trimmedUsername: String {
+        username.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Username is OK to save if empty (clears it) OR it satisfies the
+    /// normalization rules (3–20 chars, letters/digits/underscore).
+    private var usernameValid: Bool {
+        trimmedUsername.isEmpty ||
+            appState.usernameRepository.normalize(trimmedUsername) != nil
+    }
+
     private var isValid: Bool {
-        !trimmedName.isEmpty && trimmedName.count <= 50
+        !trimmedName.isEmpty && trimmedName.count <= 50 && usernameValid
     }
 
     var body: some View {
@@ -35,6 +49,19 @@ struct ProfileSettingsView: View {
                     TextField("Name", text: $displayName)
                         .textInputAutocapitalization(.words)
                         .autocorrectionDisabled(false)
+                }
+
+                Section {
+                    HStack {
+                        Text("@").foregroundStyle(.secondary)
+                        TextField("username", text: $username)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled(true)
+                    }
+                } header: {
+                    Text("Username")
+                } footer: {
+                    Text("3–20 characters: letters, numbers, or underscores. Your username is how friends find you to send a request.")
                 }
 
                 Section("Your icon") {
@@ -138,6 +165,7 @@ struct ProfileSettingsView: View {
     private func loadFromAppState() {
         displayName = appState.ownCloudProfile?.displayName ?? ""
         avatarSymbol = appState.ownCloudProfile?.avatarSymbol ?? "leaf"
+        username = appState.ownCloudProfile?.username ?? ""
         themeColor = appState.themeColor
     }
 
@@ -153,7 +181,8 @@ struct ProfileSettingsView: View {
         do {
             try await appState.updateProfile(
                 displayName: trimmedName,
-                avatarSymbol: avatarSymbol
+                avatarSymbol: avatarSymbol,
+                username: trimmedUsername.isEmpty ? nil : trimmedUsername
             )
             dismiss()
         } catch {

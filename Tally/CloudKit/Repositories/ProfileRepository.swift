@@ -10,7 +10,13 @@ protocol ProfileRepository: Sendable {
     func ownProfile() async throws -> UserProfile?
 
     /// Create or update the signed-in user's profile. Returns the saved record.
-    func saveOwnProfile(displayName: String, avatarSymbol: String) async throws -> UserProfile
+    /// `username` is optional — uniqueness is enforced separately by
+    /// `UsernameRepository` against the public DB.
+    func saveOwnProfile(
+        displayName: String,
+        avatarSymbol: String,
+        username: String?
+    ) async throws -> UserProfile
 }
 
 /// CloudKit-backed implementation. Stores one `UserProfile` record at a fixed
@@ -40,10 +46,15 @@ struct CloudKitProfileRepository: ProfileRepository {
         }
     }
 
-    func saveOwnProfile(displayName: String, avatarSymbol: String) async throws -> UserProfile {
+    func saveOwnProfile(
+        displayName: String,
+        avatarSymbol: String,
+        username: String?
+    ) async throws -> UserProfile {
         let profile = UserProfile(
             displayName: displayName,
             avatarSymbol: avatarSymbol,
+            username: username,
             createdAt: .now
         )
 

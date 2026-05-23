@@ -13,6 +13,7 @@ final class MockProfileRepository: ProfileRepository, @unchecked Sendable {
     init(profile: UserProfile? = UserProfile(
         displayName: "You",
         avatarSymbol: "leaf",
+        username: nil,
         createdAt: .now
     )) {
         self.stored = profile
@@ -22,10 +23,15 @@ final class MockProfileRepository: ProfileRepository, @unchecked Sendable {
         return stored
     }
 
-    func saveOwnProfile(displayName: String, avatarSymbol: String) async throws -> UserProfile {
+    func saveOwnProfile(
+        displayName: String,
+        avatarSymbol: String,
+        username: String?
+    ) async throws -> UserProfile {
         let profile = UserProfile(
             displayName: displayName,
             avatarSymbol: avatarSymbol,
+            username: username,
             createdAt: stored?.createdAt ?? .now
         )
         stored = profile

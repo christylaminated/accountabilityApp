@@ -31,6 +31,7 @@
 		5463BAB7233583B1CE0CC2DB /* DirectMessageListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A96D357A003369225937AA7 /* DirectMessageListView.swift */; };
 		5ADCA9ACDD4588752936F53B /* ProfileSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA342347F6BF4B4C6E2F7968 /* ProfileSettingsView.swift */; };
 		5CF7076A7D942EE6B9F78F6C /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F9632183DC480FF9013A5DE /* Constants.swift */; };
+		61899CBAC2AC2F05749EB3DF /* UsernameRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5C60B0602DE98FD2B95D4AF /* UsernameRepository.swift */; };
 		6968B68DFB910D9442F500FB /* TallyCircle.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF0643AE001B774C4DBAAEE5 /* TallyCircle.swift */; };
 		6C546B4FC97EBE5DE0A13E69 /* CKClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2A062890E118D54EA899C1D /* CKClient.swift */; };
 		70130F2A270FFE3CD74A7BC6 /* MessageComposerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE51B53C3B5C99A361E9DD7 /* MessageComposerView.swift */; };
@@ -38,6 +39,7 @@
 		734D650294B7E4DCAFE08F11 /* DirectMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A9A9D1DF334A01ADC0012B0 /* DirectMessage.swift */; };
 		73CC483F7E58538E9B30712A /* CheckboxButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2975C824D6A555C048A5F7E8 /* CheckboxButton.swift */; };
 		74BF818C821A0CD69015BCFE /* CircleDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5E79DF71BCCE602887039DC /* CircleDashboardView.swift */; };
+		75FE3F5785BB289F19306A6F /* FriendSearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F15892B83CA28E755E0D8E0 /* FriendSearchView.swift */; };
 		7A151273E5C04E46F0E81DBA /* MockCircleDataRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4802F94A3950D09668FD6ACA /* MockCircleDataRepository.swift */; };
 		7D0BE2422516CB3F47E6725D /* CloudShareInvitePresenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3399F493BC7F15DA8ADEB22C /* CloudShareInvitePresenter.swift */; };
 		842C35BB352896ABC846246C /* AddGoalSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EDEF5BAD26629B6A5D3AC8D /* AddGoalSheet.swift */; };
@@ -51,6 +53,7 @@
 		A8F02C6763DBED2031D9F423 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 269FFB863CEE50D44AAEFF16 /* MainTabView.swift */; };
 		AA1B36D818FF926CF2D7258C /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F747DED91B9F0E7503CE283 /* AppState.swift */; };
 		AC925E245A39D489D6A35441 /* MockProfileRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD48B88B301E282AE67DF4A4 /* MockProfileRepository.swift */; };
+		AD1F0C78D5E48318234E4E83 /* MockUsernameRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3505FB88C3FE6E97F1E72AB2 /* MockUsernameRepository.swift */; };
 		B02C4D620BE01BD860D30899 /* PersonalRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92FA5CF587378B479D1CD542 /* PersonalRepository.swift */; };
 		B342C99CCA6052466B51F997 /* ThemeColor.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE763330034CD0CEB3E6F148 /* ThemeColor.swift */; };
 		B7688D4FB96CEA7382FDC71F /* Color+Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB5DB01330511281AED65F5D /* Color+Theme.swift */; };
@@ -104,6 +107,7 @@
 		2EF5919B0A3456AC4D7520B1 /* CircleSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CircleSettingsView.swift; sourceTree = "<group>"; };
 		3299AC9D570A5254E7ECF943 /* CircleMember.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CircleMember.swift; sourceTree = "<group>"; };
 		3399F493BC7F15DA8ADEB22C /* CloudShareInvitePresenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudShareInvitePresenter.swift; sourceTree = "<group>"; };
+		3505FB88C3FE6E97F1E72AB2 /* MockUsernameRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockUsernameRepository.swift; sourceTree = "<group>"; };
 		35137C828BEDFE0F1A23F7C2 /* EmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyStateView.swift; sourceTree = "<group>"; };
 		370BFA08DA98388F57FA9FE3 /* Date+Tally.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Date+Tally.swift"; sourceTree = "<group>"; };
 		426A21943CB544027A7E415A /* HabitsSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HabitsSetupView.swift; sourceTree = "<group>"; };
@@ -112,8 +116,9 @@
 		4802F94A3950D09668FD6ACA /* MockCircleDataRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockCircleDataRepository.swift; sourceTree = "<group>"; };
 		490E9F33986E58A9814F7891 /* CircleDataRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CircleDataRepository.swift; sourceTree = "<group>"; };
 		4C0DCF5404863ACA6CB96F03 /* CircleFeedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CircleFeedView.swift; sourceTree = "<group>"; };
-		4DCF1A5BC6FA366C4B658D35 /* Tally.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Tally.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		4DCF1A5BC6FA366C4B658D35 /* Tally.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Tally.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		4DD98198626AE43163D781E9 /* MockPersonalRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockPersonalRepository.swift; sourceTree = "<group>"; };
+		4F15892B83CA28E755E0D8E0 /* FriendSearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FriendSearchView.swift; sourceTree = "<group>"; };
 		528E58669C73437CABA6DFA0 /* CreateCircleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateCircleView.swift; sourceTree = "<group>"; };
 		52D645AA20CC08D5771E92FB /* FriendsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FriendsView.swift; sourceTree = "<group>"; };
 		530F6020C6942EAEAB383940 /* CKRecordConvertible.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CKRecordConvertible.swift; sourceTree = "<group>"; };
@@ -148,6 +153,7 @@
 		DA4022F12FFC0A196A98FA76 /* ProfileRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileRepository.swift; sourceTree = "<group>"; };
 		E2A062890E118D54EA899C1D /* CKClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CKClient.swift; sourceTree = "<group>"; };
 		E512FAB643E4155FF24466F1 /* ProfileSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileSetupView.swift; sourceTree = "<group>"; };
+		E5C60B0602DE98FD2B95D4AF /* UsernameRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsernameRepository.swift; sourceTree = "<group>"; };
 		EA662DA00B39395D803F0197 /* StreakCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreakCalculator.swift; sourceTree = "<group>"; };
 		EF0643AE001B774C4DBAAEE5 /* TallyCircle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TallyCircle.swift; sourceTree = "<group>"; };
 		F0A29B05674CBC519C2B01F0 /* LocalCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalCache.swift; sourceTree = "<group>"; };
@@ -188,6 +194,7 @@
 				C6E6BAAA6E9C4BAC1F2597EE /* MockCircleRepository.swift */,
 				4DD98198626AE43163D781E9 /* MockPersonalRepository.swift */,
 				FD48B88B301E282AE67DF4A4 /* MockProfileRepository.swift */,
+				3505FB88C3FE6E97F1E72AB2 /* MockUsernameRepository.swift */,
 			);
 			path = Mock;
 			sourceTree = "<group>";
@@ -215,6 +222,7 @@
 				4C0DCF5404863ACA6CB96F03 /* CircleFeedView.swift */,
 				6A96D357A003369225937AA7 /* DirectMessageListView.swift */,
 				7621171426553E6ABA9F1C87 /* DirectMessageThreadView.swift */,
+				4F15892B83CA28E755E0D8E0 /* FriendSearchView.swift */,
 				52D645AA20CC08D5771E92FB /* FriendsView.swift */,
 				56F319D35E92BE520565AEBF /* MessageBubbleView.swift */,
 				1DE51B53C3B5C99A361E9DD7 /* MessageComposerView.swift */,
@@ -279,6 +287,7 @@
 				B57527E1EBC1269EACB65A37 /* CircleRepository.swift */,
 				92FA5CF587378B479D1CD542 /* PersonalRepository.swift */,
 				DA4022F12FFC0A196A98FA76 /* ProfileRepository.swift */,
+				E5C60B0602DE98FD2B95D4AF /* UsernameRepository.swift */,
 			);
 			path = Repositories;
 			sourceTree = "<group>";
@@ -515,6 +524,9 @@
 					18C27FB10FE5BE0283218A33 = {
 						DevelopmentTeam = 2UM67KP3T9;
 					};
+					A9C692CEE4C99A9267A1F79D = {
+						DevelopmentTeam = 2UM67KP3T9;
+					};
 				};
 			};
 			buildConfigurationList = 5C367879F862A4ED5849A1D0 /* Build configuration list for PBXProject "Tally" */;
@@ -579,6 +591,7 @@
 				140D4F90BABD9336827F0C43 /* DirectMessageThreadView.swift in Sources */,
 				0024E4E9B5BE578D82C70491 /* EmptyStateView.swift in Sources */,
 				2ED206940745EAAF4E55B38E /* Friend.swift in Sources */,
+				75FE3F5785BB289F19306A6F /* FriendSearchView.swift in Sources */,
 				CA6D88B34B1C2CFF17595CBB /* FriendsView.swift in Sources */,
 				2F4E5A209E8F9855EA757C37 /* Goal.swift in Sources */,
 				4E0D613B82DDFD9130A82EAE /* GoalsSetupView.swift in Sources */,
@@ -601,6 +614,7 @@
 				4773FC229672DB44438E4083 /* MockCircleRepository.swift in Sources */,
 				E547EDBD0227D51E92AA77C5 /* MockPersonalRepository.swift in Sources */,
 				AC925E245A39D489D6A35441 /* MockProfileRepository.swift in Sources */,
+				AD1F0C78D5E48318234E4E83 /* MockUsernameRepository.swift in Sources */,
 				B02C4D620BE01BD860D30899 /* PersonalRepository.swift in Sources */,
 				C8EEF15AC254074D42C7EC9E /* PersonalRoot.swift in Sources */,
 				38D7FE8C5FE5104B4041C129 /* PersonalStore.swift in Sources */,
@@ -614,6 +628,7 @@
 				6968B68DFB910D9442F500FB /* TallyCircle.swift in Sources */,
 				B342C99CCA6052466B51F997 /* ThemeColor.swift in Sources */,
 				D7539724508FDA45F5EF819E /* UserProfile.swift in Sources */,
+				61899CBAC2AC2F05749EB3DF /* UsernameRepository.swift in Sources */,
 				343BD6037A10410E91205018 /* WeekCalculator.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -707,7 +722,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Tally/Tally.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = C92M69NB5L;
+				DEVELOPMENT_TEAM = 2UM67KP3T9;
 				ENABLE_PREVIEWS = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -792,7 +807,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Tally/Tally.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = C92M69NB5L;
+				DEVELOPMENT_TEAM = 2UM67KP3T9;
 				ENABLE_PREVIEWS = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
