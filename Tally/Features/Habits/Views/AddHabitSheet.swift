@@ -4,6 +4,7 @@ struct AddHabitSheet: View {
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
     @State private var title: String = ""
+    @State private var isPrivate: Bool = false
 
     private var trimmed: String {
         title.trimmingCharacters(in: .whitespaces)
@@ -16,6 +17,11 @@ struct AddHabitSheet: View {
                     TextField("e.g. Read 30 minutes", text: $title)
                         .autocorrectionDisabled(false)
                 }
+                Section {
+                    Toggle("Private", isOn: $isPrivate)
+                } footer: {
+                    Text("Private habits stay on your devices only — friends won't see them. They still count toward your streaks.")
+                }
             }
             .navigationTitle("New habit")
             .navigationBarTitleDisplayMode(.inline)
@@ -26,7 +32,11 @@ struct AddHabitSheet: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Add") {
                         guard !trimmed.isEmpty else { return }
-                        appState.circleStore.addHabit(title: trimmed, for: appState.currentUserID)
+                        appState.circleStore.addHabit(
+                            title: trimmed,
+                            for: appState.currentUserID,
+                            privacy: isPrivate ? .private : .shared
+                        )
                         dismiss()
                     }
                     .disabled(trimmed.isEmpty)

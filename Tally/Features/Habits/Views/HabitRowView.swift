@@ -28,7 +28,14 @@ struct HabitRowView: View {
                 _ = appState.circleStore.toggle(habit: habit, on: .now)
             }
             VStack(alignment: .leading, spacing: 4) {
-                Text(habit.title).font(.body.weight(.medium))
+                HStack(spacing: 6) {
+                    Text(habit.title).font(.body.weight(.medium))
+                    if habit.privacy == .private {
+                        Image(systemName: "lock.fill")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
                 HStack(spacing: 12) {
                     Label("\(streak)", systemImage: "flame.fill")
                         .symbolRenderingMode(.monochrome)

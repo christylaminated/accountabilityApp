@@ -184,11 +184,12 @@ final class CircleStore {
         return true
     }
 
-    func addHabit(title: String, for userID: String) {
+    func addHabit(title: String, for userID: String, privacy: HabitPrivacy = .shared) {
         let habit = Habit(
             id: UUID(),
             userID: userID,
             title: title,
+            privacy: privacy,
             createdAt: .now,
             archivedAt: nil
         )
