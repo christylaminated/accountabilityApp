@@ -231,14 +231,19 @@ final class AppState {
         onboardingState = .needsGoalsSetup
     }
 
-    /// Called from `GoalsSetupView`. Persists each non-empty title as a goal
-    /// (no deadline by default — the user can add one later from the Goals tab),
-    /// then enters the main app.
+    /// Called from `GoalsSetupView`. Persists each non-empty title as a weekly
+    /// goal for the current Monday-anchored week, then enters the main app.
     func saveInitialGoals(_ titles: [String]) {
+        let weekStart = WeekCalculator.weekStart(for: .now)
         for title in titles {
             let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { continue }
-            circleStore.addGoal(title: trimmed, for: currentUserID, deadline: nil)
+            circleStore.addGoal(
+                title: trimmed,
+                for: currentUserID,
+                period: .week,
+                periodStart: weekStart
+            )
         }
         isFirstRunOnboarding = false
         onboardingState = .ready

@@ -15,7 +15,11 @@ struct MemberDetailView: View {
     }
 
     private var goals: [Goal] {
-        appState.circleStore.openGoals(for: memberID)
+        appState.circleStore.goals(
+            for: memberID,
+            period: .week,
+            periodStart: WeekCalculator.weekStart(for: .now)
+        )
     }
 
     var body: some View {
@@ -35,9 +39,9 @@ struct MemberDetailView: View {
                             }
                         }
 
-                        section(title: "Open goals") {
+                        section(title: "This week's goals") {
                             if goals.isEmpty {
-                                infoCard("No open goals")
+                                infoCard("No goals set this week")
                             } else {
                                 ForEach(goals) { goal in
                                     HStack(spacing: 12) {

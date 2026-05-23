@@ -209,22 +209,31 @@ final class CircleStore {
         persistDelete([habit.recordName] + staleCompletions.map { $0.recordName })
     }
 
-    // MARK: - Goals
+    // MARK: - Goals (daily / weekly / monthly / yearly)
 
-    /// All goals for `userID`. Open (incomplete) sorted by deadline (nearest
-    /// first, no-deadline last). Completed sorted most-recently-completed first.
-    func goals(for userID: String) -> [Goal] {
-        let mine = goals.filter { $0.userID == userID }
-        let open = mine.filter { $0.completedAt == nil }
-        let done = mine.filter { $0.completedAt != nil }
-        return open.sorted(by: Self.openGoalOrder) + done.sorted(by: Self.completedGoalOrder)
+    /// Goals for `userID` at `period`, anchored at `periodStart` (the start of
+    /// the day / Monday / 1st of month / Jan 1).
+    func goals(for userID: String, period: GoalPeriod, periodStart: Date) -> [Goal] {
+        let anchor = periodStart.startOfDay
+        return goals
+            .filter {
+                $0.userID == userID
+                && $0.period == period
+                && $0.periodStartDate.startOfDay == anchor
+            }
+            .sorted { $0.createdAt < $1.createdAt }
     }
 
-    /// Just the open goals for `userID`, deadline-sorted.
-    func openGoals(for userID: String) -> [Goal] {
-        goals
-            .filter { $0.userID == userID && $0.completedAt == nil }
-            .sorted(by: Self.openGoalOrder)
+    /// Unfinished goals from the period immediately before `currentStart` — used
+    /// to offer carry-over into the current period.
+    func unfinishedFromPrevious(userID: String, period: GoalPeriod, currentStart: Date) -> [Goal] {
+        let previousStart = period.shift(currentStart, by: -1).startOfDay
+        return goals.filter {
+            $0.userID == userID
+            && $0.period == period
+            && $0.periodStartDate.startOfDay == previousStart
+            && $0.completedAt == nil
+        }
     }
 
     func toggleComplete(goal: Goal) {
@@ -233,38 +242,41 @@ final class CircleStore {
         persistSave([goals[i]])
     }
 
-    func addGoal(title: String, for userID: String, deadline: Date?) {
+    func addGoal(title: String, for userID: String, period: GoalPeriod, periodStart: Date) {
         let goal = Goal(
             id: UUID(),
             userID: userID,
             title: title,
-            deadline: deadline,
+            period: period,
+            periodStartDate: periodStart,
             completedAt: nil,
+            carriedFromID: nil,
             createdAt: .now
         )
         goals.append(goal)
         persistSave([goal])
     }
 
+    /// Carry an unfinished goal into a later period of the same type. Inherits
+    /// the source goal's period so a weekly carry stays weekly.
+    func carryForward(goal: Goal, to periodStart: Date) {
+        let copy = Goal(
+            id: UUID(),
+            userID: goal.userID,
+            title: goal.title,
+            period: goal.period,
+            periodStartDate: periodStart,
+            completedAt: nil,
+            carriedFromID: goal.id,
+            createdAt: .now
+        )
+        goals.append(copy)
+        persistSave([copy])
+    }
+
     func delete(goal: Goal) {
         goals.removeAll { $0.id == goal.id }
         persistDelete([goal.recordName])
-    }
-
-    /// Open goals: nearest deadline first; goals without a deadline drop to the
-    /// bottom (sorted by createdAt among themselves).
-    private static func openGoalOrder(_ lhs: Goal, _ rhs: Goal) -> Bool {
-        switch (lhs.deadline, rhs.deadline) {
-        case let (l?, r?): return l < r
-        case (_?, nil):    return true
-        case (nil, _?):    return false
-        case (nil, nil):   return lhs.createdAt < rhs.createdAt
-        }
-    }
-
-    /// Completed goals: most recently completed first.
-    private static func completedGoalOrder(_ lhs: Goal, _ rhs: Goal) -> Bool {
-        (lhs.completedAt ?? .distantPast) > (rhs.completedAt ?? .distantPast)
     }
 
     // MARK: - Messages

@@ -1,19 +1,38 @@
 import SwiftUI
 
-/// Flat list of the signed-in user's goals — open goals on top (sorted by
-/// nearest deadline, no-deadline at the bottom), completed goals below.
-/// Goals persist until done or deleted; no period reset.
+/// Goals at four timescales — Day / Week / Month / Year — switched via a
+/// segmented control. Each period has its own past/future navigation and
+/// carry-over of unfinished goals from the immediately prior period.
 struct GoalsView: View {
     @Environment(AppState.self) private var appState
+
+    @State private var selectedPeriod: GoalPeriod = .week
+    /// Offset from the current period (0 = current, -1 = previous, +1 = next).
+    /// Reset to 0 whenever `selectedPeriod` changes so a switch lands you on now.
+    @State private var periodOffset: Int = 0
     @State private var showAddSheet = false
 
-    private var openGoals: [Goal] {
-        appState.circleStore.openGoals(for: appState.currentUserID)
+    /// Start of the period currently being viewed.
+    private var periodStart: Date {
+        selectedPeriod.shift(selectedPeriod.startDate(for: .now), by: periodOffset)
     }
 
-    private var completedGoals: [Goal] {
-        appState.circleStore.goals(for: appState.currentUserID)
-            .filter { $0.completedAt != nil }
+    private var isCurrentPeriod: Bool { periodOffset == 0 }
+
+    private var goals: [Goal] {
+        appState.circleStore.goals(
+            for: appState.currentUserID,
+            period: selectedPeriod,
+            periodStart: periodStart
+        )
+    }
+
+    private var unfinishedPrevious: [Goal] {
+        appState.circleStore.unfinishedFromPrevious(
+            userID: appState.currentUserID,
+            period: selectedPeriod,
+            currentStart: periodStart
+        )
     }
 
     var body: some View {
@@ -21,28 +40,23 @@ struct GoalsView: View {
             ZStack {
                 Color.tallyCanvas.ignoresSafeArea()
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        if openGoals.isEmpty && completedGoals.isEmpty {
+                    VStack(spacing: 16) {
+                        periodPicker
+                        periodCard
+                        if isCurrentPeriod && !unfinishedPrevious.isEmpty {
+                            carryOverSection
+                        }
+                        if goals.isEmpty {
                             EmptyStateView(
                                 icon: "flag",
-                                title: "No goals yet",
-                                message: "Tap + to set something you're working toward."
+                                title: "No goals for \(selectedPeriod.thisLabel)",
+                                message: "Tap + to set your first goal for \(selectedPeriod.thisLabel)."
                             )
-                            .padding(.top, 40)
-                            .frame(maxWidth: .infinity)
+                            .padding(.top, 24)
                         } else {
-                            if !openGoals.isEmpty {
-                                section(title: "Open", count: openGoals.count) {
-                                    ForEach(openGoals) { goal in
-                                        GoalRow(goal: goal)
-                                    }
-                                }
-                            }
-                            if !completedGoals.isEmpty {
-                                section(title: "Completed", count: completedGoals.count) {
-                                    ForEach(completedGoals) { goal in
-                                        GoalRow(goal: goal)
-                                    }
+                            VStack(spacing: 8) {
+                                ForEach(goals) { goal in
+                                    GoalRow(goal: goal)
                                 }
                             }
                         }
@@ -64,30 +78,153 @@ struct GoalsView: View {
                 }
             }
             .sheet(isPresented: $showAddSheet) {
-                AddGoalSheet()
+                AddGoalSheet(period: selectedPeriod, periodStart: periodStart)
+            }
+            .onChange(of: selectedPeriod) { _, _ in
+                periodOffset = 0
             }
         }
     }
 
-    @ViewBuilder
-    private func section<Content: View>(
-        title: String,
-        count: Int,
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text(title)
+    // MARK: - Period picker
+
+    private var periodPicker: some View {
+        Picker("Period", selection: $selectedPeriod) {
+            ForEach(GoalPeriod.allCases, id: \.self) { period in
+                Text(period.displayName).tag(period)
+            }
+        }
+        .pickerStyle(.segmented)
+    }
+
+    // MARK: - Period nav card
+
+    private var periodCard: some View {
+        HStack(spacing: 8) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) { periodOffset -= 1 }
+            } label: {
+                Image(systemName: "chevron.left")
                     .font(.subheadline.weight(.semibold))
+                    .frame(width: 32, height: 32)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(relativeLabel)
+                    .font(.subheadline)
                     .foregroundStyle(.secondary)
-                Text("\(count)")
-                    .font(.subheadline.monospacedDigit())
-                    .foregroundStyle(.tertiary)
-                Spacer()
+                Text(rangeLabel)
+                    .font(.title3.weight(.semibold))
             }
-            VStack(spacing: 8) {
-                content()
+            Spacer()
+            let done = goals.filter { $0.completedAt != nil }.count
+            Text("\(done)/\(goals.count)")
+                .font(.subheadline.monospacedDigit().weight(.semibold))
+                .foregroundStyle(
+                    done == goals.count && !goals.isEmpty ? Color.tallyAccent : .secondary
+                )
+
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) { periodOffset += 1 }
+            } label: {
+                Image(systemName: "chevron.right")
+                    .font(.subheadline.weight(.semibold))
+                    .frame(width: 32, height: 32)
+                    .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 14)
+        .background(Color.tallyCard)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+
+    // MARK: - Carry-over
+
+    private var carryOverSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label(
+                "From last \(selectedPeriod.displayName.lowercased())",
+                systemImage: "arrow.uturn.forward"
+            )
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(.secondary)
+
+            ForEach(unfinishedPrevious) { goal in
+                HStack(spacing: 12) {
+                    Text(goal.title)
+                        .lineLimit(2)
+                    Spacer()
+                    Button {
+                        #if canImport(UIKit)
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        #endif
+                        appState.circleStore.carryForward(goal: goal, to: periodStart)
+                    } label: {
+                        Text("Carry over")
+                            .font(.footnote.weight(.semibold))
+                            .padding(.horizontal, 10).padding(.vertical, 6)
+                            .background(Color.tallyAccent.opacity(0.15))
+                            .foregroundStyle(Color.tallyAccent)
+                            .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(14)
+                .background(Color.tallyCard)
+                .clipShape(RoundedRectangle(cornerRadius: 14))
+            }
+        }
+    }
+
+    // MARK: - Labels
+
+    /// "Today / This week / This month / This year" + relative offsets.
+    private var relativeLabel: String {
+        let n = periodOffset
+        switch selectedPeriod {
+        case .day:   return offsetLabel(n, singular: "day",   present: "Today",       next: "Tomorrow", prev: "Yesterday")
+        case .week:  return offsetLabel(n, singular: "week",  present: "This week",   next: "Next week",  prev: "Last week")
+        case .month: return offsetLabel(n, singular: "month", present: "This month",  next: "Next month", prev: "Last month")
+        case .year:  return offsetLabel(n, singular: "year",  present: "This year",   next: "Next year",  prev: "Last year")
+        }
+    }
+
+    private func offsetLabel(
+        _ n: Int, singular: String,
+        present: String, next: String, prev: String
+    ) -> String {
+        switch n {
+        case 0:  return present
+        case 1:  return next
+        case -1: return prev
+        case let n where n > 1:  return "In \(n) \(singular)s"
+        default:                 return "\(-n) \(singular)s ago"
+        }
+    }
+
+    /// Concrete date range for the selected period.
+    private var rangeLabel: String {
+        let fmt = DateFormatter()
+        switch selectedPeriod {
+        case .day:
+            fmt.dateFormat = "EEEE, MMM d"
+            return fmt.string(from: periodStart)
+        case .week:
+            fmt.dateFormat = "MMM d"
+            let end = periodStart.adding(days: 6)
+            return "\(fmt.string(from: periodStart)) – \(fmt.string(from: end))"
+        case .month:
+            fmt.dateFormat = "MMMM yyyy"
+            return fmt.string(from: periodStart)
+        case .year:
+            fmt.dateFormat = "yyyy"
+            return fmt.string(from: periodStart)
         }
     }
 }
@@ -107,10 +244,10 @@ private struct GoalRow: View {
                 Text(goal.title)
                     .strikethrough(isDone, color: .secondary)
                     .foregroundStyle(isDone ? .secondary : .primary)
-                if let label = deadlineLabel {
-                    Text(label.text)
-                        .font(.caption.monospacedDigit())
-                        .foregroundStyle(label.color)
+                if goal.carriedFromID != nil {
+                    Label("Carried over", systemImage: "arrow.uturn.forward")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
                 }
             }
             Spacer()
@@ -125,27 +262,5 @@ private struct GoalRow: View {
                 Label("Delete", systemImage: "trash")
             }
         }
-    }
-
-    /// `(text, color)` for a goal's deadline. Skipped entirely for completed
-    /// goals — we don't nag about deadlines on things you already finished.
-    private var deadlineLabel: (text: String, color: Color)? {
-        guard let deadline = goal.deadline, !isDone else { return nil }
-        let days = deadline.daysSince(.now)
-        if days < 0 {
-            return ("Overdue by \(-days) day\(-days == 1 ? "" : "s")", .red)
-        }
-        if days == 0 {
-            return ("Due today", .orange)
-        }
-        if days == 1 {
-            return ("Due tomorrow", Color.tallyAccent)
-        }
-        if days <= 7 {
-            return ("Due in \(days) days", Color.tallyAccent)
-        }
-        let fmt = DateFormatter()
-        fmt.dateFormat = "MMM d"
-        return ("Due \(fmt.string(from: deadline))", .secondary)
     }
 }

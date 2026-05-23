@@ -4,9 +4,10 @@ struct AddGoalSheet: View {
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
 
+    let period: GoalPeriod
+    let periodStart: Date
+
     @State private var title: String = ""
-    @State private var setDeadline: Bool = false
-    @State private var deadline: Date = .now.adding(days: 7).startOfDay
 
     private var trimmed: String {
         title.trimmingCharacters(in: .whitespaces)
@@ -15,24 +16,12 @@ struct AddGoalSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Goal") {
-                    TextField("e.g. Finish 'Atomic Habits'", text: $title, axis: .vertical)
+                Section("Goal for \(period.thisLabel)") {
+                    TextField(placeholder, text: $title, axis: .vertical)
                         .lineLimit(1...3)
                 }
-
-                Section {
-                    Toggle("Set deadline", isOn: $setDeadline.animation())
-                    if setDeadline {
-                        DatePicker(
-                            "Deadline",
-                            selection: $deadline,
-                            in: Date.now.startOfDay...,
-                            displayedComponents: .date
-                        )
-                    }
-                }
             }
-            .navigationTitle("New goal")
+            .navigationTitle("New \(period.displayName.lowercased()) goal")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -44,13 +33,24 @@ struct AddGoalSheet: View {
                         appState.circleStore.addGoal(
                             title: trimmed,
                             for: appState.currentUserID,
-                            deadline: setDeadline ? deadline.startOfDay : nil
+                            period: period,
+                            periodStart: periodStart
                         )
                         dismiss()
                     }
                     .disabled(trimmed.isEmpty)
                 }
             }
+        }
+    }
+
+    /// Period-appropriate placeholder so the example matches the timescale.
+    private var placeholder: String {
+        switch period {
+        case .day:   return "e.g. Finish the report"
+        case .week:  return "e.g. Run three times"
+        case .month: return "e.g. Read two books"
+        case .year:  return "e.g. Run a half-marathon"
         }
     }
 }
