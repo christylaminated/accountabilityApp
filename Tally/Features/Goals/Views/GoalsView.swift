@@ -4,6 +4,7 @@ import SwiftUI
 /// segmented control. Each period has its own past/future navigation and
 /// carry-over of unfinished goals from the immediately prior period.
 struct GoalsView: View {
+    @Environment(\.tallyAccent) private var tallyAccent
     @Environment(AppState.self) private var appState
 
     @State private var selectedPeriod: GoalPeriod = .week
@@ -124,7 +125,7 @@ struct GoalsView: View {
             Text("\(done)/\(goals.count)")
                 .font(.subheadline.monospacedDigit().weight(.semibold))
                 .foregroundStyle(
-                    done == goals.count && !goals.isEmpty ? Color.tallyAccent : .secondary
+                    done == goals.count && !goals.isEmpty ? tallyAccent : .secondary
                 )
 
             Button {
@@ -169,8 +170,8 @@ struct GoalsView: View {
                         Text("Carry over")
                             .font(.footnote.weight(.semibold))
                             .padding(.horizontal, 10).padding(.vertical, 6)
-                            .background(Color.tallyAccent.opacity(0.15))
-                            .foregroundStyle(Color.tallyAccent)
+                            .background(tallyAccent.opacity(0.15))
+                            .foregroundStyle(tallyAccent)
                             .clipShape(Capsule())
                     }
                     .buttonStyle(.plain)
@@ -230,6 +231,7 @@ struct GoalsView: View {
 }
 
 private struct GoalRow: View {
+    @Environment(\.tallyAccent) private var tallyAccent
     @Environment(AppState.self) private var appState
     let goal: Goal
 

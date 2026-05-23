@@ -4,10 +4,9 @@ import UIKit
 #endif
 
 extension Color {
-    /// Primary accent. Reads from `ThemeStore.shared` so the user's chosen
-    /// theme is reflected everywhere. Views observing `AppState.themeColor`
-    /// re-render automatically when the theme changes (the AppState mutator
-    /// updates the singleton + flips the observed property in one go).
+    /// Static accessor for non-SwiftUI contexts (rare). For views, read the
+    /// `\.tallyAccent` SwiftUI environment value instead — it triggers proper
+    /// re-render when the theme changes.
     static var tallyAccent: Color {
         ThemeStore.shared.currentColor.color
     }
@@ -36,4 +35,21 @@ extension Color {
     static var tallyHeat2: Color { tallyAccent.opacity(0.50) }
     static var tallyHeat3: Color { tallyAccent.opacity(0.75) }
     static var tallyHeat4: Color { tallyAccent }
+}
+
+// MARK: - SwiftUI environment plumbing for the accent color
+
+/// SwiftUI environment key carrying the current theme accent. `TallyApp`
+/// injects this from `appState.accentColor` so descendants that read
+/// `@Environment(\.tallyAccent)` re-render reactively when the user changes
+/// their theme in profile settings.
+private struct TallyAccentEnvironmentKey: EnvironmentKey {
+    static let defaultValue: Color = ThemeStore.shared.currentColor.color
+}
+
+extension EnvironmentValues {
+    var tallyAccent: Color {
+        get { self[TallyAccentEnvironmentKey.self] }
+        set { self[TallyAccentEnvironmentKey.self] = newValue }
+    }
 }

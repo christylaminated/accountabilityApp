@@ -3,6 +3,7 @@ import SwiftUI
 /// Third step of onboarding: weekly goals.
 /// Same UX pattern as HabitsSetupView. Empty fields are skipped on submit.
 struct GoalsSetupView: View {
+    @Environment(\.tallyAccent) private var tallyAccent
     let onContinue: ([String]) async -> Void
 
     @State private var titles: [String] = ["", ""]
@@ -50,7 +51,7 @@ struct GoalsSetupView: View {
             ForEach(titles.indices, id: \.self) { i in
                 HStack(spacing: 10) {
                     Image(systemName: "flag")
-                        .foregroundStyle(Color.tallyAccent.opacity(0.6))
+                        .foregroundStyle(tallyAccent.opacity(0.6))
                         .font(.title3)
                     TextField(placeholder(for: i), text: $titles[i], axis: .vertical)
                         .lineLimit(1...3)
@@ -78,7 +79,7 @@ struct GoalsSetupView: View {
         } label: {
             Label("Add another goal", systemImage: "plus")
                 .font(.system(.subheadline, design: .rounded, weight: .medium))
-                .foregroundStyle(Color.tallyAccent)
+                .foregroundStyle(tallyAccent)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 4)
         }
@@ -100,7 +101,7 @@ struct GoalsSetupView: View {
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 16)
-            .background(nonEmpty.isEmpty ? Color.tallyCard : Color.tallyAccent)
+            .background(nonEmpty.isEmpty ? Color.tallyCard : tallyAccent)
             .foregroundStyle(nonEmpty.isEmpty ? Color.primary : .white)
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }

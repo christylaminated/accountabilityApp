@@ -13,10 +13,14 @@ struct TallyApp: App {
         WindowGroup {
             RootView()
                 .environment(appState)
+                // Inject the accent color as a SwiftUI environment value so
+                // every descendant that reads `@Environment(\.tallyAccent)`
+                // re-renders reactively when the theme changes.
+                .environment(\.tallyAccent, appState.accentColor)
                 // App-wide rounded design — softer typographic feel without per-view font work.
                 .fontDesign(.rounded)
-                // Drive root tint from AppState so theme changes from profile
-                // settings propagate to every tinted SwiftUI control.
+                // Drive root tint from AppState so theme changes propagate to
+                // every tinted SwiftUI control (buttons, segmented pickers, …).
                 .tint(appState.accentColor)
         }
     }

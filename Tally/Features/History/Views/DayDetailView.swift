@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct DayDetailView: View {
+    @Environment(\.tallyAccent) private var tallyAccent
     @Environment(AppState.self) private var appState
     let date: Date
     let userID: String
@@ -26,7 +27,7 @@ struct DayDetailView: View {
                         Image(systemName: appState.personalStore.isCompleted(habit: habit, on: date)
                               ? "checkmark.circle.fill" : "circle")
                             .foregroundStyle(appState.personalStore.isCompleted(habit: habit, on: date)
-                                             ? Color.tallyAccent : .secondary)
+                                             ? tallyAccent : .secondary)
                         Text(habit.title)
                         Spacer()
                     }

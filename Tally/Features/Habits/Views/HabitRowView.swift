@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct HabitRowView: View {
+    @Environment(\.tallyAccent) private var tallyAccent
     @Environment(AppState.self) private var appState
     let habit: Habit
 
@@ -39,7 +40,7 @@ struct HabitRowView: View {
                 HStack(spacing: 12) {
                     Label("\(streak)", systemImage: "flame.fill")
                         .symbolRenderingMode(.monochrome)
-                        .foregroundStyle(streak > 0 ? Color.tallyAccent : .secondary)
+                        .foregroundStyle(streak > 0 ? tallyAccent : .secondary)
                     Label("\(longest)", systemImage: "trophy.fill")
                         .symbolRenderingMode(.monochrome)
                         .foregroundStyle(.secondary)

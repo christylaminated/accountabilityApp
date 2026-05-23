@@ -3,6 +3,7 @@ import SwiftUI
 /// First-launch profile setup. Takes a display name + an SF Symbol avatar and
 /// hands the pair to a parent-supplied async closure (typically `AppState.saveProfile`).
 struct ProfileSetupView: View {
+    @Environment(\.tallyAccent) private var tallyAccent
     /// Invoked with `(displayName, avatarSymbol)`. Throws so failures surface here.
     let onSubmit: (String, String) async throws -> Void
 
@@ -95,17 +96,17 @@ struct ProfileSetupView: View {
                             .font(.system(size: 20, weight: .medium))
                             .frame(width: 52, height: 52)
                             .foregroundStyle(
-                                avatarSymbol == choice ? Color.tallyAccent : Color.secondary
+                                avatarSymbol == choice ? tallyAccent : Color.secondary
                             )
                             .background(
                                 avatarSymbol == choice
-                                ? Color.tallyAccent.opacity(0.18)
+                                ? tallyAccent.opacity(0.18)
                                 : Color.tallyCard
                             )
                             .clipShape(Circle())
                             .overlay(
                                 Circle().stroke(
-                                    avatarSymbol == choice ? Color.tallyAccent : .clear,
+                                    avatarSymbol == choice ? tallyAccent : .clear,
                                     lineWidth: 1.5
                                 )
                             )
@@ -131,7 +132,7 @@ struct ProfileSetupView: View {
             .padding(.vertical, 16)
             .background(
                 isValid && !isSubmitting
-                ? Color.tallyAccent
+                ? tallyAccent
                 : Color.gray.opacity(0.3)
             )
             .foregroundStyle(.white)

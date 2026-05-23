@@ -4,6 +4,7 @@ import SwiftUI
 /// "Add a friend" entry point) and my Groups (chat rooms). Tapping a Group
 /// activates that Circle so its chat appears.
 struct FriendsView: View {
+    @Environment(\.tallyAccent) private var tallyAccent
     @Environment(AppState.self) private var appState
     @State private var showCreateGroup = false
     @State private var groupToDelete: TallyCircle?
@@ -143,7 +144,7 @@ struct FriendsView: View {
             }
             .padding(14)
             .background(Color.tallyCard)
-            .foregroundStyle(Color.tallyAccent)
+            .foregroundStyle(tallyAccent)
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
         .buttonStyle(.plain)
@@ -162,7 +163,7 @@ struct FriendsView: View {
             }
             .padding(14)
             .background(Color.tallyCard)
-            .foregroundStyle(Color.tallyAccent)
+            .foregroundStyle(tallyAccent)
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
         .buttonStyle(.plain)
@@ -196,6 +197,7 @@ struct FriendsView: View {
 }
 
 private struct FriendRow: View {
+    @Environment(\.tallyAccent) private var tallyAccent
     let friend: Friend
 
     var body: some View {
@@ -216,6 +218,7 @@ private struct FriendRow: View {
 }
 
 private struct GroupRow: View {
+    @Environment(\.tallyAccent) private var tallyAccent
     @Environment(AppState.self) private var appState
     let group: TallyCircle
 
@@ -224,8 +227,8 @@ private struct GroupRow: View {
             Image(systemName: "bubble.left.and.bubble.right.fill")
                 .font(.system(size: 18, weight: .medium))
                 .frame(width: 44, height: 44)
-                .foregroundStyle(Color.tallyAccent)
-                .background(Color.tallyAccent.opacity(0.15))
+                .foregroundStyle(tallyAccent)
+                .background(tallyAccent.opacity(0.15))
                 .clipShape(Circle())
             VStack(alignment: .leading, spacing: 2) {
                 Text(group.name)
@@ -252,6 +255,7 @@ private struct GroupRow: View {
 /// shared `CircleFeedView` against the active Circle. Multi-Group switching
 /// works by activating whichever Group's chat the user navigates into.
 private struct GroupChatHost: View {
+    @Environment(\.tallyAccent) private var tallyAccent
     @Environment(AppState.self) private var appState
     let circle: TallyCircle
 

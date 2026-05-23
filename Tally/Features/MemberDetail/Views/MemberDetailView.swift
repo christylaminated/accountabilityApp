@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct MemberDetailView: View {
+    @Environment(\.tallyAccent) private var tallyAccent
     @Environment(AppState.self) private var appState
     let memberID: String
 
@@ -48,7 +49,7 @@ struct MemberDetailView: View {
                                         Image(systemName: goal.completedAt != nil
                                               ? "checkmark.circle.fill" : "circle")
                                             .foregroundStyle(goal.completedAt != nil
-                                                             ? Color.tallyAccent : .secondary)
+                                                             ? tallyAccent : .secondary)
                                         Text(goal.title)
                                             .strikethrough(goal.completedAt != nil, color: .secondary)
                                             .foregroundStyle(goal.completedAt != nil
@@ -133,13 +134,14 @@ struct MemberDetailView: View {
         }
         .font(.body.weight(filled ? .semibold : .regular))
         .padding(14)
-        .background(filled ? Color.tallyAccent : Color.tallyCard)
+        .background(filled ? tallyAccent : Color.tallyCard)
         .foregroundStyle(filled ? .white : .primary)
         .clipShape(RoundedRectangle(cornerRadius: 14))
     }
 }
 
 private struct MemberHabitRow: View {
+    @Environment(\.tallyAccent) private var tallyAccent
     @Environment(AppState.self) private var appState
     let habit: Habit
     let isEditable: Bool
@@ -166,7 +168,7 @@ private struct MemberHabitRow: View {
                     Label("\(streak)-day streak", systemImage: "flame.fill")
                         .symbolRenderingMode(.monochrome)
                         .font(.caption.monospacedDigit())
-                        .foregroundStyle(Color.tallyAccent)
+                        .foregroundStyle(tallyAccent)
                 }
             }
             Spacer()

@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct MemberRowView: View {
+    @Environment(\.tallyAccent) private var tallyAccent
     @Environment(AppState.self) private var appState
     let member: Friend
 
@@ -29,15 +30,15 @@ struct MemberRowView: View {
                         Text("you")
                             .font(.caption2.weight(.semibold))
                             .padding(.horizontal, 6).padding(.vertical, 2)
-                            .background(Color.tallyAccent.opacity(0.15))
-                            .foregroundStyle(Color.tallyAccent)
+                            .background(tallyAccent.opacity(0.15))
+                            .foregroundStyle(tallyAccent)
                             .clipShape(Capsule())
                     }
                 }
                 Spacer()
                 Text("\(completedCount)/\(todayHabits.count)")
                     .font(.system(.subheadline, design: .rounded, weight: .semibold).monospacedDigit())
-                    .foregroundStyle(allDone ? Color.tallyAccent : .secondary)
+                    .foregroundStyle(allDone ? tallyAccent : .secondary)
             }
 
             if todayHabits.isEmpty {
@@ -65,6 +66,7 @@ struct MemberRowView: View {
 }
 
 private struct HabitPill: View {
+    @Environment(\.tallyAccent) private var tallyAccent
     @Environment(AppState.self) private var appState
     let habit: Habit
     let isEditable: Bool
@@ -91,8 +93,8 @@ private struct HabitPill: View {
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
-            .background(isDone ? Color.tallyAccent.opacity(0.18) : Color.tallyCanvas)
-            .foregroundStyle(isDone ? Color.tallyAccent : .primary)
+            .background(isDone ? tallyAccent.opacity(0.18) : Color.tallyCanvas)
+            .foregroundStyle(isDone ? tallyAccent : .primary)
             .clipShape(RoundedRectangle(cornerRadius: 10))
         }
         .buttonStyle(.plain)

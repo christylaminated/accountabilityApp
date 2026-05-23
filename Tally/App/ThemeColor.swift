@@ -2,7 +2,7 @@ import SwiftUI
 import Foundation
 
 /// Curated accent-color presets the user can switch between in profile
-/// settings. Persisted to UserDefaults via `ThemeStore`; `Color.tallyAccent`
+/// settings. Persisted to UserDefaults via `ThemeStore`; `tallyAccent`
 /// reads from the singleton so the chosen color shows everywhere.
 enum ThemeColor: String, CaseIterable, Codable, Hashable {
     case pink, rose, peach, amber, mint, teal, blue, indigo, purple
@@ -40,7 +40,7 @@ enum ThemeColor: String, CaseIterable, Codable, Hashable {
 }
 
 /// In-memory singleton mirroring the user's current theme. Lets the static
-/// `Color.tallyAccent` look up the current color without needing AppState in
+/// `tallyAccent` look up the current color without needing AppState in
 /// scope. `AppState.setThemeColor(_:)` updates this and SwiftUI's observation
 /// of AppState's own `themeColor` property triggers the visible re-render.
 final class ThemeStore: @unchecked Sendable {

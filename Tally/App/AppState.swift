@@ -39,7 +39,7 @@ final class AppState {
     var currentUserID: String = ""
 
     /// The user's chosen accent-color preset. Mirrors `ThemeStore.shared` so
-    /// `Color.tallyAccent` and `appState.accentColor` agree. Persisted via
+    /// `tallyAccent` and `appState.accentColor` agree. Persisted via
     /// `LocalCacheKey.themeColor` (under the hood inside ThemeStore).
     var themeColor: ThemeColor = ThemeStore.shared.currentColor
 
@@ -363,7 +363,7 @@ final class AppState {
     }
 
     /// Set the user's accent-color preset. Local-only — no CloudKit round-trip.
-    /// Updates `ThemeStore` (which `Color.tallyAccent` reads from) and flips
+    /// Updates `ThemeStore` (which `tallyAccent` reads from) and flips
     /// our own observed `themeColor` to trigger SwiftUI re-renders.
     func setThemeColor(_ color: ThemeColor) {
         themeColor = color

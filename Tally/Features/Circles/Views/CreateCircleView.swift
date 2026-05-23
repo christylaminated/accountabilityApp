@@ -6,6 +6,7 @@ import CloudKit
 /// (after this sheet has finished animating away, so UIKit's modal stack is
 /// clear for `UICloudSharingController`).
 struct CreateCircleView: View {
+    @Environment(\.tallyAccent) private var tallyAccent
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
 
@@ -32,7 +33,7 @@ struct CreateCircleView: View {
                     VStack(spacing: 10) {
                         Image(systemName: "person.2.circle.fill")
                             .font(.system(size: 52, weight: .light))
-                            .foregroundStyle(Color.tallyAccent)
+                            .foregroundStyle(tallyAccent)
                         Text("Start a Circle")
                             .font(.system(.title2, design: .rounded, weight: .bold))
                         Text("Name it, then send your partner the invite link. They tap it and they're in.")
@@ -71,7 +72,7 @@ struct CreateCircleView: View {
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 16)
-                        .background(isValid && !isCreating ? Color.tallyAccent : Color.gray.opacity(0.3))
+                        .background(isValid && !isCreating ? tallyAccent : Color.gray.opacity(0.3))
                         .foregroundStyle(.white)
                         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                     }

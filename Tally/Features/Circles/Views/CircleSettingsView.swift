@@ -4,6 +4,7 @@ import CloudKit
 /// Manage a single Circle: see members, invite more, remove (owner), leave
 /// (member), or delete (owner).
 struct CircleSettingsView: View {
+    @Environment(\.tallyAccent) private var tallyAccent
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
 
@@ -116,7 +117,7 @@ struct CircleSettingsView: View {
                 .font(.system(.body, design: .rounded, weight: .semibold))
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 14)
-                .background(atCap ? Color.gray.opacity(0.3) : Color.tallyAccent)
+                .background(atCap ? Color.gray.opacity(0.3) : tallyAccent)
                 .foregroundStyle(.white)
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }

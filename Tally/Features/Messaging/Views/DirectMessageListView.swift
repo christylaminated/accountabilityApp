@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct DirectMessageListView: View {
+    @Environment(\.tallyAccent) private var tallyAccent
     @Environment(AppState.self) private var appState
 
     var body: some View {
@@ -43,6 +44,7 @@ struct DirectMessageListView: View {
 }
 
 private struct FeedRow: View {
+    @Environment(\.tallyAccent) private var tallyAccent
     @Environment(AppState.self) private var appState
 
     var body: some View {
@@ -50,8 +52,8 @@ private struct FeedRow: View {
             Image(systemName: "bubble.left.and.bubble.right.fill")
                 .font(.system(size: 18, weight: .medium))
                 .frame(width: 44, height: 44)
-                .foregroundStyle(Color.tallyAccent)
-                .background(Color.tallyAccent.opacity(0.15))
+                .foregroundStyle(tallyAccent)
+                .background(tallyAccent.opacity(0.15))
                 .clipShape(Circle())
             VStack(alignment: .leading, spacing: 2) {
                 Text("Circle feed")
@@ -74,6 +76,7 @@ private struct FeedRow: View {
 }
 
 private struct DMThreadRow: View {
+    @Environment(\.tallyAccent) private var tallyAccent
     @Environment(AppState.self) private var appState
     let otherUser: CircleMember
 
@@ -117,7 +120,7 @@ private struct DMThreadRow: View {
                             .font(.caption.weight(.bold))
                             .foregroundStyle(.white)
                             .padding(.horizontal, 7).padding(.vertical, 2)
-                            .background(Color.tallyAccent)
+                            .background(tallyAccent)
                             .clipShape(Capsule())
                     }
                 }

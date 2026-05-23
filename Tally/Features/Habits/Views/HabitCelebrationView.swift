@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct HabitCelebrationView: View {
+    @Environment(\.tallyAccent) private var tallyAccent
     @State private var scale: CGFloat = 0.6
     @State private var opacity: Double = 0
 
@@ -19,7 +20,7 @@ struct HabitCelebrationView: View {
                     .foregroundStyle(.white)
             }
             .padding(32)
-            .background(Color.tallyAccent.opacity(0.95))
+            .background(tallyAccent.opacity(0.95))
             .clipShape(RoundedRectangle(cornerRadius: 24))
             .shadow(color: .black.opacity(0.25), radius: 16, y: 8)
             .scaleEffect(scale)

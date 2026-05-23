@@ -2,6 +2,7 @@ import SwiftUI
 import CloudKit
 
 struct CircleDashboardView: View {
+    @Environment(\.tallyAccent) private var tallyAccent
     @Environment(AppState.self) private var appState
     @State private var showProfileSettings = false
     @State private var showAddTodayGoal = false
@@ -103,8 +104,8 @@ struct CircleDashboardView: View {
             Image(systemName: avatarSymbol)
                 .font(.system(size: 26, weight: .medium))
                 .frame(width: 64, height: 64)
-                .foregroundStyle(Color.tallyAccent)
-                .background(Color.tallyAccent.opacity(0.15))
+                .foregroundStyle(tallyAccent)
+                .background(tallyAccent.opacity(0.15))
                 .clipShape(Circle())
             VStack(alignment: .leading, spacing: 4) {
                 Text("\(greeting),")
@@ -128,7 +129,7 @@ struct CircleDashboardView: View {
             HStack {
                 Image(systemName: "flag")
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Color.tallyAccent)
+                    .foregroundStyle(tallyAccent)
                 Text("Today's goals")
                     .font(.system(.headline, design: .rounded, weight: .semibold))
                 Spacer()
@@ -137,7 +138,7 @@ struct CircleDashboardView: View {
                 } label: {
                     Image(systemName: "plus.circle.fill")
                         .font(.title3)
-                        .foregroundStyle(Color.tallyAccent)
+                        .foregroundStyle(tallyAccent)
                 }
                 .buttonStyle(.plain)
             }
@@ -168,7 +169,7 @@ struct CircleDashboardView: View {
             HStack(spacing: 10) {
                 Image(systemName: "person.crop.circle.badge.plus")
                     .font(.title2)
-                    .foregroundStyle(Color.tallyAccent)
+                    .foregroundStyle(tallyAccent)
                 Text("Bring your friends in")
                     .font(.system(.headline, design: .rounded, weight: .semibold))
             }
@@ -183,7 +184,7 @@ struct CircleDashboardView: View {
                     .font(.system(.subheadline, design: .rounded, weight: .semibold))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
-                    .background(Color.tallyAccent)
+                    .background(tallyAccent)
                     .foregroundStyle(.white)
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
@@ -195,7 +196,7 @@ struct CircleDashboardView: View {
                 .fill(Color.tallyCard)
                 .overlay(
                     RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .strokeBorder(Color.tallyAccent.opacity(0.25), lineWidth: 1)
+                        .strokeBorder(tallyAccent.opacity(0.25), lineWidth: 1)
                 )
         )
     }
@@ -212,6 +213,7 @@ struct CircleDashboardView: View {
 /// One row inside the dashboard's "Today's goals" card. Tappable checkbox +
 /// strikethrough on completion.
 private struct TodayGoalRow: View {
+    @Environment(\.tallyAccent) private var tallyAccent
     @Environment(AppState.self) private var appState
     let goal: Goal
 

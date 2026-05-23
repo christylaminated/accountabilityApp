@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct MainTabView: View {
+    @Environment(\.tallyAccent) private var tallyAccent
+
     var body: some View {
         TabView {
             CircleDashboardView()
@@ -20,6 +22,6 @@ struct MainTabView: View {
             }
             .tabItem { Label("History", systemImage: "calendar") }
         }
-        .tint(.tallyAccent)
+        .tint(tallyAccent)
     }
 }

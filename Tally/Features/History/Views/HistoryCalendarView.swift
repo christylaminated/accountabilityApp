@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct HistoryCalendarView: View {
+    @Environment(\.tallyAccent) private var tallyAccent
     @Environment(AppState.self) private var appState
     private let explicitTargetID: String?
     @State private var displayedMonth: Date = .now.startOfMonth
@@ -123,6 +124,7 @@ struct HistoryCalendarView: View {
 }
 
 private struct DayCell: View {
+    @Environment(\.tallyAccent) private var tallyAccent
     @Environment(AppState.self) private var appState
     let date: Date
     let userID: String
@@ -165,7 +167,7 @@ private struct DayCell: View {
                 .overlay(
                     RoundedRectangle(cornerRadius: 8)
                         .stroke(
-                            isSelected ? Color.tallyAccent : (isToday ? Color.tallyAccent.opacity(0.5) : Color.clear),
+                            isSelected ? tallyAccent : (isToday ? tallyAccent.opacity(0.5) : Color.clear),
                             lineWidth: isSelected ? 2 : 1
                         )
                 )

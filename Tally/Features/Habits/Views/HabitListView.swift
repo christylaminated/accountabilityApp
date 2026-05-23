@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct HabitListView: View {
+    @Environment(\.tallyAccent) private var tallyAccent
     @Environment(AppState.self) private var appState
     @State private var showAddSheet = false
     @State private var showCelebration = false
@@ -95,14 +96,15 @@ struct HabitListView: View {
 }
 
 private struct ProgressGauge: View {
+    @Environment(\.tallyAccent) private var tallyAccent
     let value: Double
     var body: some View {
         ZStack {
             Circle()
-                .stroke(Color.tallyAccent.opacity(0.15), lineWidth: 6)
+                .stroke(tallyAccent.opacity(0.15), lineWidth: 6)
             Circle()
                 .trim(from: 0, to: value)
-                .stroke(Color.tallyAccent, style: StrokeStyle(lineWidth: 6, lineCap: .round))
+                .stroke(tallyAccent, style: StrokeStyle(lineWidth: 6, lineCap: .round))
                 .rotationEffect(.degrees(-90))
                 .animation(.spring, value: value)
             Text("\(Int(value * 100))%")

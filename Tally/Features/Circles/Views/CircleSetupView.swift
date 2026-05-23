@@ -5,6 +5,7 @@ import SwiftUI
 /// the dashboard — or, if a friend already sent an invite link, tapping it joins
 /// their Circle and skips past this screen automatically.
 struct CircleSetupView: View {
+    @Environment(\.tallyAccent) private var tallyAccent
     @Environment(AppState.self) private var appState
 
     /// Invoked with the chosen Circle name. Throws so failures surface here.
@@ -60,7 +61,7 @@ struct CircleSetupView: View {
         VStack(spacing: 10) {
             Image(systemName: "person.2.circle.fill")
                 .font(.system(size: 56, weight: .light))
-                .foregroundStyle(Color.tallyAccent)
+                .foregroundStyle(tallyAccent)
             Text("Create your Circle")
                 .font(.system(.largeTitle, design: .rounded, weight: .bold))
                 .multilineTextAlignment(.center)
@@ -96,7 +97,7 @@ struct CircleSetupView: View {
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 16)
-            .background(isValid && !isCreating ? Color.tallyAccent : Color.gray.opacity(0.3))
+            .background(isValid && !isCreating ? tallyAccent : Color.gray.opacity(0.3))
             .foregroundStyle(.white)
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }

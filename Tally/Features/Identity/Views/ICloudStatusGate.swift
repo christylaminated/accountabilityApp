@@ -4,6 +4,7 @@ import CloudKit
 /// Shown when CloudKit isn't available. Copy adapts to the specific reason,
 /// and "Try again" lets the user re-check after fixing things in Settings.
 struct ICloudStatusGate: View {
+    @Environment(\.tallyAccent) private var tallyAccent
     let reason: CKAccountStatus
     let onRetry: () -> Void
 
@@ -13,7 +14,7 @@ struct ICloudStatusGate: View {
 
             Image(systemName: "icloud.slash")
                 .font(.system(size: 56, weight: .light))
-                .foregroundStyle(Color.tallyAccent)
+                .foregroundStyle(tallyAccent)
 
             VStack(spacing: 12) {
                 Text(title)
@@ -35,7 +36,7 @@ struct ICloudStatusGate: View {
                             .font(.body.weight(.semibold))
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 14)
-                            .background(Color.tallyAccent)
+                            .background(tallyAccent)
                             .foregroundStyle(.white)
                             .clipShape(RoundedRectangle(cornerRadius: 14))
                     }
