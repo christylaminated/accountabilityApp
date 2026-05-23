@@ -14,11 +14,6 @@ settings:
     SWIFT_VERSION: "5.9"
     IPHONEOS_DEPLOYMENT_TARGET: "17.0"
     GENERATE_INFOPLIST_FILE: YES
-    # Required by TestFlight / App Store Connect. MARKETING_VERSION becomes
-    # CFBundleShortVersionString (1-3 dot-separated ints); CURRENT_PROJECT_VERSION
-    # becomes CFBundleVersion (the build number — must increase each upload).
-    MARKETING_VERSION: "1.0"
-    CURRENT_PROJECT_VERSION: "1"
     INFOPLIST_KEY_UILaunchScreen_Generation: YES
     INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
     INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
@@ -55,6 +50,11 @@ targets:
         ENABLE_PREVIEWS: YES
         SWIFT_EMIT_LOC_STRINGS: YES
         DEVELOPMENT_TEAM: 2UM67KP3T9
+        # Required by TestFlight / App Store Connect.
+        # MARKETING_VERSION       → CFBundleShortVersionString ("1.0")
+        # CURRENT_PROJECT_VERSION → CFBundleVersion (build number; bump each upload)
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"
 
   TallyTests:
     type: bundle.unit-test
