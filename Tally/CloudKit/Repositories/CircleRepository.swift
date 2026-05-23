@@ -170,7 +170,10 @@ struct CloudKitCircleRepository: CircleRepository {
 
         let share = CKShare(rootRecord: root)
         share[CKShare.SystemFieldKey.title] = "Join \(circle.name) on Tally" as CKRecordValue
-        share.publicPermission = .none
+        // .readWrite so anyone tapping the link can join AND write messages /
+        // their own membership record. Link sharing is the whole point — with
+        // .none the recipient would get "permission denied" on accept.
+        share.publicPermission = .readWrite
 
         // Save root + share together. Both must succeed; surface either failure
         // verbatim so the caller can show the real CloudKit error instead of

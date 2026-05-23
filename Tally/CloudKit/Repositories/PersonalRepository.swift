@@ -207,7 +207,11 @@ struct CloudKitPersonalRepository: PersonalRepository {
 
         let share = CKShare(rootRecord: root)
         share[CKShare.SystemFieldKey.title] = "Add me on Tally" as CKRecordValue
-        share.publicPermission = .none
+        // .readOnly so anyone tapping the link can join (otherwise they'd get
+        // "permission denied"), but they can only *read* my data — they can't
+        // modify my habits or goals. The bidirectional friend graph means
+        // they'll share their own zone back with the same permission.
+        share.publicPermission = .readOnly
 
         let result = try await client.privateDB.modifyRecords(saving: [root, share], deleting: [])
         if let rootResult = result.saveResults[root.recordID] {
@@ -234,7 +238,8 @@ struct CloudKitPersonalRepository: PersonalRepository {
         }
 
         let participant = try await lookupParticipant(userRecordID: userRecordID)
-        participant.permission = .readWrite
+        // Friends only need to *read* my data, not modify it.
+        participant.permission = .readOnly
         share.addParticipant(participant)
 
         _ = try await client.privateDB.modifyRecords(
