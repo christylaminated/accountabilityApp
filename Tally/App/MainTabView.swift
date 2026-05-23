@@ -12,8 +12,8 @@ struct MainTabView: View {
             GoalsView()
                 .tabItem { Label("Goals", systemImage: "flag.fill") }
 
-            DirectMessageListView()
-                .tabItem { Label("Chat", systemImage: "bubble.left.and.bubble.right.fill") }
+            FriendsView()
+                .tabItem { Label("Friends", systemImage: "person.2.fill") }
 
             NavigationStack {
                 HistoryCalendarView()

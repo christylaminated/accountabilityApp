@@ -44,4 +44,6 @@ final class MockPersonalRepository: PersonalRepository, @unchecked Sendable {
     func friendSnapshot(zoneID: CKRecordZone.ID, since token: CKServerChangeToken?) async throws -> PersonalSnapshot {
         PersonalSnapshot()
     }
+
+    func updatePersonalRootProfile(displayName: String, avatarSymbol: String) async throws {}
 }

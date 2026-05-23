@@ -2,12 +2,15 @@ import CloudKit
 import Foundation
 
 /// The root record inside each user's personal CloudKit zone. Habits, goals,
-/// and check-ins live as children of this record so they automatically ride
-/// the personal CKShare once participants are added (3e+).
+/// and check-ins live as children of this record so they ride the personal
+/// CKShare to every friend.
 ///
-/// Tiny on purpose — its only job is to exist so child records have a parent
-/// to attach to and the share has a root to attach to.
+/// Also carries the user's display name + avatar symbol — that's how friends
+/// learn how to render this user (the private `UserProfile` stays in the
+/// private DB default zone, invisible to friends).
 struct PersonalRoot: Hashable, Codable {
+    var displayName: String
+    var avatarSymbol: String
     var createdAt: Date
 }
 
@@ -16,10 +19,14 @@ extension PersonalRoot: CKRecordConvertible {
 
     init?(record: CKRecord) {
         guard let createdAt = record["createdAt"] as? Date else { return nil }
+        self.displayName = (record["displayName"] as? String) ?? ""
+        self.avatarSymbol = (record["avatarSymbol"] as? String) ?? "leaf"
         self.createdAt = createdAt
     }
 
     func populate(_ record: CKRecord) {
+        record["displayName"] = displayName
+        record["avatarSymbol"] = avatarSymbol
         record["createdAt"] = createdAt
     }
 }

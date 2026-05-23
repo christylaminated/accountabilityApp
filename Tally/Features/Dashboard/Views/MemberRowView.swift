@@ -2,7 +2,7 @@ import SwiftUI
 
 struct MemberRowView: View {
     @Environment(AppState.self) private var appState
-    let member: CircleMember
+    let member: Friend
 
     private var isMe: Bool { member.userID == appState.currentUserID }
 

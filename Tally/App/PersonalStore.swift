@@ -27,6 +27,9 @@ final class PersonalStore {
     var habits: [Habit] = []
     var completions: [HabitCompletion] = []
     var goals: [Goal] = []
+    /// Friends derived from the personal zones visible in my shared DB.
+    /// Display name + avatar come from each friend's `PersonalRoot`.
+    var friends: [Friend] = []
 
     var isLoading = false
     var lastError: String?
@@ -54,7 +57,7 @@ final class PersonalStore {
         ownToken = nil
         ownPrivateToken = nil
         friendTokens = [:]
-        habits = []; completions = []; goals = []
+        habits = []; completions = []; goals = []; friends = []
         await load()
     }
 
@@ -77,13 +80,27 @@ final class PersonalStore {
             // Goals are always shared, so we don't merge minePrivate.goals.
 
             let zones = try await repository.friendZones()
+            var loadedFriends: [Friend] = []
             for zone in zones {
                 let snap = try await repository.friendSnapshot(zoneID: zone.zoneID, since: nil)
                 friendTokens[zone.zoneID] = snap.token
                 habits.append(contentsOf: snap.habits)
                 completions.append(contentsOf: snap.completions)
                 goals.append(contentsOf: snap.goals)
+
+                let userID = zone.zoneID.ownerName
+                if let root = snap.root {
+                    loadedFriends.append(Friend(
+                        userID: userID,
+                        displayName: root.displayName.isEmpty ? "Friend" : root.displayName,
+                        avatarSymbol: root.avatarSymbol
+                    ))
+                } else {
+                    // No root yet — friend's app hasn't written profile info.
+                    loadedFriends.append(Friend(userID: userID, displayName: "Friend", avatarSymbol: "leaf"))
+                }
             }
+            friends = loadedFriends
         } catch {
             lastError = error.localizedDescription
         }
@@ -118,6 +135,7 @@ final class PersonalStore {
                 habits.removeAll { $0.userID == departedUserID }
                 completions.removeAll { $0.userID == departedUserID }
                 goals.removeAll { $0.userID == departedUserID }
+                friends.removeAll { $0.userID == departedUserID }
             }
 
             for zone in zones {
@@ -128,6 +146,21 @@ final class PersonalStore {
                     )
                     friendTokens[zone.zoneID] = snap.token
                     apply(snap, ownerUserID: zone.zoneID.ownerName)
+                    // Update friend's profile from PersonalRoot if it arrived
+                    // in this delta, or add a fresh Friend entry on first sight.
+                    if let root = snap.root {
+                        upsertFriend(
+                            userID: zone.zoneID.ownerName,
+                            displayName: root.displayName.isEmpty ? "Friend" : root.displayName,
+                            avatarSymbol: root.avatarSymbol
+                        )
+                    } else if !friends.contains(where: { $0.userID == zone.zoneID.ownerName }) {
+                        friends.append(Friend(
+                            userID: zone.zoneID.ownerName,
+                            displayName: "Friend",
+                            avatarSymbol: "leaf"
+                        ))
+                    }
                 } catch let error as CKError where error.code == .changeTokenExpired {
                     // Reset just this zone's token and do a full refetch for it.
                     friendTokens.removeValue(forKey: zone.zoneID)
@@ -161,6 +194,21 @@ final class PersonalStore {
         Self.merge(snap.habits, deleted: deleted, ownerUserID: ownerUserID, into: &habits)
         Self.merge(snap.completions, deleted: deleted, ownerUserID: ownerUserID, into: &completions)
         Self.merge(snap.goals, deleted: deleted, ownerUserID: ownerUserID, into: &goals)
+    }
+
+    /// Insert-or-update a friend row keyed by userID.
+    private func upsertFriend(userID: String, displayName: String, avatarSymbol: String) {
+        if let i = friends.firstIndex(where: { $0.userID == userID }) {
+            friends[i].displayName = displayName
+            friends[i].avatarSymbol = avatarSymbol
+        } else {
+            friends.append(Friend(userID: userID, displayName: displayName, avatarSymbol: avatarSymbol))
+        }
+    }
+
+    /// Look up a friend by user record ID.
+    func friend(id userID: String) -> Friend? {
+        friends.first { $0.userID == userID }
     }
 
     /// Upsert changed records by `recordName`, then drop anything deleted from

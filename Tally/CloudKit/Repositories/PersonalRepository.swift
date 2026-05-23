@@ -42,6 +42,10 @@ protocol PersonalRepository: Sendable {
     /// Delete records by name from my private zone.
     func deleteOwnPrivate(recordNames: [String]) async throws
 
+    /// Write the user's display name + avatar into PersonalRoot so friends
+    /// can render this user. Idempotent.
+    func updatePersonalRootProfile(displayName: String, avatarSymbol: String) async throws
+
     /// Mint or fetch the CKShare on my personal zone. Required before inviting
     /// anyone as a friend.
     func makePersonalShare() async throws -> (CKShare, CKContainer)
@@ -327,8 +331,15 @@ struct CloudKitPersonalRepository: PersonalRepository {
         }
     }
 
+    func updatePersonalRootProfile(displayName: String, avatarSymbol: String) async throws {
+        let record = try await client.privateDB.record(for: rootRecordID)
+        record["displayName"] = displayName
+        record["avatarSymbol"] = avatarSymbol
+        _ = try await client.privateDB.save(record)
+    }
+
     private func createRoot(at rootID: CKRecord.ID) async throws {
-        let root = PersonalRoot(createdAt: .now)
+        let root = PersonalRoot(displayName: "", avatarSymbol: "leaf", createdAt: .now)
         let record = root.toRecord(recordID: rootID)
         _ = try await client.privateDB.save(record)
     }

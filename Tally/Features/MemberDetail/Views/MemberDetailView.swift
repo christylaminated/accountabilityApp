@@ -4,8 +4,8 @@ struct MemberDetailView: View {
     @Environment(AppState.self) private var appState
     let memberID: String
 
-    private var member: CircleMember? {
-        appState.circleStore.member(id: memberID)
+    private var member: Friend? {
+        appState.member(for: memberID)
     }
 
     private var isMe: Bool { memberID == appState.currentUserID }
@@ -96,7 +96,7 @@ struct MemberDetailView: View {
 
     // MARK: Subviews
 
-    private func header(_ member: CircleMember) -> some View {
+    private func header(_ member: Friend) -> some View {
         HStack(spacing: 16) {
             AvatarView(symbolName: member.avatarSymbol, size: 72)
             VStack(alignment: .leading, spacing: 4) {

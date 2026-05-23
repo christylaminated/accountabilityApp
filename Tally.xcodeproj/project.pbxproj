@@ -17,6 +17,7 @@
 		290BABB86CBD2D9826AC33E4 /* HabitCompletion.swift in Sources */ = {isa = PBXBuildFile; fileRef = F67E6D38950535254146D36C /* HabitCompletion.swift */; };
 		2C873E5ED0126C0807005F80 /* DeepLinkHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10C04B332FB0E9DCC14136A9 /* DeepLinkHandler.swift */; };
 		2E8C8E17F74E88A4471EC79B /* Date+Tally.swift in Sources */ = {isa = PBXBuildFile; fileRef = 370BFA08DA98388F57FA9FE3 /* Date+Tally.swift */; };
+		2ED206940745EAAF4E55B38E /* Friend.swift in Sources */ = {isa = PBXBuildFile; fileRef = 900DD838B2B98F9D16DBE48E /* Friend.swift */; };
 		2EF4CD66338EB2415A1B358D /* MemberDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E237822882594EFFAEB4744 /* MemberDetailView.swift */; };
 		2F4E5A209E8F9855EA757C37 /* Goal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 443EF2CA8E73B6034FCFF27D /* Goal.swift */; };
 		343BD6037A10410E91205018 /* WeekCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = C998D4524473F7524D00E4B9 /* WeekCalculator.swift */; };
@@ -56,6 +57,7 @@
 		C625714CA898BACADBB5D1AF /* CircleSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EF5919B0A3456AC4D7520B1 /* CircleSettingsView.swift */; };
 		C6DEA3365130BE06EC19FBB8 /* HabitCelebrationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6DD670F1D258FBAD3801A69 /* HabitCelebrationView.swift */; };
 		C8EEF15AC254074D42C7EC9E /* PersonalRoot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 131B65496F7C2096D461EFB0 /* PersonalRoot.swift */; };
+		CA6D88B34B1C2CFF17595CBB /* FriendsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52D645AA20CC08D5771E92FB /* FriendsView.swift */; };
 		D5E7F9B7014514226A1A68DC /* MemberRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DFE77214583F77CB5A7185D /* MemberRowView.swift */; };
 		D7539724508FDA45F5EF819E /* UserProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A984F64EB765CBCA58109CA /* UserProfile.swift */; };
 		DD3C34BA9BCF58E4313CF34C /* HistoryCalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B23EFD69AE88007BCFBA851F /* HistoryCalendarView.swift */; };
@@ -109,6 +111,7 @@
 		4DCF1A5BC6FA366C4B658D35 /* Tally.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Tally.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		4DD98198626AE43163D781E9 /* MockPersonalRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockPersonalRepository.swift; sourceTree = "<group>"; };
 		528E58669C73437CABA6DFA0 /* CreateCircleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateCircleView.swift; sourceTree = "<group>"; };
+		52D645AA20CC08D5771E92FB /* FriendsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FriendsView.swift; sourceTree = "<group>"; };
 		530F6020C6942EAEAB383940 /* CKRecordConvertible.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CKRecordConvertible.swift; sourceTree = "<group>"; };
 		56F319D35E92BE520565AEBF /* MessageBubbleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageBubbleView.swift; sourceTree = "<group>"; };
 		572BA4BB19728F7A9F7AED04 /* GoalsSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoalsSetupView.swift; sourceTree = "<group>"; };
@@ -122,6 +125,7 @@
 		81274E10DB3D034993CAD125 /* Habit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Habit.swift; sourceTree = "<group>"; };
 		87073D927C36A87500F56727 /* AddHabitSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddHabitSheet.swift; sourceTree = "<group>"; };
 		8F9632183DC480FF9013A5DE /* Constants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Constants.swift; sourceTree = "<group>"; };
+		900DD838B2B98F9D16DBE48E /* Friend.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Friend.swift; sourceTree = "<group>"; };
 		92FA5CF587378B479D1CD542 /* PersonalRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonalRepository.swift; sourceTree = "<group>"; };
 		952D829F4BE8048607324226 /* TallyApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TallyApp.swift; sourceTree = "<group>"; };
 		975BA3F618A269A8D5D8EA2A /* CircleMessage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CircleMessage.swift; sourceTree = "<group>"; };
@@ -205,6 +209,7 @@
 				4C0DCF5404863ACA6CB96F03 /* CircleFeedView.swift */,
 				6A96D357A003369225937AA7 /* DirectMessageListView.swift */,
 				7621171426553E6ABA9F1C87 /* DirectMessageThreadView.swift */,
+				52D645AA20CC08D5771E92FB /* FriendsView.swift */,
 				56F319D35E92BE520565AEBF /* MessageBubbleView.swift */,
 				1DE51B53C3B5C99A361E9DD7 /* MessageComposerView.swift */,
 			);
@@ -428,6 +433,7 @@
 				3299AC9D570A5254E7ECF943 /* CircleMember.swift */,
 				975BA3F618A269A8D5D8EA2A /* CircleMessage.swift */,
 				6A9A9D1DF334A01ADC0012B0 /* DirectMessage.swift */,
+				900DD838B2B98F9D16DBE48E /* Friend.swift */,
 				443EF2CA8E73B6034FCFF27D /* Goal.swift */,
 				81274E10DB3D034993CAD125 /* Habit.swift */,
 				F67E6D38950535254146D36C /* HabitCompletion.swift */,
@@ -566,6 +572,8 @@
 				5463BAB7233583B1CE0CC2DB /* DirectMessageListView.swift in Sources */,
 				140D4F90BABD9336827F0C43 /* DirectMessageThreadView.swift in Sources */,
 				0024E4E9B5BE578D82C70491 /* EmptyStateView.swift in Sources */,
+				2ED206940745EAAF4E55B38E /* Friend.swift in Sources */,
+				CA6D88B34B1C2CFF17595CBB /* FriendsView.swift in Sources */,
 				2F4E5A209E8F9855EA757C37 /* Goal.swift in Sources */,
 				4E0D613B82DDFD9130A82EAE /* GoalsSetupView.swift in Sources */,
 				E844AA74D25974ED4BBC3CB3 /* GoalsView.swift in Sources */,

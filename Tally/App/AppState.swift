@@ -184,21 +184,21 @@ final class AppState {
         }
     }
 
-    /// After auth + profile are confirmed: route to Circle setup if the user has
-    /// no Circle yet, otherwise activate the store and show the main app.
+    /// After auth + profile are confirmed: activate the current Circle (if any)
+    /// and show the main app. A user with zero Circles is a valid state —
+    /// they're on the dashboard with the "Add a friend" prompt.
     private func enterMainAppOrCircleSetup() async {
-        guard let circle = activeCircle else {
-            onboardingState = .needsCircleSetup
-            return
+        if let circle = activeCircle {
+            await circleStore.activate(circle, currentUserID: currentUserID)
         }
-        await circleStore.activate(circle, currentUserID: currentUserID)
         onboardingState = .ready
     }
 
     // MARK: - Onboarding transitions
 
-    /// Called from `ProfileSetupView` on submit. Persists to CloudKit, then routes
-    /// to Circle setup. Marks this as a first run so habits/goals setup follows.
+    /// Called from `ProfileSetupView` on submit. Persists to CloudKit, mirrors
+    /// the user's name + avatar into their personal zone's root record so
+    /// friends can render them, then routes to habits setup.
     func saveProfile(displayName: String, avatarSymbol: String) async throws {
         let profile = try await profileRepository.saveOwnProfile(
             displayName: displayName,
@@ -206,10 +206,16 @@ final class AppState {
         )
         ownCloudProfile = profile
         isFirstRunOnboarding = true
-        onboardingState = .needsCircleSetup
-        // If the user reached us by tapping a friend's invite link before
-        // finishing their profile, the share is buffered — join it now so they
-        // skip straight past Circle setup.
+
+        // Ensure the personal zone exists, then write the friend-visible name
+        // and avatar into PersonalRoot. Best-effort.
+        try? await personalRepository.ensurePersonalZone()
+        try? await personalRepository.updatePersonalRootProfile(
+            displayName: displayName,
+            avatarSymbol: avatarSymbol
+        )
+
+        onboardingState = .needsHabitsSetup
         await handleIncomingShareIfNeeded()
     }
 
@@ -230,9 +236,40 @@ final class AppState {
     }
 
     /// Move on from Circle setup — to habits on a first run, else straight to the
-    /// main app. Used after creating a Circle or accepting an invite.
+    /// main app. Used after creating a Circle or accepting an invite. Retained
+    /// for backward compatibility; new onboarding no longer routes through
+    /// `.needsCircleSetup` at all.
     private func advancePastCircleSetup() {
         onboardingState = isFirstRunOnboarding ? .needsHabitsSetup : .ready
+    }
+
+    /// Set `circle` as the active Circle and reload its members + chat.
+    /// Called when the user taps into a Group from the Friends tab.
+    func activateCircle(_ circle: TallyCircle) async {
+        await circleStore.activate(circle, currentUserID: currentUserID)
+    }
+
+    // MARK: - Members / friends (dashboard composition)
+
+    /// "Me" rendered as a `Friend` for symmetric iteration on the dashboard.
+    var meAsFriend: Friend {
+        Friend(
+            userID: currentUserID,
+            displayName: ownCloudProfile?.displayName ?? "Me",
+            avatarSymbol: ownCloudProfile?.avatarSymbol ?? "leaf"
+        )
+    }
+
+    /// Me plus every friend visible via the personal share graph. Drives the
+    /// dashboard list and member-detail navigation.
+    var dashboardMembers: [Friend] {
+        [meAsFriend] + personalStore.friends
+    }
+
+    /// Look up a member (me or a friend) by user record name.
+    func member(for userID: String) -> Friend? {
+        if userID == currentUserID { return meAsFriend }
+        return personalStore.friend(id: userID)
     }
 
     /// Called from `HabitsSetupView`. Persists each non-empty title as a habit in

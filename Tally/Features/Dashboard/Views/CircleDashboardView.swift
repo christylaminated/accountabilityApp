@@ -31,14 +31,14 @@ struct CircleDashboardView: View {
                 VStack(spacing: 16) {
                     headerCard
 
-                    ForEach(appState.circleStore.orderedMembers) { member in
+                    ForEach(appState.dashboardMembers) { member in
                         NavigationLink(value: member.userID) {
                             MemberRowView(member: member)
                         }
                         .buttonStyle(.plain)
                     }
 
-                    if appState.circleStore.otherMembers.isEmpty {
+                    if appState.personalStore.friends.isEmpty {
                         addFriendCard
                     }
 
