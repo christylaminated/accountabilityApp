@@ -34,14 +34,14 @@ struct GoalsSetupView: View {
 
     private var header: some View {
         VStack(spacing: 10) {
-            Text("And this week?")
+            Text("What are you working toward?")
                 .font(.system(.largeTitle, design: .rounded, weight: .bold))
                 .multilineTextAlignment(.center)
-            Text("One-off intentions for the next seven days. Resets every Monday.")
+            Text("Bigger things — the goals that hang around until you finish them. Add a few; you can set deadlines later.")
                 .font(.system(.body, design: .rounded))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-                .frame(maxWidth: 320)
+                .frame(maxWidth: 340)
         }
     }
 

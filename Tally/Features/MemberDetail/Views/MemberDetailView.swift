@@ -2,31 +2,28 @@ import SwiftUI
 
 struct MemberDetailView: View {
     @Environment(AppState.self) private var appState
-    let memberID: UUID
+    let memberID: String
 
-    private var profile: Profile? {
-        appState.profileStore.profile(id: memberID)
+    private var member: CircleMember? {
+        appState.circleStore.member(id: memberID)
     }
 
     private var isMe: Bool { memberID == appState.currentUserID }
 
     private var habits: [Habit] {
-        appState.habitStore.habits(for: memberID)
+        appState.circleStore.habits(for: memberID)
     }
 
-    private var goals: [WeeklyGoal] {
-        appState.goalStore.goals(
-            for: memberID,
-            weekStart: WeekCalculator.weekStart(for: .now)
-        )
+    private var goals: [Goal] {
+        appState.circleStore.openGoals(for: memberID)
     }
 
     var body: some View {
         Group {
-            if let profile {
+            if let member {
                 ScrollView {
                     VStack(spacing: 16) {
-                        header(profile)
+                        header(member)
 
                         section(title: "Today's habits") {
                             if habits.isEmpty {
@@ -38,9 +35,9 @@ struct MemberDetailView: View {
                             }
                         }
 
-                        section(title: "This week's goals") {
+                        section(title: "Open goals") {
                             if goals.isEmpty {
-                                infoCard("No goals set this week")
+                                infoCard("No open goals")
                             } else {
                                 ForEach(goals) { goal in
                                     HStack(spacing: 12) {
@@ -73,7 +70,7 @@ struct MemberDetailView: View {
                             } label: {
                                 actionCard(
                                     icon: "bubble.left.and.bubble.right.fill",
-                                    text: "Message \(profile.displayName)",
+                                    text: "Message \(member.displayName)",
                                     filled: true
                                 )
                             }
@@ -85,7 +82,7 @@ struct MemberDetailView: View {
                     .padding(.top, 8)
                 }
                 .background(Color.tallyCanvas)
-                .navigationTitle(profile.displayName)
+                .navigationTitle(member.displayName)
                 .navigationBarTitleDisplayMode(.inline)
             } else {
                 EmptyStateView(icon: "person.fill.questionmark", title: "Member not found", message: "")
@@ -95,11 +92,11 @@ struct MemberDetailView: View {
 
     // MARK: Subviews
 
-    private func header(_ profile: Profile) -> some View {
+    private func header(_ member: CircleMember) -> some View {
         HStack(spacing: 16) {
-            AvatarView(symbolName: profile.avatarSymbol, size: 72)
+            AvatarView(symbolName: member.avatarSymbol, size: 72)
             VStack(alignment: .leading, spacing: 4) {
-                Text(profile.displayName)
+                Text(member.displayName)
                     .font(.system(.title2, design: .rounded, weight: .semibold))
             }
             Spacer()
@@ -153,12 +150,12 @@ private struct MemberHabitRow: View {
     let isEditable: Bool
 
     private var isDone: Bool {
-        appState.habitStore.isCompleted(habit: habit, on: .now)
+        appState.circleStore.isCompleted(habit: habit, on: .now)
     }
 
     private var streak: Int {
         StreakCalculator.currentStreak(
-            completions: appState.habitStore.completionDates(habit: habit),
+            completions: appState.circleStore.completionDates(habit: habit),
             habitCreatedAt: habit.createdAt
         )
     }
@@ -166,12 +163,13 @@ private struct MemberHabitRow: View {
     var body: some View {
         HStack(spacing: 12) {
             CheckboxButton(isChecked: isDone, isEditable: isEditable) {
-                _ = appState.habitStore.toggle(habit: habit, on: .now)
+                _ = appState.circleStore.toggle(habit: habit, on: .now)
             }
             VStack(alignment: .leading, spacing: 2) {
                 Text(habit.title).font(.body.weight(.medium))
                 if streak > 0 {
                     Label("\(streak)-day streak", systemImage: "flame.fill")
+                        .symbolRenderingMode(.monochrome)
                         .font(.caption.monospacedDigit())
                         .foregroundStyle(Color.tallyAccent)
                 }

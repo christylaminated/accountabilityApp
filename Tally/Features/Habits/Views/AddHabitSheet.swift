@@ -26,7 +26,7 @@ struct AddHabitSheet: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Add") {
                         guard !trimmed.isEmpty else { return }
-                        appState.habitStore.add(title: trimmed, for: appState.currentUserID)
+                        appState.circleStore.addHabit(title: trimmed, for: appState.currentUserID)
                         dismiss()
                     }
                     .disabled(trimmed.isEmpty)

@@ -5,7 +5,7 @@ struct CircleFeedView: View {
     @State private var composerText: String = ""
 
     private var messages: [CircleMessage] {
-        appState.messageStore.feed(circleID: appState.activeCircleID)
+        appState.circleStore.feed
     }
 
     var body: some View {
@@ -40,19 +40,19 @@ struct CircleFeedView: View {
             MessageComposerView(text: $composerText) { send() }
         }
         .background(Color.tallyCanvas)
-        .navigationTitle(appState.activeCircle.name)
+        .navigationTitle(appState.activeCircle?.name ?? "Circle")
         .navigationBarTitleDisplayMode(.inline)
     }
 
     private func bubble(for msg: CircleMessage) -> some View {
         let isMe = msg.senderID == appState.currentUserID
-        let profile = appState.profileStore.profile(id: msg.senderID)
+        let member = appState.circleStore.member(id: msg.senderID)
         return MessageBubbleView(
             text: msg.body,
             timestamp: msg.createdAt,
             isMe: isMe,
-            senderSymbol: profile?.avatarSymbol ?? "person",
-            senderName: profile?.displayName ?? "",
+            senderSymbol: member?.avatarSymbol ?? "person",
+            senderName: member?.displayName ?? "",
             showSender: !isMe
         )
     }
@@ -63,9 +63,8 @@ struct CircleFeedView: View {
         #if canImport(UIKit)
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
         #endif
-        appState.messageStore.sendCircle(
+        appState.circleStore.sendCircleMessage(
             body: body,
-            circleID: appState.activeCircleID,
             senderID: appState.currentUserID
         )
         composerText = ""

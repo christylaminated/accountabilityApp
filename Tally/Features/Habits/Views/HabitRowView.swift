@@ -5,19 +5,19 @@ struct HabitRowView: View {
     let habit: Habit
 
     private var isDone: Bool {
-        appState.habitStore.isCompleted(habit: habit, on: .now)
+        appState.circleStore.isCompleted(habit: habit, on: .now)
     }
 
     private var streak: Int {
         StreakCalculator.currentStreak(
-            completions: appState.habitStore.completionDates(habit: habit),
+            completions: appState.circleStore.completionDates(habit: habit),
             habitCreatedAt: habit.createdAt
         )
     }
 
     private var longest: Int {
         StreakCalculator.longestStreak(
-            completions: appState.habitStore.completionDates(habit: habit),
+            completions: appState.circleStore.completionDates(habit: habit),
             habitCreatedAt: habit.createdAt
         )
     }
@@ -25,14 +25,16 @@ struct HabitRowView: View {
     var body: some View {
         HStack(spacing: 12) {
             CheckboxButton(isChecked: isDone, isEditable: true) {
-                _ = appState.habitStore.toggle(habit: habit, on: .now)
+                _ = appState.circleStore.toggle(habit: habit, on: .now)
             }
             VStack(alignment: .leading, spacing: 4) {
                 Text(habit.title).font(.body.weight(.medium))
                 HStack(spacing: 12) {
                     Label("\(streak)", systemImage: "flame.fill")
+                        .symbolRenderingMode(.monochrome)
                         .foregroundStyle(streak > 0 ? Color.tallyAccent : .secondary)
                     Label("\(longest)", systemImage: "trophy.fill")
+                        .symbolRenderingMode(.monochrome)
                         .foregroundStyle(.secondary)
                 }
                 .font(.caption.monospacedDigit())
@@ -44,12 +46,12 @@ struct HabitRowView: View {
         .clipShape(RoundedRectangle(cornerRadius: 14))
         .contextMenu {
             Button(role: .destructive) {
-                appState.habitStore.delete(habit: habit)
+                appState.circleStore.delete(habit: habit)
             } label: {
                 Label("Delete", systemImage: "trash")
             }
             Button {
-                appState.habitStore.archive(habit: habit)
+                appState.circleStore.archive(habit: habit)
             } label: {
                 Label("Archive", systemImage: "archivebox")
             }

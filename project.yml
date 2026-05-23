@@ -18,6 +18,8 @@ settings:
     INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
     INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
     INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: "UIInterfaceOrientationPortrait"
+    # Wakes the app for silent CloudKit pushes so friends' changes sync in the background.
+    INFOPLIST_KEY_UIBackgroundModes: "remote-notification"
     TARGETED_DEVICE_FAMILY: "1,2"
 
 targets:
@@ -33,12 +35,15 @@ targets:
           - iCloud.com.christylam.tally
         com.apple.developer.icloud-services:
           - CloudKit
+        # Required for CloudKit push subscriptions (live updates between friends).
+        aps-environment: development
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.christylam.tally
         PRODUCT_NAME: Tally
         ENABLE_PREVIEWS: YES
         SWIFT_EMIT_LOC_STRINGS: YES
+        DEVELOPMENT_TEAM: 2UM67KP3T9
 
   TallyTests:
     type: bundle.unit-test
@@ -51,3 +56,4 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.christylam.tally.tests
         GENERATE_INFOPLIST_FILE: YES
+        DEVELOPMENT_TEAM: 2UM67KP3T9

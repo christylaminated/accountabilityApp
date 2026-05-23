@@ -1,7 +1,13 @@
 import SwiftUI
+import CloudKit
 
 struct CircleDashboardView: View {
     @Environment(AppState.self) private var appState
+    @State private var showCreateCircle = false
+    /// Set by `CreateCircleView` on successful create; drained in the create
+    /// sheet's `onDismiss` so we present the invite *after* the sheet has gone.
+    @State private var pendingInviteAfterCreate: TallyCircle?
+    @State private var manageCircle: TallyCircle?
 
     /// Time-of-day greeting. Updated when the view recomputes.
     private var greeting: String {
@@ -15,8 +21,12 @@ struct CircleDashboardView: View {
     }
 
     private var firstName: String {
-        let full = appState.currentProfile.displayName
+        let full = appState.ownCloudProfile?.displayName ?? ""
         return full.split(separator: " ").first.map(String.init) ?? full
+    }
+
+    private var avatarSymbol: String {
+        appState.ownCloudProfile?.avatarSymbol ?? "leaf"
     }
 
     var body: some View {
@@ -25,14 +35,14 @@ struct CircleDashboardView: View {
                 VStack(spacing: 16) {
                     headerCard
 
-                    ForEach(appState.memberProfiles) { profile in
-                        NavigationLink(value: profile.id) {
-                            MemberRowView(profile: profile)
+                    ForEach(appState.circleStore.orderedMembers) { member in
+                        NavigationLink(value: member.userID) {
+                            MemberRowView(member: member)
                         }
                         .buttonStyle(.plain)
                     }
 
-                    if appState.otherMembers.isEmpty {
+                    if appState.circleStore.otherMembers.isEmpty {
                         invitePartnerCard
                     }
 
@@ -42,6 +52,7 @@ struct CircleDashboardView: View {
                 .padding(.top, 8)
             }
             .background(Color.tallyCanvas)
+            .refreshable { await appState.refreshCircleData() }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .principal) {
@@ -50,15 +61,51 @@ struct CircleDashboardView: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            .navigationDestination(for: UUID.self) { userID in
+            .navigationDestination(for: String.self) { userID in
                 MemberDetailView(memberID: userID)
+            }
+            .toolbar {
+                if let circle = appState.activeCircle {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            manageCircle = circle
+                        } label: {
+                            Image(systemName: "person.2")
+                        }
+                    }
+                }
+            }
+            .sheet(
+                isPresented: $showCreateCircle,
+                onDismiss: presentInviteIfPending
+            ) {
+                CreateCircleView { circle in
+                    // Defer presentation until the create sheet finishes
+                    // dismissing — UIKit can't present a new modal while one
+                    // is mid-animation.
+                    pendingInviteAfterCreate = circle
+                }
+            }
+            .sheet(item: $manageCircle) { circle in
+                CircleSettingsView(circle: circle)
+            }
+            .alert(
+                "Couldn't share Circle",
+                isPresented: Binding(
+                    get: { appState.lastCloudShareError != nil },
+                    set: { if !$0 { appState.lastCloudShareError = nil } }
+                )
+            ) {
+                Button("OK", role: .cancel) { appState.lastCloudShareError = nil }
+            } message: {
+                Text(appState.lastCloudShareError ?? "")
             }
         }
     }
 
     private var headerCard: some View {
         HStack(alignment: .center, spacing: 14) {
-            Image(systemName: appState.currentProfile.avatarSymbol)
+            Image(systemName: avatarSymbol)
                 .font(.system(size: 26, weight: .medium))
                 .frame(width: 64, height: 64)
                 .foregroundStyle(Color.tallyAccent)
@@ -93,7 +140,7 @@ struct CircleDashboardView: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             Button {
-                // Wired up in CK Step 3 (InviteSheetView).
+                startInviteFlow()
             } label: {
                 Text("Invite a friend")
                     .font(.system(.subheadline, design: .rounded, weight: .semibold))
@@ -104,8 +151,6 @@ struct CircleDashboardView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
             .buttonStyle(.plain)
-            .disabled(true)
-            .opacity(0.85)
         }
         .padding(18)
         .background(
@@ -116,5 +161,30 @@ struct CircleDashboardView: View {
                         .strokeBorder(Color.tallyAccent.opacity(0.25), lineWidth: 1)
                 )
         )
+    }
+
+    /// If the user owns a Circle, present the system share sheet directly via
+    /// UIKit (the SwiftUI `.sheet` wrapper leaves the share UI blank).
+    /// Otherwise open Create-Circle first.
+    private func startInviteFlow() {
+        guard let owned = appState.ownedCircles.first else {
+            showCreateCircle = true
+            return
+        }
+        presentInvite(for: owned)
+    }
+
+    /// Drain the post-create state set by `CreateCircleView`.
+    private func presentInviteIfPending() {
+        guard let circle = pendingInviteAfterCreate else { return }
+        pendingInviteAfterCreate = nil
+        presentInvite(for: circle)
+    }
+
+    private func presentInvite(for circle: TallyCircle) {
+        let repo = appState.circleRepository
+        CloudShareInvitePresenter.present {
+            try await repo.makeShare(for: circle)
+        }
     }
 }

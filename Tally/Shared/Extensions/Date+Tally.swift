@@ -27,6 +27,13 @@ extension Date {
         return cal.date(from: comps) ?? self
     }
 
+    /// January 1st of the year containing this date.
+    var startOfYear: Date {
+        let cal = Date.local
+        let comps = cal.dateComponents([.year], from: self)
+        return cal.date(from: comps) ?? self
+    }
+
     /// Calendar-day distance from `other` to `self` (positive when self is after).
     func daysSince(_ other: Date) -> Int {
         Date.local.dateComponents([.day], from: other.startOfDay, to: self.startOfDay).day ?? 0
@@ -38,5 +45,13 @@ extension Date {
 
     func adding(hours: Int) -> Date {
         Date.local.date(byAdding: .hour, value: hours, to: self) ?? self
+    }
+
+    func adding(months: Int) -> Date {
+        Date.local.date(byAdding: .month, value: months, to: self) ?? self
+    }
+
+    func adding(years: Int) -> Date {
+        Date.local.date(byAdding: .year, value: years, to: self) ?? self
     }
 }

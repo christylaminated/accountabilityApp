@@ -1,17 +1,24 @@
 import CloudKit
 import Foundation
 
-struct Habit: Identifiable, Hashable, Codable {
+/// A bigger thing the user is working toward — one-time or longer-term. Lives in
+/// the Circle's shared zone (today) so every member sees each other's goals.
+/// Always shared; the privacy story for personal data is on habits, not goals.
+///
+/// Goals persist until completed or deleted. Optional `deadline` drives a
+/// countdown / overdue label in the UI; goals without a deadline are open-ended
+/// "in progress" intentions.
+struct Goal: Identifiable, Hashable, Codable {
     let id: UUID
-    /// Owner's CloudKit user record name. String to match CK identity.
     var userID: String
     var title: String
+    var deadline: Date?
+    var completedAt: Date?
     var createdAt: Date
-    var archivedAt: Date?
 }
 
-extension Habit: ZoneRecord {
-    static let recordType = "Habit"
+extension Goal: ZoneRecord {
+    static let recordType = "Goal"
     var recordName: String { id.uuidString }
 
     init?(record: CKRecord) {
@@ -25,15 +32,17 @@ extension Habit: ZoneRecord {
         self.id = id
         self.userID = userID
         self.title = title
+        self.deadline = record["deadline"] as? Date
+        self.completedAt = record["completedAt"] as? Date
         self.createdAt = createdAt
-        self.archivedAt = record["archivedAt"] as? Date
     }
 
     func populate(_ record: CKRecord) {
         record["id"] = id.uuidString
         record["userID"] = userID
         record["title"] = title
+        record["deadline"] = deadline
+        record["completedAt"] = completedAt
         record["createdAt"] = createdAt
-        record["archivedAt"] = archivedAt
     }
 }

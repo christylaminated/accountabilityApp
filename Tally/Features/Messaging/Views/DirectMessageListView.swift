@@ -14,7 +14,7 @@ struct DirectMessageListView: View {
                     }
                     .buttonStyle(.plain)
 
-                    if !appState.otherMembers.isEmpty {
+                    if !appState.circleStore.otherMembers.isEmpty {
                         Text("DIRECT MESSAGES")
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(.secondary)
@@ -23,11 +23,11 @@ struct DirectMessageListView: View {
                             .padding(.horizontal, 4)
                     }
 
-                    ForEach(appState.otherMembers) { profile in
+                    ForEach(appState.circleStore.otherMembers) { member in
                         NavigationLink {
-                            DirectMessageThreadView(otherUserID: profile.id)
+                            DirectMessageThreadView(otherUserID: member.userID)
                         } label: {
-                            DMThreadRow(otherUser: profile)
+                            DMThreadRow(otherUser: member)
                         }
                         .buttonStyle(.plain)
                     }
@@ -36,6 +36,7 @@ struct DirectMessageListView: View {
                 .padding(.top, 8)
             }
             .background(Color.tallyCanvas)
+            .refreshable { await appState.refreshCircleData() }
             .navigationTitle("Messages")
         }
     }
@@ -56,8 +57,7 @@ private struct FeedRow: View {
                 Text("Circle feed")
                     .font(.body.weight(.semibold))
                     .foregroundStyle(.primary)
-                let last = appState.messageStore.feed(circleID: appState.activeCircleID).last
-                Text(last?.body ?? "No messages yet")
+                Text(appState.circleStore.feed.last?.body ?? "No messages yet")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -75,21 +75,19 @@ private struct FeedRow: View {
 
 private struct DMThreadRow: View {
     @Environment(AppState.self) private var appState
-    let otherUser: Profile
+    let otherUser: CircleMember
 
     private var unread: Int {
-        appState.messageStore.unreadDMCount(
+        appState.circleStore.unreadDMCount(
             for: appState.currentUserID,
-            fromUser: otherUser.id,
-            circleID: appState.activeCircleID
+            fromUser: otherUser.userID
         )
     }
 
     private var lastMessage: DirectMessage? {
-        appState.messageStore.dmThread(
-            circleID: appState.activeCircleID,
+        appState.circleStore.dmThread(
             between: appState.currentUserID,
-            and: otherUser.id
+            and: otherUser.userID
         ).last
     }
 

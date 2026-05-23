@@ -2,16 +2,16 @@ import SwiftUI
 
 struct MemberRowView: View {
     @Environment(AppState.self) private var appState
-    let profile: Profile
+    let member: CircleMember
 
-    private var isMe: Bool { profile.id == appState.currentUserID }
+    private var isMe: Bool { member.userID == appState.currentUserID }
 
     private var todayHabits: [Habit] {
-        appState.habitStore.habits(for: profile.id)
+        appState.circleStore.habits(for: member.userID)
     }
 
     private var completedCount: Int {
-        todayHabits.filter { appState.habitStore.isCompleted(habit: $0, on: .now) }.count
+        todayHabits.filter { appState.circleStore.isCompleted(habit: $0, on: .now) }.count
     }
 
     private var allDone: Bool {
@@ -21,9 +21,9 @@ struct MemberRowView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
-                AvatarView(symbolName: profile.avatarSymbol, size: 44)
+                AvatarView(symbolName: member.avatarSymbol, size: 44)
                 HStack(spacing: 6) {
-                    Text(profile.displayName)
+                    Text(member.displayName)
                         .font(.system(.headline, design: .rounded, weight: .semibold))
                     if isMe {
                         Text("you")
@@ -70,7 +70,7 @@ private struct HabitPill: View {
     let isEditable: Bool
 
     private var isDone: Bool {
-        appState.habitStore.isCompleted(habit: habit, on: .now)
+        appState.circleStore.isCompleted(habit: habit, on: .now)
     }
 
     var body: some View {
@@ -79,7 +79,7 @@ private struct HabitPill: View {
             #if canImport(UIKit)
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
             #endif
-            _ = appState.habitStore.toggle(habit: habit, on: .now)
+            _ = appState.circleStore.toggle(habit: habit, on: .now)
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: isDone ? "checkmark.circle.fill" : "circle")

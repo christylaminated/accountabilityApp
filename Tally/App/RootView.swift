@@ -4,6 +4,7 @@ import SwiftUI
 ///   • .checkingICloud      → loading spinner
 ///   • .needsSignIn(reason) → ICloudStatusGate
 ///   • .needsProfileSetup   → ProfileSetupView  (name + emoji)
+///   • .needsCircleSetup    → CircleSetupView   (create / join a Circle)
 ///   • .needsHabitsSetup    → HabitsSetupView   (daily habits)
 ///   • .needsGoalsSetup     → GoalsSetupView    (this week's intentions)
 ///   • .ready               → MainTabView
@@ -32,6 +33,12 @@ struct RootView: View {
                 }
                 .transition(.opacity)
 
+            case .needsCircleSetup:
+                CircleSetupView { name in
+                    try await appState.setUpInitialCircle(name: name)
+                }
+                .transition(.opacity)
+
             case .needsHabitsSetup:
                 HabitsSetupView { titles in
                     appState.saveInitialHabits(titles)
@@ -57,7 +64,10 @@ struct RootView: View {
         .animation(.easeInOut(duration: 0.25), value: appState.onboardingState)
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active {
-                Task { await appState.refreshAccountState() }
+                Task {
+                    await appState.refreshAccountState()
+                    await appState.refreshCircleData()
+                }
             }
         }
     }

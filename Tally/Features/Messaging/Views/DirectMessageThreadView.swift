@@ -2,16 +2,15 @@ import SwiftUI
 
 struct DirectMessageThreadView: View {
     @Environment(AppState.self) private var appState
-    let otherUserID: UUID
+    let otherUserID: String
     @State private var composerText: String = ""
 
-    private var otherUser: Profile? {
-        appState.profileStore.profile(id: otherUserID)
+    private var otherUser: CircleMember? {
+        appState.circleStore.member(id: otherUserID)
     }
 
     private var messages: [DirectMessage] {
-        appState.messageStore.dmThread(
-            circleID: appState.activeCircleID,
+        appState.circleStore.dmThread(
             between: appState.currentUserID,
             and: otherUserID
         )
@@ -35,11 +34,6 @@ struct DirectMessageThreadView: View {
                 }
                 .onAppear {
                     proxy.scrollTo("bottom", anchor: .bottom)
-                    appState.messageStore.markDMsRead(
-                        circleID: appState.activeCircleID,
-                        viewer: appState.currentUserID,
-                        otherUser: otherUserID
-                    )
                 }
             }
 
@@ -68,9 +62,8 @@ struct DirectMessageThreadView: View {
         #if canImport(UIKit)
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
         #endif
-        appState.messageStore.sendDM(
+        appState.circleStore.sendDM(
             body: body,
-            circleID: appState.activeCircleID,
             senderID: appState.currentUserID,
             recipientID: otherUserID
         )

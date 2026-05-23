@@ -2,20 +2,20 @@ import SwiftUI
 
 struct HistoryCalendarView: View {
     @Environment(AppState.self) private var appState
-    private let explicitTargetID: UUID?
+    private let explicitTargetID: String?
     @State private var displayedMonth: Date = .now.startOfMonth
     @State private var selectedDay: Date?
 
-    init(targetUserID: UUID? = nil) {
+    init(targetUserID: String? = nil) {
         self.explicitTargetID = targetUserID
     }
 
-    private var targetUserID: UUID {
+    private var targetUserID: String {
         explicitTargetID ?? appState.currentUserID
     }
 
-    private var profile: Profile? {
-        appState.profileStore.profile(id: targetUserID)
+    private var member: CircleMember? {
+        appState.circleStore.member(id: targetUserID)
     }
 
     var body: some View {
@@ -39,7 +39,7 @@ struct HistoryCalendarView: View {
     }
 
     private var navTitle: String {
-        if let profile { return "\(profile.displayName)'s history" }
+        if let member { return "\(member.displayName)'s history" }
         return "History"
     }
 
@@ -125,17 +125,17 @@ struct HistoryCalendarView: View {
 private struct DayCell: View {
     @Environment(AppState.self) private var appState
     let date: Date
-    let userID: UUID
+    let userID: String
     let isSelected: Bool
     let onTap: () -> Void
 
     private var completionRate: Double {
-        let habits = appState.habitStore.habits(for: userID).filter {
+        let habits = appState.circleStore.habits(for: userID).filter {
             $0.createdAt.startOfDay <= date.startOfDay
         }
         guard !habits.isEmpty else { return 0 }
         let done = habits.filter {
-            appState.habitStore.isCompleted(habit: $0, on: date)
+            appState.circleStore.isCompleted(habit: $0, on: date)
         }.count
         return Double(done) / Double(habits.count)
     }

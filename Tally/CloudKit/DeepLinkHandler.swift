@@ -2,33 +2,72 @@ import SwiftUI
 import CloudKit
 import Combine
 
-/// App-level delegate. Step 1 scope: capture incoming CKShare invite acceptances
-/// and surface them through a shared buffer that `ShareCoordinator` (step 3) will
-/// drain to run `CKAcceptSharesOperation`.
-///
-/// Push registration is added in step 7.
+/// Posted when a CloudKit silent push tells us a Circle's data changed.
+/// `AppState` observes this and refreshes the active Circle.
+extension Notification.Name {
+    static let tallyRemoteChange = Notification.Name("tallyRemoteChange")
+    /// Posted (with the `Error` as the object) when the share sheet flow can't
+    /// mint or save the CKShare. AppState surfaces this in an alert so the
+    /// underlying iCloud error becomes visible instead of iOS's generic
+    /// "A link couldn't be created" wrapper.
+    static let tallyCloudShareError = Notification.Name("tallyCloudShareError")
+}
+
+/// App-level delegate. Captures incoming CKShare invite acceptances and registers
+/// for the silent CloudKit pushes that drive live updates between friends.
 final class TallyAppDelegate: NSObject, UIApplicationDelegate {
-    /// Buffer for pending share metadata. Wired into the SwiftUI environment by
-    /// `TallyApp` so views and coordinators can observe and consume invites.
-    let pendingShares = PendingShareBuffer()
+    func application(
+        _ application: UIApplication,
+        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
+    ) -> Bool {
+        // Silent (content-available) pushes need no user permission — just APNs
+        // registration so CloudKit zone subscriptions can reach this device.
+        application.registerForRemoteNotifications()
+        return true
+    }
 
     /// Invoked by iOS when the user taps a CKShare URL (Messages / AirDrop / email)
-    /// and the system routes them back to Tally. The metadata identifies the share;
-    /// `ShareCoordinator` will accept it via `CKAcceptSharesOperation`.
+    /// and the system routes them back to Tally. We write to the shared buffer —
+    /// not an AppState reference — because the deep link can fire before AppState
+    /// is constructed (cold launch from the invite URL).
     func application(
         _ application: UIApplication,
         userDidAcceptCloudKitShareWith metadata: CKShare.Metadata
     ) {
-        pendingShares.set(metadata)
+        PendingShareBuffer.shared.set(metadata)
+    }
+
+    /// A CloudKit zone subscription fired — a friend changed something. Tell
+    /// `AppState` to pull the delta. Works in the foreground always, and in the
+    /// background when the `remote-notification` background mode is enabled.
+    func application(
+        _ application: UIApplication,
+        didReceiveRemoteNotification userInfo: [AnyHashable: Any]
+    ) async -> UIBackgroundFetchResult {
+        NotificationCenter.default.post(name: .tallyRemoteChange, object: nil)
+        return .newData
+    }
+
+    func application(
+        _ application: UIApplication,
+        didFailToRegisterForRemoteNotificationsWithError error: Error
+    ) {
+        // Non-fatal: the app still works, just without live push (foreground
+        // refresh and pull-to-refresh still sync).
+        print("Remote notification registration failed: \(error.localizedDescription)")
     }
 }
 
-/// Holds the most recent `CKShare.Metadata` received via deep link. Surfaces it via
-/// `@Published` so SwiftUI views react. `ShareCoordinator` calls `consume()` once
-/// it's ready to accept; that clears the buffer so a re-foregrounding doesn't
-/// double-accept.
+/// Single source of truth for a pending CKShare invite. A shared singleton so it
+/// exists from first access — surviving the gap between a cold-launch deep link
+/// and `AppState.init`. `AppState` reads it via `AppState.pendingShareBuffer`
+/// (which points at `.shared`) and consumes it once accepted.
 final class PendingShareBuffer: ObservableObject {
+    static let shared = PendingShareBuffer()
+
     @Published private(set) var metadata: CKShare.Metadata?
+
+    private init() {}
 
     func set(_ metadata: CKShare.Metadata) {
         self.metadata = metadata

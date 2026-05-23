@@ -10,8 +10,10 @@ struct HabitCelebrationView: View {
                 .ignoresSafeArea()
 
             VStack(spacing: 12) {
-                Text("🎉")
-                    .font(.system(size: 64))
+                Image(systemName: "sparkles")
+                    .font(.system(size: 56, weight: .light))
+                    .symbolRenderingMode(.monochrome)
+                    .foregroundStyle(.white)
                 Text("All done today!")
                     .font(.title2.weight(.semibold))
                     .foregroundStyle(.white)

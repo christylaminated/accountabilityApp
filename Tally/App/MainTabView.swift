@@ -9,7 +9,7 @@ struct MainTabView: View {
             HabitListView()
                 .tabItem { Label("Habits", systemImage: "checkmark.circle.fill") }
 
-            WeeklyGoalsView()
+            GoalsView()
                 .tabItem { Label("Goals", systemImage: "flag.fill") }
 
             DirectMessageListView()
