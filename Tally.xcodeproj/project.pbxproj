@@ -31,6 +31,7 @@
 		5CF7076A7D942EE6B9F78F6C /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F9632183DC480FF9013A5DE /* Constants.swift */; };
 		6968B68DFB910D9442F500FB /* TallyCircle.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF0643AE001B774C4DBAAEE5 /* TallyCircle.swift */; };
 		6C546B4FC97EBE5DE0A13E69 /* CKClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2A062890E118D54EA899C1D /* CKClient.swift */; };
+		6DF4ABD5BC15D3C883B93C6F /* FriendsListSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4418F88D8856C241F4BDA750 /* FriendsListSheet.swift */; };
 		70130F2A270FFE3CD74A7BC6 /* MessageComposerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE51B53C3B5C99A361E9DD7 /* MessageComposerView.swift */; };
 		7332561AE65743C77CF70FBE /* ICloudStatusGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AE3DEBFEA97C34B7EC75584 /* ICloudStatusGate.swift */; };
 		734D650294B7E4DCAFE08F11 /* DirectMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A9A9D1DF334A01ADC0012B0 /* DirectMessage.swift */; };
@@ -104,6 +105,7 @@
 		35137C828BEDFE0F1A23F7C2 /* EmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyStateView.swift; sourceTree = "<group>"; };
 		370BFA08DA98388F57FA9FE3 /* Date+Tally.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Date+Tally.swift"; sourceTree = "<group>"; };
 		426A21943CB544027A7E415A /* HabitsSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HabitsSetupView.swift; sourceTree = "<group>"; };
+		4418F88D8856C241F4BDA750 /* FriendsListSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FriendsListSheet.swift; sourceTree = "<group>"; };
 		443EF2CA8E73B6034FCFF27D /* Goal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Goal.swift; sourceTree = "<group>"; };
 		46E01DF37CD02C2EC6B10B54 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		4802F94A3950D09668FD6ACA /* MockCircleDataRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockCircleDataRepository.swift; sourceTree = "<group>"; };
@@ -281,6 +283,7 @@
 			isa = PBXGroup;
 			children = (
 				C5E79DF71BCCE602887039DC /* CircleDashboardView.swift */,
+				4418F88D8856C241F4BDA750 /* FriendsListSheet.swift */,
 				1DFE77214583F77CB5A7185D /* MemberRowView.swift */,
 			);
 			path = Views;
@@ -573,6 +576,7 @@
 				140D4F90BABD9336827F0C43 /* DirectMessageThreadView.swift in Sources */,
 				0024E4E9B5BE578D82C70491 /* EmptyStateView.swift in Sources */,
 				2ED206940745EAAF4E55B38E /* Friend.swift in Sources */,
+				6DF4ABD5BC15D3C883B93C6F /* FriendsListSheet.swift in Sources */,
 				CA6D88B34B1C2CFF17595CBB /* FriendsView.swift in Sources */,
 				2F4E5A209E8F9855EA757C37 /* Goal.swift in Sources */,
 				4E0D613B82DDFD9130A82EAE /* GoalsSetupView.swift in Sources */,

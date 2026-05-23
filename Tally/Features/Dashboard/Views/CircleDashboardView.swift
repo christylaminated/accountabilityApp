@@ -3,7 +3,8 @@ import CloudKit
 
 struct CircleDashboardView: View {
     @Environment(AppState.self) private var appState
-    @State private var manageCircle: TallyCircle?
+    @State private var showFriendsList = false
+    @State private var showAddTodayGoal = false
 
     /// Time-of-day greeting. Updated when the view recomputes.
     private var greeting: String {
@@ -25,11 +26,21 @@ struct CircleDashboardView: View {
         appState.ownCloudProfile?.avatarSymbol ?? "leaf"
     }
 
+    /// My day-period goals dated to today's startOfDay.
+    private var todayGoals: [Goal] {
+        appState.personalStore.goals(
+            for: appState.currentUserID,
+            period: .day,
+            periodStart: Date.now.startOfDay
+        )
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 16) {
                     headerCard
+                    todayGoalsCard
 
                     ForEach(appState.dashboardMembers) { member in
                         NavigationLink(value: member.userID) {
@@ -56,23 +67,22 @@ struct CircleDashboardView: View {
                         .font(.system(.subheadline, design: .rounded, weight: .semibold))
                         .foregroundStyle(.secondary)
                 }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showFriendsList = true
+                    } label: {
+                        Image(systemName: "person.2")
+                    }
+                }
             }
             .navigationDestination(for: String.self) { userID in
                 MemberDetailView(memberID: userID)
             }
-            .toolbar {
-                if let circle = appState.activeCircle {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button {
-                            manageCircle = circle
-                        } label: {
-                            Image(systemName: "person.2")
-                        }
-                    }
-                }
+            .sheet(isPresented: $showFriendsList) {
+                FriendsListSheet()
             }
-            .sheet(item: $manageCircle) { circle in
-                CircleSettingsView(circle: circle)
+            .sheet(isPresented: $showAddTodayGoal) {
+                AddGoalSheet(period: .day, periodStart: Date.now.startOfDay)
             }
             .alert(
                 "Couldn't share",
@@ -109,6 +119,45 @@ struct CircleDashboardView: View {
         }
         .padding(.vertical, 8)
         .padding(.horizontal, 4)
+    }
+
+    /// Today-period goals card. Always visible: shows the goals if any, plus
+    /// a "+" affordance to add one for today.
+    private var todayGoalsCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "flag")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.tallyAccent)
+                Text("Today's goals")
+                    .font(.system(.headline, design: .rounded, weight: .semibold))
+                Spacer()
+                Button {
+                    showAddTodayGoal = true
+                } label: {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.title3)
+                        .foregroundStyle(Color.tallyAccent)
+                }
+                .buttonStyle(.plain)
+            }
+
+            if todayGoals.isEmpty {
+                Text("Nothing set for today yet — tap + to add one.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                VStack(spacing: 8) {
+                    ForEach(todayGoals) { goal in
+                        TodayGoalRow(goal: goal)
+                    }
+                }
+            }
+        }
+        .padding(16)
+        .background(Color.tallyCard)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
     /// Empty-state card prompting the user to add their first friend. The
@@ -152,12 +201,32 @@ struct CircleDashboardView: View {
     }
 
     /// Mint-or-fetch my personal CKShare and present the system invite sheet.
-    /// Whoever accepts the link becomes my friend (and reciprocally I become
-    /// theirs when their app processes the accept).
     private func presentAddFriend() {
         let repo = appState.personalRepository
         CloudShareInvitePresenter.present {
             try await repo.makePersonalShare()
+        }
+    }
+}
+
+/// One row inside the dashboard's "Today's goals" card. Tappable checkbox +
+/// strikethrough on completion.
+private struct TodayGoalRow: View {
+    @Environment(AppState.self) private var appState
+    let goal: Goal
+
+    private var isDone: Bool { goal.completedAt != nil }
+
+    var body: some View {
+        HStack(spacing: 10) {
+            CheckboxButton(isChecked: isDone, isEditable: true) {
+                appState.personalStore.toggleComplete(goal: goal)
+            }
+            Text(goal.title)
+                .strikethrough(isDone, color: .secondary)
+                .foregroundStyle(isDone ? .secondary : .primary)
+                .lineLimit(2)
+            Spacer()
         }
     }
 }
