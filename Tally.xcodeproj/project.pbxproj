@@ -27,7 +27,6 @@
 		43365BBD43AD94F1B2ACEE61 /* StreakCalculatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B233A82FD765774DB7E9A02 /* StreakCalculatorTests.swift */; };
 		4773FC229672DB44438E4083 /* MockCircleRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6E6BAAA6E9C4BAC1F2597EE /* MockCircleRepository.swift */; };
 		4E0D613B82DDFD9130A82EAE /* GoalsSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 572BA4BB19728F7A9F7AED04 /* GoalsSetupView.swift */; };
-		4FBAFB8286AB96CC930DCDC9 /* AddGoalSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21D2909605717F549577D7B2 /* AddGoalSheet.swift */; };
 		5463BAB7233583B1CE0CC2DB /* DirectMessageListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A96D357A003369225937AA7 /* DirectMessageListView.swift */; };
 		5CF7076A7D942EE6B9F78F6C /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F9632183DC480FF9013A5DE /* Constants.swift */; };
 		6968B68DFB910D9442F500FB /* TallyCircle.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF0643AE001B774C4DBAAEE5 /* TallyCircle.swift */; };
@@ -39,6 +38,7 @@
 		74BF818C821A0CD69015BCFE /* CircleDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5E79DF71BCCE602887039DC /* CircleDashboardView.swift */; };
 		7A151273E5C04E46F0E81DBA /* MockCircleDataRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4802F94A3950D09668FD6ACA /* MockCircleDataRepository.swift */; };
 		7D0BE2422516CB3F47E6725D /* CloudShareInvitePresenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3399F493BC7F15DA8ADEB22C /* CloudShareInvitePresenter.swift */; };
+		842C35BB352896ABC846246C /* AddGoalSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EDEF5BAD26629B6A5D3AC8D /* AddGoalSheet.swift */; };
 		86F405E98DA8E3A10C1C48B7 /* CircleFeedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0DCF5404863ACA6CB96F03 /* CircleFeedView.swift */; };
 		8703EE7AA29B3BDA766C7B66 /* ProfileRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA4022F12FFC0A196A98FA76 /* ProfileRepository.swift */; };
 		88E18B78A088CC04B4908862 /* CircleMember.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3299AC9D570A5254E7ECF943 /* CircleMember.swift */; };
@@ -65,7 +65,7 @@
 		E28B30A6239671ECAF22C253 /* StreakCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA662DA00B39395D803F0197 /* StreakCalculator.swift */; };
 		E3265F28FE46581D61D24438 /* CircleDataRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 490E9F33986E58A9814F7891 /* CircleDataRepository.swift */; };
 		E547EDBD0227D51E92AA77C5 /* MockPersonalRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DD98198626AE43163D781E9 /* MockPersonalRepository.swift */; };
-		E844AA74D25974ED4BBC3CB3 /* GoalsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B60C8BDE202F0DFA8E4A292F /* GoalsView.swift */; };
+		E6AD7A441F59D5B759BB75C4 /* GoalsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28C3882ECCD8657AB48865C0 /* GoalsView.swift */; };
 		EDFE55DC3E2EB37143364FE6 /* CKRecordConvertible.swift in Sources */ = {isa = PBXBuildFile; fileRef = 530F6020C6942EAEAB383940 /* CKRecordConvertible.swift */; };
 		F0FD4C70A123C625BC14A7E0 /* ProfileSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E512FAB643E4155FF24466F1 /* ProfileSetupView.swift */; };
 		F4F04C733236EDEFE0A983EB /* WeekCalculatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A549BBDEB61F46E5176B90CE /* WeekCalculatorTests.swift */; };
@@ -90,10 +90,11 @@
 		16A5D0959672A1959EE771A7 /* PersonalStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonalStore.swift; sourceTree = "<group>"; };
 		1DE51B53C3B5C99A361E9DD7 /* MessageComposerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageComposerView.swift; sourceTree = "<group>"; };
 		1DFE77214583F77CB5A7185D /* MemberRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemberRowView.swift; sourceTree = "<group>"; };
+		1EDEF5BAD26629B6A5D3AC8D /* AddGoalSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddGoalSheet.swift; sourceTree = "<group>"; };
 		1F747DED91B9F0E7503CE283 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		1FBCC93C895D5DAAF35E7E33 /* Tally.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Tally.entitlements; sourceTree = "<group>"; };
-		21D2909605717F549577D7B2 /* AddGoalSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddGoalSheet.swift; sourceTree = "<group>"; };
 		269FFB863CEE50D44AAEFF16 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
+		28C3882ECCD8657AB48865C0 /* GoalsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoalsView.swift; sourceTree = "<group>"; };
 		2975C824D6A555C048A5F7E8 /* CheckboxButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckboxButton.swift; sourceTree = "<group>"; };
 		2C04FFCDBD8615D78004D547 /* ShareCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareCoordinator.swift; sourceTree = "<group>"; };
 		2E237822882594EFFAEB4744 /* MemberDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemberDetailView.swift; sourceTree = "<group>"; };
@@ -133,7 +134,6 @@
 		A549BBDEB61F46E5176B90CE /* WeekCalculatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeekCalculatorTests.swift; sourceTree = "<group>"; };
 		B23EFD69AE88007BCFBA851F /* HistoryCalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryCalendarView.swift; sourceTree = "<group>"; };
 		B57527E1EBC1269EACB65A37 /* CircleRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CircleRepository.swift; sourceTree = "<group>"; };
-		B60C8BDE202F0DFA8E4A292F /* GoalsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoalsView.swift; sourceTree = "<group>"; };
 		BD07A89C9EF367D0B3BF4C56 /* TallyTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = TallyTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		C1E680C8647CCB622C23236B /* HabitRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HabitRowView.swift; sourceTree = "<group>"; };
 		C5E79DF71BCCE602887039DC /* CircleDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CircleDashboardView.swift; sourceTree = "<group>"; };
@@ -165,12 +165,12 @@
 			children = (
 				3E8D13339C08840620B65285 /* Circles */,
 				65A92391CA866282FBDB0E2C /* Dashboard */,
+				5046F46EBC8F0B0C450E44ED /* Goals */,
 				832C30683811A4B9C1A62357 /* Habits */,
 				32A0330077F2A3F499593F78 /* History */,
 				BFF87D5B71EE0052DDC7CCAA /* Identity */,
 				9D846205ADB3522FB157003D /* MemberDetail */,
 				00C5910B045913EC2EF70D3C /* Messaging */,
-				A13250E8D0BB8E6FCF796634 /* WeeklyGoals */,
 			);
 			path = Features;
 			sourceTree = "<group>";
@@ -238,6 +238,14 @@
 				952D829F4BE8048607324226 /* TallyApp.swift */,
 			);
 			path = Tally;
+			sourceTree = "<group>";
+		};
+		5046F46EBC8F0B0C450E44ED /* Goals */ = {
+			isa = PBXGroup;
+			children = (
+				D65606DFDCE59B39925D4EEE /* Views */,
+			);
+			path = Goals;
 			sourceTree = "<group>";
 		};
 		519AF95473A55A971C76D7FC = {
@@ -362,14 +370,6 @@
 			path = MemberDetail;
 			sourceTree = "<group>";
 		};
-		A13250E8D0BB8E6FCF796634 /* WeeklyGoals */ = {
-			isa = PBXGroup;
-			children = (
-				C4AB3081344173FBEB7E5D77 /* Views */,
-			);
-			path = WeeklyGoals;
-			sourceTree = "<group>";
-		};
 		A8383413992091147DD0BABA /* Views */ = {
 			isa = PBXGroup;
 			children = (
@@ -398,15 +398,6 @@
 			path = Identity;
 			sourceTree = "<group>";
 		};
-		C4AB3081344173FBEB7E5D77 /* Views */ = {
-			isa = PBXGroup;
-			children = (
-				21D2909605717F549577D7B2 /* AddGoalSheet.swift */,
-				B60C8BDE202F0DFA8E4A292F /* GoalsView.swift */,
-			);
-			path = Views;
-			sourceTree = "<group>";
-		};
 		C75C7E2A36C05412BA7D5036 /* Products */ = {
 			isa = PBXGroup;
 			children = (
@@ -423,6 +414,15 @@
 				F6DD670F1D258FBAD3801A69 /* HabitCelebrationView.swift */,
 				596710D632C92CA7D6341EB9 /* HabitListView.swift */,
 				C1E680C8647CCB622C23236B /* HabitRowView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		D65606DFDCE59B39925D4EEE /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				1EDEF5BAD26629B6A5D3AC8D /* AddGoalSheet.swift */,
+				28C3882ECCD8657AB48865C0 /* GoalsView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -545,7 +545,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				4FBAFB8286AB96CC930DCDC9 /* AddGoalSheet.swift in Sources */,
+				842C35BB352896ABC846246C /* AddGoalSheet.swift in Sources */,
 				42F0CCD6C46D493A9DCE34C9 /* AddHabitSheet.swift in Sources */,
 				AA1B36D818FF926CF2D7258C /* AppState.swift in Sources */,
 				0388F2D8707F552D8F69D8B2 /* AvatarView.swift in Sources */,
@@ -576,7 +576,7 @@
 				CA6D88B34B1C2CFF17595CBB /* FriendsView.swift in Sources */,
 				2F4E5A209E8F9855EA757C37 /* Goal.swift in Sources */,
 				4E0D613B82DDFD9130A82EAE /* GoalsSetupView.swift in Sources */,
-				E844AA74D25974ED4BBC3CB3 /* GoalsView.swift in Sources */,
+				E6AD7A441F59D5B759BB75C4 /* GoalsView.swift in Sources */,
 				C1BB2E44C03E14D3F6C57E01 /* Habit.swift in Sources */,
 				C6DEA3365130BE06EC19FBB8 /* HabitCelebrationView.swift in Sources */,
 				290BABB86CBD2D9826AC33E4 /* HabitCompletion.swift in Sources */,

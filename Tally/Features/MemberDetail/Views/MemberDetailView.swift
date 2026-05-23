@@ -68,17 +68,8 @@ struct MemberDetailView: View {
                             actionCard(icon: "calendar", text: "View history", filled: false)
                         }
 
-                        if !isMe {
-                            NavigationLink {
-                                DirectMessageThreadView(otherUserID: memberID)
-                            } label: {
-                                actionCard(
-                                    icon: "bubble.left.and.bubble.right.fill",
-                                    text: "Message \(member.displayName)",
-                                    filled: true
-                                )
-                            }
-                        }
+                        // Direct-message-with-friend isn't a feature in the
+                        // friends + groups model — chat lives in Groups.
 
                         Spacer().frame(height: 24)
                     }
