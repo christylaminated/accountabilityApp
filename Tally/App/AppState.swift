@@ -108,13 +108,15 @@ final class AppState {
         self.circleStore = circleStore ?? CircleStore()
         self.personalStore = personalStore ?? PersonalStore(repository: personalRepository)
 
-        // Restore cached identity + profile so the dashboard renders
-        // immediately on launch — no "Checking iCloud…" spinner for returning
-        // users. The background refresh below verifies + updates everything.
-        if let cachedUserID = LocalCache.load(String.self, forKey: LocalCacheKey.currentUserID),
-           let cachedProfile = LocalCache.load(UserProfile.self, forKey: LocalCacheKey.ownProfile) {
-            self.currentUserID = cachedUserID
-            self.ownCloudProfile = cachedProfile
+        // Skip the "Checking iCloud…" spinner on launch for returning users.
+        // The `hasOnboarded` flag is the source of truth — written the moment
+        // the user first reaches `.ready` — so even if the profile/userID
+        // caches fail to decode for some reason, returning users still get
+        // straight onto the dashboard. The background refresh below verifies
+        // everything and fixes up any stale state.
+        if LocalCache.load(Bool.self, forKey: LocalCacheKey.hasOnboarded) == true {
+            self.currentUserID = LocalCache.load(String.self, forKey: LocalCacheKey.currentUserID) ?? ""
+            self.ownCloudProfile = LocalCache.load(UserProfile.self, forKey: LocalCacheKey.ownProfile)
             self.onboardingState = .ready
         }
 
@@ -219,10 +221,12 @@ final class AppState {
     /// After auth + profile are confirmed: activate the current Circle (if any)
     /// and show the main app. A user with zero Circles is a valid state —
     /// they're on the dashboard with the "Add a friend" prompt.
+    /// Also flips `hasOnboarded` so the next launch skips the iCloud spinner.
     private func enterMainAppOrCircleSetup() async {
         if let circle = activeCircle {
             await circleStore.activate(circle, currentUserID: currentUserID)
         }
+        LocalCache.save(true, forKey: LocalCacheKey.hasOnboarded)
         onboardingState = .ready
     }
 
@@ -392,6 +396,7 @@ final class AppState {
             )
         }
         isFirstRunOnboarding = false
+        LocalCache.save(true, forKey: LocalCacheKey.hasOnboarded)
         onboardingState = .ready
     }
 

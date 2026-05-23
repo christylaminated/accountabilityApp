@@ -39,9 +39,13 @@ enum LocalCacheKey {
     static let currentUserID = "Tally.cache.currentUserID"
     static let ownProfile = "Tally.cache.ownProfile"
     static let personalStore = "Tally.cache.personalStore"
+    /// Dedicated boolean flag — once true, we skip the "Checking iCloud…"
+    /// spinner on launch and go straight to the dashboard. Decoupled from the
+    /// profile/userID caches so a partial decode never traps us on the spinner.
+    static let hasOnboarded = "Tally.cache.hasOnboarded"
     /// UI preference — not user-scoped, kept across account changes.
     static let themeColor = "Tally.cache.themeColor"
 
     /// Cache keys cleared on iCloud account switch.
-    static let userScoped: [String] = [currentUserID, ownProfile, personalStore]
+    static let userScoped: [String] = [currentUserID, ownProfile, personalStore, hasOnboarded]
 }
