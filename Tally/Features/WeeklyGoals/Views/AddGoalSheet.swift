@@ -30,7 +30,7 @@ struct AddGoalSheet: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Add") {
                         guard !trimmed.isEmpty else { return }
-                        appState.circleStore.addGoal(
+                        appState.personalStore.addGoal(
                             title: trimmed,
                             for: appState.currentUserID,
                             period: period,

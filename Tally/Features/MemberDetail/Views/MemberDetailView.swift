@@ -11,11 +11,11 @@ struct MemberDetailView: View {
     private var isMe: Bool { memberID == appState.currentUserID }
 
     private var habits: [Habit] {
-        appState.circleStore.habits(for: memberID)
+        appState.personalStore.habits(for: memberID)
     }
 
     private var goals: [Goal] {
-        appState.circleStore.goals(
+        appState.personalStore.goals(
             for: memberID,
             period: .week,
             periodStart: WeekCalculator.weekStart(for: .now)
@@ -154,12 +154,12 @@ private struct MemberHabitRow: View {
     let isEditable: Bool
 
     private var isDone: Bool {
-        appState.circleStore.isCompleted(habit: habit, on: .now)
+        appState.personalStore.isCompleted(habit: habit, on: .now)
     }
 
     private var streak: Int {
         StreakCalculator.currentStreak(
-            completions: appState.circleStore.completionDates(habit: habit),
+            completions: appState.personalStore.completionDates(habit: habit),
             habitCreatedAt: habit.createdAt
         )
     }
@@ -167,7 +167,7 @@ private struct MemberHabitRow: View {
     var body: some View {
         HStack(spacing: 12) {
             CheckboxButton(isChecked: isDone, isEditable: isEditable) {
-                _ = appState.circleStore.toggle(habit: habit, on: .now)
+                _ = appState.personalStore.toggle(habit: habit, on: .now)
             }
             VStack(alignment: .leading, spacing: 2) {
                 Text(habit.title).font(.body.weight(.medium))

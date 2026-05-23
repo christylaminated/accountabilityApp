@@ -1,0 +1,47 @@
+import CloudKit
+import Foundation
+
+/// In-memory `PersonalRepository` for previews and tests. No CloudKit.
+final class MockPersonalRepository: PersonalRepository, @unchecked Sendable {
+    var snapshot = PersonalSnapshot()
+    var ensureCallCount = 0
+    var friends: [CKRecord.ID] = []
+
+    func ensurePersonalZone() async throws {
+        ensureCallCount += 1
+    }
+
+    func ownSnapshot(since token: CKServerChangeToken?) async throws -> PersonalSnapshot {
+        snapshot
+    }
+
+    func saveOwn(_ records: [any ZoneRecord]) async throws {}
+
+    func deleteOwn(recordNames: [String]) async throws {}
+
+    func ownPrivateSnapshot(since token: CKServerChangeToken?) async throws -> PersonalSnapshot {
+        PersonalSnapshot()
+    }
+
+    func saveOwnPrivate(_ records: [any ZoneRecord]) async throws {}
+
+    func deleteOwnPrivate(recordNames: [String]) async throws {}
+
+    func makePersonalShare() async throws -> (CKShare, CKContainer) {
+        (CKShare(recordZoneID: CKRecordZone.ID(zoneName: "mock")), .default())
+    }
+
+    func addFriendParticipant(userRecordID: CKRecord.ID) async throws {
+        friends.append(userRecordID)
+    }
+
+    func removeFriendParticipant(userRecordID: CKRecord.ID) async throws {
+        friends.removeAll { $0 == userRecordID }
+    }
+
+    func friendZones() async throws -> [CKRecordZone] { [] }
+
+    func friendSnapshot(zoneID: CKRecordZone.ID, since token: CKServerChangeToken?) async throws -> PersonalSnapshot {
+        PersonalSnapshot()
+    }
+}

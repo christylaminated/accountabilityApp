@@ -1,19 +1,12 @@
 import CloudKit
 import Foundation
 
-/// Decoded contents of a Circle's CloudKit zone — every record type that lives
-/// alongside the Circle root record (members, habits, completions, goals,
-/// messages). Returned by `CircleDataRepository`.
-///
-/// On a full load `isIncremental` is false and the arrays are the whole zone.
-/// On a token-based fetch they hold only what changed, and `deletedRecordNames`
-/// lists what was removed — the caller merges these into its cached state.
+/// Decoded contents of a Circle's CloudKit zone. After 3d the zone holds
+/// chat-room state only: members + messages. Habits / completions / goals
+/// live in each user's personal zone now.
 struct CircleSnapshot {
     var circle: TallyCircle?
     var members: [CircleMember] = []
-    var habits: [Habit] = []
-    var completions: [HabitCompletion] = []
-    var goals: [Goal] = []
     var circleMessages: [CircleMessage] = []
     var directMessages: [DirectMessage] = []
 
@@ -69,12 +62,6 @@ struct CloudKitCircleDataRepository: CircleDataRepository {
                 snap.circle = TallyCircle(record: record)
             case CircleMember.recordType:
                 if let m = CircleMember(record: record) { snap.members.append(m) }
-            case Habit.recordType:
-                if let h = Habit(record: record) { snap.habits.append(h) }
-            case HabitCompletion.recordType:
-                if let c = HabitCompletion(record: record) { snap.completions.append(c) }
-            case Goal.recordType:
-                if let g = Goal(record: record) { snap.goals.append(g) }
             case CircleMessage.recordType:
                 if let m = CircleMessage(record: record) { snap.circleMessages.append(m) }
             case DirectMessage.recordType:

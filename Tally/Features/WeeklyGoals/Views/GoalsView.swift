@@ -20,7 +20,7 @@ struct GoalsView: View {
     private var isCurrentPeriod: Bool { periodOffset == 0 }
 
     private var goals: [Goal] {
-        appState.circleStore.goals(
+        appState.personalStore.goals(
             for: appState.currentUserID,
             period: selectedPeriod,
             periodStart: periodStart
@@ -28,7 +28,7 @@ struct GoalsView: View {
     }
 
     private var unfinishedPrevious: [Goal] {
-        appState.circleStore.unfinishedFromPrevious(
+        appState.personalStore.unfinishedFromPrevious(
             userID: appState.currentUserID,
             period: selectedPeriod,
             currentStart: periodStart
@@ -164,7 +164,7 @@ struct GoalsView: View {
                         #if canImport(UIKit)
                         UIImpactFeedbackGenerator(style: .light).impactOccurred()
                         #endif
-                        appState.circleStore.carryForward(goal: goal, to: periodStart)
+                        appState.personalStore.carryForward(goal: goal, to: periodStart)
                     } label: {
                         Text("Carry over")
                             .font(.footnote.weight(.semibold))
@@ -238,7 +238,7 @@ private struct GoalRow: View {
     var body: some View {
         HStack(spacing: 12) {
             CheckboxButton(isChecked: isDone, isEditable: true) {
-                appState.circleStore.toggleComplete(goal: goal)
+                appState.personalStore.toggleComplete(goal: goal)
             }
             VStack(alignment: .leading, spacing: 2) {
                 Text(goal.title)
@@ -257,7 +257,7 @@ private struct GoalRow: View {
         .clipShape(RoundedRectangle(cornerRadius: 14))
         .contextMenu {
             Button(role: .destructive) {
-                appState.circleStore.delete(goal: goal)
+                appState.personalStore.delete(goal: goal)
             } label: {
                 Label("Delete", systemImage: "trash")
             }

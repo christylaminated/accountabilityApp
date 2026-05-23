@@ -7,11 +7,11 @@ struct MemberRowView: View {
     private var isMe: Bool { member.userID == appState.currentUserID }
 
     private var todayHabits: [Habit] {
-        appState.circleStore.habits(for: member.userID)
+        appState.personalStore.habits(for: member.userID)
     }
 
     private var completedCount: Int {
-        todayHabits.filter { appState.circleStore.isCompleted(habit: $0, on: .now) }.count
+        todayHabits.filter { appState.personalStore.isCompleted(habit: $0, on: .now) }.count
     }
 
     private var allDone: Bool {
@@ -70,7 +70,7 @@ private struct HabitPill: View {
     let isEditable: Bool
 
     private var isDone: Bool {
-        appState.circleStore.isCompleted(habit: habit, on: .now)
+        appState.personalStore.isCompleted(habit: habit, on: .now)
     }
 
     var body: some View {
@@ -79,7 +79,7 @@ private struct HabitPill: View {
             #if canImport(UIKit)
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
             #endif
-            _ = appState.circleStore.toggle(habit: habit, on: .now)
+            _ = appState.personalStore.toggle(habit: habit, on: .now)
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: isDone ? "checkmark.circle.fill" : "circle")

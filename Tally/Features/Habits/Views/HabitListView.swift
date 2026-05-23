@@ -6,11 +6,11 @@ struct HabitListView: View {
     @State private var showCelebration = false
 
     private var habits: [Habit] {
-        appState.circleStore.habits(for: appState.currentUserID)
+        appState.personalStore.habits(for: appState.currentUserID)
     }
 
     private var doneToday: Int {
-        habits.filter { appState.circleStore.isCompleted(habit: $0, on: .now) }.count
+        habits.filter { appState.personalStore.isCompleted(habit: $0, on: .now) }.count
     }
 
     private var allDone: Bool {

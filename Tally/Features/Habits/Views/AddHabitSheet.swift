@@ -32,7 +32,7 @@ struct AddHabitSheet: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Add") {
                         guard !trimmed.isEmpty else { return }
-                        appState.circleStore.addHabit(
+                        appState.personalStore.addHabit(
                             title: trimmed,
                             for: appState.currentUserID,
                             privacy: isPrivate ? .private : .shared

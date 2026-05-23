@@ -130,12 +130,12 @@ private struct DayCell: View {
     let onTap: () -> Void
 
     private var completionRate: Double {
-        let habits = appState.circleStore.habits(for: userID).filter {
+        let habits = appState.personalStore.habits(for: userID).filter {
             $0.createdAt.startOfDay <= date.startOfDay
         }
         guard !habits.isEmpty else { return 0 }
         let done = habits.filter {
-            appState.circleStore.isCompleted(habit: $0, on: date)
+            appState.personalStore.isCompleted(habit: $0, on: date)
         }.count
         return Double(done) / Double(habits.count)
     }

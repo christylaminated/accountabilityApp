@@ -21,6 +21,7 @@
 		2F4E5A209E8F9855EA757C37 /* Goal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 443EF2CA8E73B6034FCFF27D /* Goal.swift */; };
 		343BD6037A10410E91205018 /* WeekCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = C998D4524473F7524D00E4B9 /* WeekCalculator.swift */; };
 		35BBEA0B07AD308B03814152 /* TallyApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 952D829F4BE8048607324226 /* TallyApp.swift */; };
+		38D7FE8C5FE5104B4041C129 /* PersonalStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16A5D0959672A1959EE771A7 /* PersonalStore.swift */; };
 		42F0CCD6C46D493A9DCE34C9 /* AddHabitSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87073D927C36A87500F56727 /* AddHabitSheet.swift */; };
 		43365BBD43AD94F1B2ACEE61 /* StreakCalculatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B233A82FD765774DB7E9A02 /* StreakCalculatorTests.swift */; };
 		4773FC229672DB44438E4083 /* MockCircleRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6E6BAAA6E9C4BAC1F2597EE /* MockCircleRepository.swift */; };
@@ -47,18 +48,21 @@
 		A8F02C6763DBED2031D9F423 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 269FFB863CEE50D44AAEFF16 /* MainTabView.swift */; };
 		AA1B36D818FF926CF2D7258C /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F747DED91B9F0E7503CE283 /* AppState.swift */; };
 		AC925E245A39D489D6A35441 /* MockProfileRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD48B88B301E282AE67DF4A4 /* MockProfileRepository.swift */; };
+		B02C4D620BE01BD860D30899 /* PersonalRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92FA5CF587378B479D1CD542 /* PersonalRepository.swift */; };
 		B7688D4FB96CEA7382FDC71F /* Color+Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB5DB01330511281AED65F5D /* Color+Theme.swift */; };
 		B97A569EB0D34660FA19CA48 /* CircleRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = B57527E1EBC1269EACB65A37 /* CircleRepository.swift */; };
 		C1BB2E44C03E14D3F6C57E01 /* Habit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81274E10DB3D034993CAD125 /* Habit.swift */; };
 		C20854EC3BE56E3A54223FCF /* ShareCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C04FFCDBD8615D78004D547 /* ShareCoordinator.swift */; };
 		C625714CA898BACADBB5D1AF /* CircleSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EF5919B0A3456AC4D7520B1 /* CircleSettingsView.swift */; };
 		C6DEA3365130BE06EC19FBB8 /* HabitCelebrationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6DD670F1D258FBAD3801A69 /* HabitCelebrationView.swift */; };
+		C8EEF15AC254074D42C7EC9E /* PersonalRoot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 131B65496F7C2096D461EFB0 /* PersonalRoot.swift */; };
 		D5E7F9B7014514226A1A68DC /* MemberRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DFE77214583F77CB5A7185D /* MemberRowView.swift */; };
 		D7539724508FDA45F5EF819E /* UserProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A984F64EB765CBCA58109CA /* UserProfile.swift */; };
 		DD3C34BA9BCF58E4313CF34C /* HistoryCalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B23EFD69AE88007BCFBA851F /* HistoryCalendarView.swift */; };
 		DFA18036DC32AFE857E88F4C /* HabitsSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 426A21943CB544027A7E415A /* HabitsSetupView.swift */; };
 		E28B30A6239671ECAF22C253 /* StreakCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA662DA00B39395D803F0197 /* StreakCalculator.swift */; };
 		E3265F28FE46581D61D24438 /* CircleDataRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 490E9F33986E58A9814F7891 /* CircleDataRepository.swift */; };
+		E547EDBD0227D51E92AA77C5 /* MockPersonalRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DD98198626AE43163D781E9 /* MockPersonalRepository.swift */; };
 		E844AA74D25974ED4BBC3CB3 /* GoalsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B60C8BDE202F0DFA8E4A292F /* GoalsView.swift */; };
 		EDFE55DC3E2EB37143364FE6 /* CKRecordConvertible.swift in Sources */ = {isa = PBXBuildFile; fileRef = 530F6020C6942EAEAB383940 /* CKRecordConvertible.swift */; };
 		F0FD4C70A123C625BC14A7E0 /* ProfileSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E512FAB643E4155FF24466F1 /* ProfileSetupView.swift */; };
@@ -80,6 +84,8 @@
 		0A984F64EB765CBCA58109CA /* UserProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserProfile.swift; sourceTree = "<group>"; };
 		0E8934A3D8914800D3038037 /* AvatarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AvatarView.swift; sourceTree = "<group>"; };
 		10C04B332FB0E9DCC14136A9 /* DeepLinkHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeepLinkHandler.swift; sourceTree = "<group>"; };
+		131B65496F7C2096D461EFB0 /* PersonalRoot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonalRoot.swift; sourceTree = "<group>"; };
+		16A5D0959672A1959EE771A7 /* PersonalStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonalStore.swift; sourceTree = "<group>"; };
 		1DE51B53C3B5C99A361E9DD7 /* MessageComposerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageComposerView.swift; sourceTree = "<group>"; };
 		1DFE77214583F77CB5A7185D /* MemberRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemberRowView.swift; sourceTree = "<group>"; };
 		1F747DED91B9F0E7503CE283 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
@@ -100,7 +106,8 @@
 		4802F94A3950D09668FD6ACA /* MockCircleDataRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockCircleDataRepository.swift; sourceTree = "<group>"; };
 		490E9F33986E58A9814F7891 /* CircleDataRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CircleDataRepository.swift; sourceTree = "<group>"; };
 		4C0DCF5404863ACA6CB96F03 /* CircleFeedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CircleFeedView.swift; sourceTree = "<group>"; };
-		4DCF1A5BC6FA366C4B658D35 /* Tally.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Tally.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		4DCF1A5BC6FA366C4B658D35 /* Tally.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Tally.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		4DD98198626AE43163D781E9 /* MockPersonalRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockPersonalRepository.swift; sourceTree = "<group>"; };
 		528E58669C73437CABA6DFA0 /* CreateCircleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateCircleView.swift; sourceTree = "<group>"; };
 		530F6020C6942EAEAB383940 /* CKRecordConvertible.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CKRecordConvertible.swift; sourceTree = "<group>"; };
 		56F319D35E92BE520565AEBF /* MessageBubbleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageBubbleView.swift; sourceTree = "<group>"; };
@@ -115,6 +122,7 @@
 		81274E10DB3D034993CAD125 /* Habit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Habit.swift; sourceTree = "<group>"; };
 		87073D927C36A87500F56727 /* AddHabitSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddHabitSheet.swift; sourceTree = "<group>"; };
 		8F9632183DC480FF9013A5DE /* Constants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Constants.swift; sourceTree = "<group>"; };
+		92FA5CF587378B479D1CD542 /* PersonalRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonalRepository.swift; sourceTree = "<group>"; };
 		952D829F4BE8048607324226 /* TallyApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TallyApp.swift; sourceTree = "<group>"; };
 		975BA3F618A269A8D5D8EA2A /* CircleMessage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CircleMessage.swift; sourceTree = "<group>"; };
 		A4C2E39F14445DB05584D201 /* DayDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayDetailView.swift; sourceTree = "<group>"; };
@@ -122,7 +130,7 @@
 		B23EFD69AE88007BCFBA851F /* HistoryCalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryCalendarView.swift; sourceTree = "<group>"; };
 		B57527E1EBC1269EACB65A37 /* CircleRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CircleRepository.swift; sourceTree = "<group>"; };
 		B60C8BDE202F0DFA8E4A292F /* GoalsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoalsView.swift; sourceTree = "<group>"; };
-		BD07A89C9EF367D0B3BF4C56 /* TallyTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TallyTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		BD07A89C9EF367D0B3BF4C56 /* TallyTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = TallyTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		C1E680C8647CCB622C23236B /* HabitRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HabitRowView.swift; sourceTree = "<group>"; };
 		C5E79DF71BCCE602887039DC /* CircleDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CircleDashboardView.swift; sourceTree = "<group>"; };
 		C6B3614B136953A5B2236493 /* CircleSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CircleSetupView.swift; sourceTree = "<group>"; };
@@ -168,6 +176,7 @@
 			children = (
 				4802F94A3950D09668FD6ACA /* MockCircleDataRepository.swift */,
 				C6E6BAAA6E9C4BAC1F2597EE /* MockCircleRepository.swift */,
+				4DD98198626AE43163D781E9 /* MockPersonalRepository.swift */,
 				FD48B88B301E282AE67DF4A4 /* MockProfileRepository.swift */,
 			);
 			path = Mock;
@@ -249,6 +258,7 @@
 			children = (
 				490E9F33986E58A9814F7891 /* CircleDataRepository.swift */,
 				B57527E1EBC1269EACB65A37 /* CircleRepository.swift */,
+				92FA5CF587378B479D1CD542 /* PersonalRepository.swift */,
 				DA4022F12FFC0A196A98FA76 /* ProfileRepository.swift */,
 			);
 			path = Repositories;
@@ -333,6 +343,7 @@
 				6AC59012ABE828373BF75456 /* CircleStore.swift */,
 				8F9632183DC480FF9013A5DE /* Constants.swift */,
 				269FFB863CEE50D44AAEFF16 /* MainTabView.swift */,
+				16A5D0959672A1959EE771A7 /* PersonalStore.swift */,
 				46E01DF37CD02C2EC6B10B54 /* RootView.swift */,
 			);
 			path = App;
@@ -420,6 +431,7 @@
 				443EF2CA8E73B6034FCFF27D /* Goal.swift */,
 				81274E10DB3D034993CAD125 /* Habit.swift */,
 				F67E6D38950535254146D36C /* HabitCompletion.swift */,
+				131B65496F7C2096D461EFB0 /* PersonalRoot.swift */,
 				EF0643AE001B774C4DBAAEE5 /* TallyCircle.swift */,
 				0A984F64EB765CBCA58109CA /* UserProfile.swift */,
 			);
@@ -483,9 +495,12 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
-				LastUpgradeCheck = 2650;
+				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					18C27FB10FE5BE0283218A33 = {
+						DevelopmentTeam = 2UM67KP3T9;
+					};
+					A9C692CEE4C99A9267A1F79D = {
 						DevelopmentTeam = 2UM67KP3T9;
 					};
 				};
@@ -569,7 +584,11 @@
 				70130F2A270FFE3CD74A7BC6 /* MessageComposerView.swift in Sources */,
 				7A151273E5C04E46F0E81DBA /* MockCircleDataRepository.swift in Sources */,
 				4773FC229672DB44438E4083 /* MockCircleRepository.swift in Sources */,
+				E547EDBD0227D51E92AA77C5 /* MockPersonalRepository.swift in Sources */,
 				AC925E245A39D489D6A35441 /* MockProfileRepository.swift in Sources */,
+				B02C4D620BE01BD860D30899 /* PersonalRepository.swift in Sources */,
+				C8EEF15AC254074D42C7EC9E /* PersonalRoot.swift in Sources */,
+				38D7FE8C5FE5104B4041C129 /* PersonalStore.swift in Sources */,
 				8703EE7AA29B3BDA766C7B66 /* ProfileRepository.swift in Sources */,
 				F0FD4C70A123C625BC14A7E0 /* ProfileSetupView.swift in Sources */,
 				1BF848C159AE44A46303C475 /* RootView.swift in Sources */,
@@ -630,7 +649,6 @@
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -657,7 +675,6 @@
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.9;
@@ -671,7 +688,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Tally/Tally.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = C92M69NB5L;
+				DEVELOPMENT_TEAM = 2UM67KP3T9;
 				ENABLE_PREVIEWS = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -722,7 +739,6 @@
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -742,7 +758,6 @@
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 5.9;
@@ -756,7 +771,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Tally/Tally.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = C92M69NB5L;
+				DEVELOPMENT_TEAM = 2UM67KP3T9;
 				ENABLE_PREVIEWS = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

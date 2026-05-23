@@ -3,10 +3,6 @@ import CloudKit
 
 struct CircleDashboardView: View {
     @Environment(AppState.self) private var appState
-    @State private var showCreateCircle = false
-    /// Set by `CreateCircleView` on successful create; drained in the create
-    /// sheet's `onDismiss` so we present the invite *after* the sheet has gone.
-    @State private var pendingInviteAfterCreate: TallyCircle?
     @State private var manageCircle: TallyCircle?
 
     /// Time-of-day greeting. Updated when the view recomputes.
@@ -43,7 +39,7 @@ struct CircleDashboardView: View {
                     }
 
                     if appState.circleStore.otherMembers.isEmpty {
-                        invitePartnerCard
+                        addFriendCard
                     }
 
                     Spacer().frame(height: 24)
@@ -75,22 +71,11 @@ struct CircleDashboardView: View {
                     }
                 }
             }
-            .sheet(
-                isPresented: $showCreateCircle,
-                onDismiss: presentInviteIfPending
-            ) {
-                CreateCircleView { circle in
-                    // Defer presentation until the create sheet finishes
-                    // dismissing — UIKit can't present a new modal while one
-                    // is mid-animation.
-                    pendingInviteAfterCreate = circle
-                }
-            }
             .sheet(item: $manageCircle) { circle in
                 CircleSettingsView(circle: circle)
             }
             .alert(
-                "Couldn't share Circle",
+                "Couldn't share",
                 isPresented: Binding(
                     get: { appState.lastCloudShareError != nil },
                     set: { if !$0 { appState.lastCloudShareError = nil } }
@@ -126,23 +111,26 @@ struct CircleDashboardView: View {
         .padding(.horizontal, 4)
     }
 
-    private var invitePartnerCard: some View {
+    /// Empty-state card prompting the user to add their first friend. The
+    /// "Add a friend" button mints their personal CKShare and opens the system
+    /// invite sheet — accepting the link makes the two users mutual friends.
+    private var addFriendCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 10) {
                 Image(systemName: "person.crop.circle.badge.plus")
                     .font(.title2)
                     .foregroundStyle(Color.tallyAccent)
-                Text("Bring your partner in")
+                Text("Bring your friends in")
                     .font(.system(.headline, design: .rounded, weight: .semibold))
             }
-            Text("Tally works best when you can see someone else's check-ins next to yours. Send an invite to start a Circle.")
+            Text("Tally works best when you can see your friends' check-ins next to yours. Send an invite to add a friend.")
                 .font(.system(.subheadline, design: .rounded))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             Button {
-                startInviteFlow()
+                presentAddFriend()
             } label: {
-                Text("Invite a friend")
+                Text("Add a friend")
                     .font(.system(.subheadline, design: .rounded, weight: .semibold))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
@@ -163,28 +151,13 @@ struct CircleDashboardView: View {
         )
     }
 
-    /// If the user owns a Circle, present the system share sheet directly via
-    /// UIKit (the SwiftUI `.sheet` wrapper leaves the share UI blank).
-    /// Otherwise open Create-Circle first.
-    private func startInviteFlow() {
-        guard let owned = appState.ownedCircles.first else {
-            showCreateCircle = true
-            return
-        }
-        presentInvite(for: owned)
-    }
-
-    /// Drain the post-create state set by `CreateCircleView`.
-    private func presentInviteIfPending() {
-        guard let circle = pendingInviteAfterCreate else { return }
-        pendingInviteAfterCreate = nil
-        presentInvite(for: circle)
-    }
-
-    private func presentInvite(for circle: TallyCircle) {
-        let repo = appState.circleRepository
+    /// Mint-or-fetch my personal CKShare and present the system invite sheet.
+    /// Whoever accepts the link becomes my friend (and reciprocally I become
+    /// theirs when their app processes the accept).
+    private func presentAddFriend() {
+        let repo = appState.personalRepository
         CloudShareInvitePresenter.present {
-            try await repo.makeShare(for: circle)
+            try await repo.makePersonalShare()
         }
     }
 }

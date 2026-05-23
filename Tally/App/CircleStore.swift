@@ -2,13 +2,14 @@ import CloudKit
 import Foundation
 import Observation
 
-/// The single observable store for everything inside the active Circle —
-/// members, habits, check-ins, weekly goals, and messages.
+/// The observable store for an active Circle's *chat-room* concerns —
+/// members and messages. Habits, completions, and goals moved out to
+/// `PersonalStore` in 3d (they're per-user, not per-Circle).
 ///
 /// Reads are synchronous against in-memory arrays so SwiftUI views stay simple.
-/// Writes are optimistic: the local arrays update immediately, and the change is
-/// pushed to CloudKit in the background. A `refresh()` (on launch, foreground,
-/// or push) reconciles with the server so friends' changes appear.
+/// Writes (messages) are optimistic: local arrays update immediately, and the
+/// change is pushed to CloudKit in the background. `refresh()` reconciles with
+/// the server so friends' changes appear.
 @MainActor
 @Observable
 final class CircleStore {
@@ -18,9 +19,6 @@ final class CircleStore {
     private(set) var circle: TallyCircle?
 
     var members: [CircleMember] = []
-    var habits: [Habit] = []
-    var completions: [HabitCompletion] = []
-    var goals: [Goal] = []
     var circleMessages: [CircleMessage] = []
     var directMessages: [DirectMessage] = []
 
@@ -46,8 +44,7 @@ final class CircleStore {
         if self.circle?.id != circle.id {
             self.circle = circle
             token = nil
-            members = []; habits = []; completions = []
-            goals = []; circleMessages = []; directMessages = []
+            members = []; circleMessages = []; directMessages = []
         } else {
             self.circle = circle
         }
@@ -65,9 +62,6 @@ final class CircleStore {
             let snap = try await dataRepo.snapshot(for: circle, since: nil)
             token = snap.token
             members = snap.members
-            habits = snap.habits
-            completions = snap.completions
-            goals = snap.goals
             circleMessages = snap.circleMessages
             directMessages = snap.directMessages
         } catch {
@@ -97,9 +91,6 @@ final class CircleStore {
         let deleted = Set(snap.deletedRecordNames)
         if let c = snap.circle { circle = c }
         Self.merge(snap.members, deleted: deleted, into: &members)
-        Self.merge(snap.habits, deleted: deleted, into: &habits)
-        Self.merge(snap.completions, deleted: deleted, into: &completions)
-        Self.merge(snap.goals, deleted: deleted, into: &goals)
         Self.merge(snap.circleMessages, deleted: deleted, into: &circleMessages)
         Self.merge(snap.directMessages, deleted: deleted, into: &directMessages)
     }
@@ -137,147 +128,6 @@ final class CircleStore {
     var orderedMembers: [CircleMember] {
         let me = members.filter { $0.userID == currentUserID }
         return me + otherMembers
-    }
-
-    // MARK: - Habits (queries)
-
-    func habits(for userID: String) -> [Habit] {
-        habits
-            .filter { $0.userID == userID && $0.archivedAt == nil }
-            .sorted { $0.createdAt < $1.createdAt }
-    }
-
-    func completion(habit: Habit, on date: Date) -> HabitCompletion? {
-        let day = date.startOfDay
-        return completions.first {
-            $0.habitID == habit.id && $0.completedDate.startOfDay == day
-        }
-    }
-
-    func isCompleted(habit: Habit, on date: Date) -> Bool {
-        completion(habit: habit, on: date) != nil
-    }
-
-    func completionDates(habit: Habit) -> [Date] {
-        completions.filter { $0.habitID == habit.id }.map { $0.completedDate }
-    }
-
-    // MARK: - Habits (mutations)
-
-    @discardableResult
-    func toggle(habit: Habit, on date: Date) -> Bool {
-        let day = date.startOfDay
-        if let existing = completion(habit: habit, on: day) {
-            completions.removeAll { $0.id == existing.id }
-            persistDelete([existing.recordName])
-            return false
-        }
-        let new = HabitCompletion(
-            id: UUID(),
-            habitID: habit.id,
-            userID: habit.userID,
-            completedDate: day,
-            createdAt: .now
-        )
-        completions.append(new)
-        persistSave([new])
-        return true
-    }
-
-    func addHabit(title: String, for userID: String, privacy: HabitPrivacy = .shared) {
-        let habit = Habit(
-            id: UUID(),
-            userID: userID,
-            title: title,
-            privacy: privacy,
-            createdAt: .now,
-            archivedAt: nil
-        )
-        habits.append(habit)
-        persistSave([habit])
-    }
-
-    func archive(habit: Habit) {
-        guard let i = habits.firstIndex(where: { $0.id == habit.id }) else { return }
-        habits[i].archivedAt = .now
-        persistSave([habits[i]])
-    }
-
-    func delete(habit: Habit) {
-        habits.removeAll { $0.id == habit.id }
-        let staleCompletions = completions.filter { $0.habitID == habit.id }
-        completions.removeAll { $0.habitID == habit.id }
-        persistDelete([habit.recordName] + staleCompletions.map { $0.recordName })
-    }
-
-    // MARK: - Goals (daily / weekly / monthly / yearly)
-
-    /// Goals for `userID` at `period`, anchored at `periodStart` (the start of
-    /// the day / Monday / 1st of month / Jan 1).
-    func goals(for userID: String, period: GoalPeriod, periodStart: Date) -> [Goal] {
-        let anchor = periodStart.startOfDay
-        return goals
-            .filter {
-                $0.userID == userID
-                && $0.period == period
-                && $0.periodStartDate.startOfDay == anchor
-            }
-            .sorted { $0.createdAt < $1.createdAt }
-    }
-
-    /// Unfinished goals from the period immediately before `currentStart` — used
-    /// to offer carry-over into the current period.
-    func unfinishedFromPrevious(userID: String, period: GoalPeriod, currentStart: Date) -> [Goal] {
-        let previousStart = period.shift(currentStart, by: -1).startOfDay
-        return goals.filter {
-            $0.userID == userID
-            && $0.period == period
-            && $0.periodStartDate.startOfDay == previousStart
-            && $0.completedAt == nil
-        }
-    }
-
-    func toggleComplete(goal: Goal) {
-        guard let i = goals.firstIndex(where: { $0.id == goal.id }) else { return }
-        goals[i].completedAt = goals[i].completedAt == nil ? .now : nil
-        persistSave([goals[i]])
-    }
-
-    func addGoal(title: String, for userID: String, period: GoalPeriod, periodStart: Date) {
-        let goal = Goal(
-            id: UUID(),
-            userID: userID,
-            title: title,
-            period: period,
-            periodStartDate: periodStart,
-            completedAt: nil,
-            carriedFromID: nil,
-            createdAt: .now
-        )
-        goals.append(goal)
-        persistSave([goal])
-    }
-
-    /// Carry an unfinished goal into a later period of the same type. Inherits
-    /// the source goal's period so a weekly carry stays weekly.
-    func carryForward(goal: Goal, to periodStart: Date) {
-        let copy = Goal(
-            id: UUID(),
-            userID: goal.userID,
-            title: goal.title,
-            period: goal.period,
-            periodStartDate: periodStart,
-            completedAt: nil,
-            carriedFromID: goal.id,
-            createdAt: .now
-        )
-        goals.append(copy)
-        persistSave([copy])
-    }
-
-    func delete(goal: Goal) {
-        goals.removeAll { $0.id == goal.id }
-        persistDelete([goal.recordName])
     }
 
     // MARK: - Messages
@@ -339,17 +189,6 @@ final class CircleStore {
         Task {
             do {
                 try await dataRepo.save(records, in: circle)
-            } catch {
-                lastError = error.localizedDescription
-            }
-        }
-    }
-
-    private func persistDelete(_ recordNames: [String]) {
-        guard let circle, !recordNames.isEmpty else { return }
-        Task {
-            do {
-                try await dataRepo.delete(recordNames: recordNames, in: circle)
             } catch {
                 lastError = error.localizedDescription
             }

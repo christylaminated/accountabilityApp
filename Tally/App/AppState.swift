@@ -41,10 +41,16 @@ final class AppState {
 
     let profileRepository: any ProfileRepository
     let circleRepository: any CircleRepository
+    let personalRepository: any PersonalRepository
     let shareCoordinator: ShareCoordinator
 
-    /// Live data for the active Circle — the single source the feature views read.
+    /// Live data for the active Circle — members + chat. Habits and goals
+    /// moved out to `personalStore` in 3d.
     let circleStore: CircleStore
+
+    /// The signed-in user's personal data — habits, completions, goals.
+    /// Friends' data will load here too in 3e.
+    let personalStore: PersonalStore
 
     /// Points at `PendingShareBuffer.shared`. Single source of truth for an
     /// incoming CKShare invite — survives cold-launch deep links that arrive
@@ -81,13 +87,17 @@ final class AppState {
     init(
         profileRepository: any ProfileRepository = CloudKitProfileRepository(),
         circleRepository: any CircleRepository = CloudKitCircleRepository(),
+        personalRepository: any PersonalRepository = CloudKitPersonalRepository(),
         shareCoordinator: ShareCoordinator = ShareCoordinator(),
-        circleStore: CircleStore? = nil
+        circleStore: CircleStore? = nil,
+        personalStore: PersonalStore? = nil
     ) {
         self.profileRepository = profileRepository
         self.circleRepository = circleRepository
+        self.personalRepository = personalRepository
         self.shareCoordinator = shareCoordinator
         self.circleStore = circleStore ?? CircleStore()
+        self.personalStore = personalStore ?? PersonalStore(repository: personalRepository)
 
         registerAccountChangeObserver()
         Task { await self.refreshAccountState() }
@@ -151,6 +161,11 @@ final class AppState {
                 currentUserID = try await CKClient.shared.userRecordID().recordName
                 if let profile = try await profileRepository.ownProfile() {
                     ownCloudProfile = profile
+                    // Idempotent — sets up the personal zone + root record the
+                    // first time a user reaches the main app, then loads habits
+                    // and goals from it.
+                    try? await personalRepository.ensurePersonalZone()
+                    await personalStore.activate(currentUserID: currentUserID)
                     await handleIncomingShareIfNeeded()
                     await loadCircles()
                     await enterMainAppOrCircleSetup()
@@ -226,7 +241,7 @@ final class AppState {
         for title in titles {
             let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { continue }
-            circleStore.addHabit(title: trimmed, for: currentUserID)
+            personalStore.addHabit(title: trimmed, for: currentUserID)
         }
         onboardingState = .needsGoalsSetup
     }
@@ -238,7 +253,7 @@ final class AppState {
         for title in titles {
             let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { continue }
-            circleStore.addGoal(
+            personalStore.addGoal(
                 title: trimmed,
                 for: currentUserID,
                 period: .week,
@@ -284,37 +299,50 @@ final class AppState {
         return circle
     }
 
-    /// If a CKShare invite is pending (from a tapped invite link), accept it,
-    /// record our membership, then refresh. Called on reaching the gate and on
-    /// scene-foreground.
+    /// If a CKShare invite is pending (from a tapped invite link), accept it
+    /// and route based on the share's zone: Circle invite → join the Circle;
+    /// personal-share invite → become friends (reciprocally).
+    /// Called on reaching the gate and on scene-foreground.
     func handleIncomingShareIfNeeded() async {
         guard let metadata = pendingShareBuffer.consume() else { return }
         isAcceptingShare = true
         defer { isAcceptingShare = false }
         do {
-            let circleID = try await shareCoordinator.accept(metadata)
-            try await circleRepository.recordOwnMembership(
-                circleID: circleID,
-                displayName: ownCloudProfile?.displayName ?? "Me",
-                avatarSymbol: ownCloudProfile?.avatarSymbol ?? "leaf"
-            )
-            await loadCircles()
-            if let active = activeCircle {
-                await circleStore.activate(active, currentUserID: currentUserID)
-            }
-            // A friend's invite accepted during Circle setup counts as setup done.
-            if onboardingState == .needsCircleSetup {
-                advancePastCircleSetup()
+            try await shareCoordinator.acceptShare(metadata)
+
+            if let circleID = ShareCoordinator.circleID(from: metadata) {
+                // Circle invite — join the Circle.
+                try await circleRepository.recordOwnMembership(
+                    circleID: circleID,
+                    displayName: ownCloudProfile?.displayName ?? "Me",
+                    avatarSymbol: ownCloudProfile?.avatarSymbol ?? "leaf"
+                )
+                await loadCircles()
+                if let active = activeCircle {
+                    await circleStore.activate(active, currentUserID: currentUserID)
+                }
+                if onboardingState == .needsCircleSetup {
+                    advancePastCircleSetup()
+                }
+            } else if ShareCoordinator.zoneName(from: metadata) == CloudKitPersonalRepository.zoneName {
+                // Personal-share invite — become friends. Reciprocally add the
+                // inviter as a participant on MY personal share so they see my
+                // data too. Then refresh PersonalStore to load their data.
+                if let ownerID = metadata.ownerIdentity.userRecordID {
+                    try? await personalRepository.addFriendParticipant(userRecordID: ownerID)
+                }
+                await personalStore.refresh()
             }
         } catch {
-            circleActionError = "Couldn't join the Circle: \(error.localizedDescription)"
+            circleActionError = "Couldn't accept share: \(error.localizedDescription)"
         }
     }
 
-    /// Pull the latest Circle data from CloudKit. Called on scene-foreground and
-    /// when a CloudKit push notification arrives.
+    /// Pull the latest Circle + personal data from CloudKit. Called on
+    /// scene-foreground and when a CloudKit push notification arrives.
     func refreshCircleData() async {
         await circleStore.refresh()
+        await personalStore.refresh()
     }
 }
 
