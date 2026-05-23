@@ -6,6 +6,8 @@ import SwiftUI
 struct FriendsView: View {
     @Environment(AppState.self) private var appState
     @State private var showCreateGroup = false
+    @State private var groupToDelete: TallyCircle?
+    @State private var groupToLeave: TallyCircle?
 
     private var friends: [Friend] {
         appState.personalStore.friends
@@ -13,6 +15,10 @@ struct FriendsView: View {
 
     private var groups: [TallyCircle] {
         appState.allCircles
+    }
+
+    private func isOwner(of group: TallyCircle) -> Bool {
+        group.ownerID == appState.currentUserID
     }
 
     var body: some View {
@@ -45,6 +51,21 @@ struct FriendsView: View {
                                     GroupRow(group: group)
                                 }
                                 .buttonStyle(.plain)
+                                .contextMenu {
+                                    if isOwner(of: group) {
+                                        Button(role: .destructive) {
+                                            groupToDelete = group
+                                        } label: {
+                                            Label("Delete group", systemImage: "trash")
+                                        }
+                                    } else {
+                                        Button(role: .destructive) {
+                                            groupToLeave = group
+                                        } label: {
+                                            Label("Leave group", systemImage: "rectangle.portrait.and.arrow.right")
+                                        }
+                                    }
+                                }
                             }
                         }
                         newGroupButton
@@ -63,6 +84,40 @@ struct FriendsView: View {
             }
             .sheet(isPresented: $showCreateGroup) {
                 CreateCircleView { _ in /* no auto-invite for groups */ }
+            }
+            .confirmationDialog(
+                "Delete this group?",
+                isPresented: Binding(
+                    get: { groupToDelete != nil },
+                    set: { if !$0 { groupToDelete = nil } }
+                ),
+                titleVisibility: .visible,
+                presenting: groupToDelete
+            ) { group in
+                Button("Delete group", role: .destructive) {
+                    Task { await appState.deleteCircle(group) }
+                    groupToDelete = nil
+                }
+                Button("Cancel", role: .cancel) { groupToDelete = nil }
+            } message: { _ in
+                Text("This removes the group and its chat history for everyone. This can't be undone.")
+            }
+            .confirmationDialog(
+                "Leave this group?",
+                isPresented: Binding(
+                    get: { groupToLeave != nil },
+                    set: { if !$0 { groupToLeave = nil } }
+                ),
+                titleVisibility: .visible,
+                presenting: groupToLeave
+            ) { group in
+                Button("Leave", role: .destructive) {
+                    Task { await appState.leaveCircle(group) }
+                    groupToLeave = nil
+                }
+                Button("Cancel", role: .cancel) { groupToLeave = nil }
+            } message: { _ in
+                Text("You'll stop seeing this group's chat. The other members stay in it.")
             }
         }
     }

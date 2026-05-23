@@ -249,6 +249,35 @@ final class AppState {
         await circleStore.activate(circle, currentUserID: currentUserID)
     }
 
+    /// Owner deletes a Group entirely — server-side zone deletion cascades to
+    /// the chat, members, and the share. Reloads the Circle list and reactivates
+    /// the next available Group, if any.
+    func deleteCircle(_ circle: TallyCircle) async {
+        do {
+            try await circleRepository.deleteCircle(circle)
+            await loadCircles()
+            if let next = activeCircle {
+                await circleStore.activate(next, currentUserID: currentUserID)
+            }
+        } catch {
+            circleActionError = error.localizedDescription
+        }
+    }
+
+    /// Participant leaves a Group (removes self from the share). Owners use
+    /// `deleteCircle` instead.
+    func leaveCircle(_ circle: TallyCircle) async {
+        do {
+            try await circleRepository.leaveCircle(circle)
+            await loadCircles()
+            if let next = activeCircle {
+                await circleStore.activate(next, currentUserID: currentUserID)
+            }
+        } catch {
+            circleActionError = error.localizedDescription
+        }
+    }
+
     // MARK: - Members / friends (dashboard composition)
 
     /// "Me" rendered as a `Friend` for symmetric iteration on the dashboard.
