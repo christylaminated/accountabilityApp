@@ -109,7 +109,7 @@
 		4802F94A3950D09668FD6ACA /* MockCircleDataRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockCircleDataRepository.swift; sourceTree = "<group>"; };
 		490E9F33986E58A9814F7891 /* CircleDataRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CircleDataRepository.swift; sourceTree = "<group>"; };
 		4C0DCF5404863ACA6CB96F03 /* CircleFeedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CircleFeedView.swift; sourceTree = "<group>"; };
-		4DCF1A5BC6FA366C4B658D35 /* Tally.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Tally.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		4DCF1A5BC6FA366C4B658D35 /* Tally.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Tally.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		4DD98198626AE43163D781E9 /* MockPersonalRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockPersonalRepository.swift; sourceTree = "<group>"; };
 		528E58669C73437CABA6DFA0 /* CreateCircleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateCircleView.swift; sourceTree = "<group>"; };
 		52D645AA20CC08D5771E92FB /* FriendsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FriendsView.swift; sourceTree = "<group>"; };
@@ -506,9 +506,6 @@
 					18C27FB10FE5BE0283218A33 = {
 						DevelopmentTeam = 2UM67KP3T9;
 					};
-					A9C692CEE4C99A9267A1F79D = {
-						DevelopmentTeam = 2UM67KP3T9;
-					};
 				};
 			};
 			buildConfigurationList = 5C367879F862A4ED5849A1D0 /* Build configuration list for PBXProject "Tally" */;
@@ -696,7 +693,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Tally/Tally.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = 2UM67KP3T9;
+				DEVELOPMENT_TEAM = C92M69NB5L;
 				ENABLE_PREVIEWS = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -779,7 +776,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Tally/Tally.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = 2UM67KP3T9;
+				DEVELOPMENT_TEAM = C92M69NB5L;
 				ENABLE_PREVIEWS = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

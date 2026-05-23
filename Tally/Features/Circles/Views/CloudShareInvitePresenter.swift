@@ -1,44 +1,38 @@
 import CloudKit
 import UIKit
 
-/// Presents the system `UICloudSharingController` over the topmost view
-/// controller — i.e., the way Apple's own sample code uses it.
+/// Presents the system share sheet for a CKShare over the topmost view
+/// controller — i.e., the way Apple recommends in iOS 17+.
 ///
-/// Why not host it inside a SwiftUI `.sheet`? Because `UICloudSharingController`
-/// expects to be *presented modally from* another view controller; its
-/// `preparationHandler` lifecycle (and the share UI itself) doesn't render
-/// when it's the root of a UIViewControllerRepresentable. You get a blank
-/// sheet. Routing it through UIKit's modal presentation directly is the only
-/// reliable way to get the share UI on screen.
+/// History note: earlier versions used `UICloudSharingController` (with its
+/// `preparationHandler` initializer). That class is deprecated as of iOS 17;
+/// Apple's replacement is to pre-save the share and hand it to a regular
+/// `UIActivityViewController` with the share + container as activity items.
+/// The system knows how to share a `CKShare` — it extracts the invite URL and
+/// routes it through whichever method the user picks (Messages, Mail, etc.).
 @MainActor
 enum CloudShareInvitePresenter {
-    /// Present the system invite sheet. `prepare` runs when the controller asks
-    /// for its share; it should return a SERVER-saved `CKShare` and the
-    /// matching `CKContainer`.
+    /// Mint/fetch the CKShare via `prepare`, then present the system share
+    /// sheet. On failure, post `.tallyCloudShareError` so the app can surface
+    /// the actual CloudKit error instead of swallowing it.
     static func present(prepare: @escaping @Sendable () async throws -> (CKShare, CKContainer)) {
-        guard let topVC = topViewController() else {
-            print("CloudShareInvitePresenter: no view controller to present from")
-            return
-        }
-        let controller = UICloudSharingController { _, completion in
-            Task { @MainActor in
-                do {
-                    let (share, container) = try await prepare()
-                    completion(share, container, nil)
-                } catch {
-                    // Surface the real CloudKit error to the UI instead of
-                    // letting iOS swallow it into "A link couldn't be created".
-                    NotificationCenter.default.post(name: .tallyCloudShareError, object: error)
-                    completion(nil, nil, error)
+        Task { @MainActor in
+            do {
+                let (share, container) = try await prepare()
+                guard let topVC = topViewController() else {
+                    print("CloudShareInvitePresenter: no view controller to present from")
+                    return
                 }
+                let avc = UIActivityViewController(
+                    activityItems: [share, container],
+                    applicationActivities: nil
+                )
+                configureForIPad(avc, on: topVC)
+                topVC.present(avc, animated: true)
+            } catch {
+                NotificationCenter.default.post(name: .tallyCloudShareError, object: error)
             }
         }
-        // `.allowReadWrite` matches our trust model (participants write their
-        // own habits / completions / messages). `.allowPrivate` keeps the
-        // Circle invite-only.
-        controller.availablePermissions = [.allowReadWrite, .allowPrivate]
-        controller.delegate = CloudShareDelegate.shared
-        topVC.present(controller, animated: true)
     }
 
     /// Walk the foreground window's presentation stack to find the topmost VC
@@ -53,28 +47,21 @@ enum CloudShareInvitePresenter {
         }
         return current
     }
-}
 
-/// Singleton delegate — `UICloudSharingController.delegate` is `weak`, so we
-/// need a long-lived object to back it across the share flow.
-private final class CloudShareDelegate: NSObject, UICloudSharingControllerDelegate {
-    static let shared = CloudShareDelegate()
-
-    func cloudSharingController(
-        _ csc: UICloudSharingController,
-        failedToSaveShareWithError error: Error
+    /// Without a source view, `UIActivityViewController` crashes when presented
+    /// as a popover on iPad. Anchor it to the top VC's center so it has
+    /// somewhere to point at.
+    private static func configureForIPad(
+        _ avc: UIActivityViewController,
+        on source: UIViewController
     ) {
-        // This fires when the controller's own save (e.g. adding a participant
-        // or minting an invite link) fails. Surface the error so it's visible
-        // in the app, not just buried in iOS's generic alert.
-        NSLog("CKShare save failed: %@", String(describing: error))
-        NotificationCenter.default.post(name: .tallyCloudShareError, object: error)
+        guard let popover = avc.popoverPresentationController else { return }
+        popover.sourceView = source.view
+        popover.sourceRect = CGRect(
+            x: source.view.bounds.midX,
+            y: source.view.bounds.midY,
+            width: 0, height: 0
+        )
+        popover.permittedArrowDirections = []
     }
-
-    func itemTitle(for csc: UICloudSharingController) -> String? {
-        "Join my Tally Circle"
-    }
-
-    func cloudSharingControllerDidSaveShare(_ csc: UICloudSharingController) {}
-    func cloudSharingControllerDidStopSharing(_ csc: UICloudSharingController) {}
 }

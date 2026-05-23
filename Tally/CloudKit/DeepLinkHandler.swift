@@ -40,12 +40,17 @@ final class TallyAppDelegate: NSObject, UIApplicationDelegate {
     /// A CloudKit zone subscription fired — a friend changed something. Tell
     /// `AppState` to pull the delta. Works in the foreground always, and in the
     /// background when the `remote-notification` background mode is enabled.
+    ///
+    /// We use the completion-handler form (not `async`) because Swift 6 strict
+    /// concurrency rejects the async form's `[AnyHashable: Any]` parameter
+    /// (not Sendable).
     func application(
         _ application: UIApplication,
-        didReceiveRemoteNotification userInfo: [AnyHashable: Any]
-    ) async -> UIBackgroundFetchResult {
+        didReceiveRemoteNotification userInfo: [AnyHashable: Any],
+        fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
+    ) {
         NotificationCenter.default.post(name: .tallyRemoteChange, object: nil)
-        return .newData
+        completionHandler(.newData)
     }
 
     func application(
