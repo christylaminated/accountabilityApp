@@ -114,11 +114,13 @@ final class AppState {
         // caches fail to decode for some reason, returning users still get
         // straight onto the dashboard. The background refresh below verifies
         // everything and fixes up any stale state.
-        if LocalCache.load(Bool.self, forKey: LocalCacheKey.hasOnboarded) == true {
+        let hasOnboarded = LocalCache.load(Bool.self, forKey: LocalCacheKey.hasOnboarded) ?? false
+        if hasOnboarded {
             self.currentUserID = LocalCache.load(String.self, forKey: LocalCacheKey.currentUserID) ?? ""
             self.ownCloudProfile = LocalCache.load(UserProfile.self, forKey: LocalCacheKey.ownProfile)
             self.onboardingState = .ready
         }
+        NSLog("[Tally] AppState.init hasOnboarded=\(hasOnboarded) state=\(self.onboardingState)")
 
         registerAccountChangeObserver()
         Task { await self.refreshAccountState() }
@@ -192,8 +194,7 @@ final class AppState {
                 currentUserID = try await CKClient.shared.userRecordID().recordName
                 LocalCache.save(currentUserID, forKey: LocalCacheKey.currentUserID)
                 if let profile = try await profileRepository.ownProfile() {
-                    ownCloudProfile = profile
-                    LocalCache.save(profile, forKey: LocalCacheKey.ownProfile)
+                    persistProfile(profile)
                     // Idempotent — sets up the personal zone + root record the
                     // first time a user reaches the main app, then loads habits
                     // and goals from it. activate() preserves cached arrays
@@ -221,13 +222,25 @@ final class AppState {
     /// After auth + profile are confirmed: activate the current Circle (if any)
     /// and show the main app. A user with zero Circles is a valid state —
     /// they're on the dashboard with the "Add a friend" prompt.
-    /// Also flips `hasOnboarded` so the next launch skips the iCloud spinner.
+    /// (`hasOnboarded` is already set the moment the profile is fetched, in
+    /// `persistProfile(_:)`, so even if Circle/store activation throws later
+    /// the spinner-skip is unaffected on the next launch.)
     private func enterMainAppOrCircleSetup() async {
         if let circle = activeCircle {
             await circleStore.activate(circle, currentUserID: currentUserID)
         }
-        LocalCache.save(true, forKey: LocalCacheKey.hasOnboarded)
         onboardingState = .ready
+    }
+
+    /// Centralized profile-set with cache + onboarding-flag writes. The flag
+    /// goes to disk the instant we have a profile in hand — so any subsequent
+    /// failure (zone setup, share accept, Circle load) doesn't strand the
+    /// user behind the spinner on the next launch.
+    private func persistProfile(_ profile: UserProfile) {
+        ownCloudProfile = profile
+        LocalCache.save(profile, forKey: LocalCacheKey.ownProfile)
+        LocalCache.save(true, forKey: LocalCacheKey.hasOnboarded)
+        NSLog("[Tally] persisted profile + hasOnboarded=true")
     }
 
     // MARK: - Onboarding transitions
@@ -240,11 +253,10 @@ final class AppState {
             displayName: displayName,
             avatarSymbol: avatarSymbol
         )
-        ownCloudProfile = profile
         isFirstRunOnboarding = true
 
-        // Cache profile + identity so the next launch skips the spinner.
-        LocalCache.save(profile, forKey: LocalCacheKey.ownProfile)
+        // Centralized: sets ownCloudProfile, caches profile, flips hasOnboarded.
+        persistProfile(profile)
         LocalCache.save(currentUserID, forKey: LocalCacheKey.currentUserID)
 
         // Ensure the personal zone exists, then write the friend-visible name
@@ -352,8 +364,7 @@ final class AppState {
             displayName: trimmed,
             avatarSymbol: avatarSymbol
         )
-        ownCloudProfile = profile
-        LocalCache.save(profile, forKey: LocalCacheKey.ownProfile)
+        persistProfile(profile)
 
         // Push to PersonalRoot so friends see the new name + avatar.
         try? await personalRepository.updatePersonalRootProfile(
