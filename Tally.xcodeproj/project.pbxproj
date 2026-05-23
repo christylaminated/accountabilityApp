@@ -29,10 +29,10 @@
 		4773FC229672DB44438E4083 /* MockCircleRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6E6BAAA6E9C4BAC1F2597EE /* MockCircleRepository.swift */; };
 		4E0D613B82DDFD9130A82EAE /* GoalsSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 572BA4BB19728F7A9F7AED04 /* GoalsSetupView.swift */; };
 		5463BAB7233583B1CE0CC2DB /* DirectMessageListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A96D357A003369225937AA7 /* DirectMessageListView.swift */; };
+		5ADCA9ACDD4588752936F53B /* ProfileSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA342347F6BF4B4C6E2F7968 /* ProfileSettingsView.swift */; };
 		5CF7076A7D942EE6B9F78F6C /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F9632183DC480FF9013A5DE /* Constants.swift */; };
 		6968B68DFB910D9442F500FB /* TallyCircle.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF0643AE001B774C4DBAAEE5 /* TallyCircle.swift */; };
 		6C546B4FC97EBE5DE0A13E69 /* CKClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2A062890E118D54EA899C1D /* CKClient.swift */; };
-		6DF4ABD5BC15D3C883B93C6F /* FriendsListSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4418F88D8856C241F4BDA750 /* FriendsListSheet.swift */; };
 		70130F2A270FFE3CD74A7BC6 /* MessageComposerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DE51B53C3B5C99A361E9DD7 /* MessageComposerView.swift */; };
 		7332561AE65743C77CF70FBE /* ICloudStatusGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AE3DEBFEA97C34B7EC75584 /* ICloudStatusGate.swift */; };
 		734D650294B7E4DCAFE08F11 /* DirectMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A9A9D1DF334A01ADC0012B0 /* DirectMessage.swift */; };
@@ -52,6 +52,7 @@
 		AA1B36D818FF926CF2D7258C /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F747DED91B9F0E7503CE283 /* AppState.swift */; };
 		AC925E245A39D489D6A35441 /* MockProfileRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD48B88B301E282AE67DF4A4 /* MockProfileRepository.swift */; };
 		B02C4D620BE01BD860D30899 /* PersonalRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92FA5CF587378B479D1CD542 /* PersonalRepository.swift */; };
+		B342C99CCA6052466B51F997 /* ThemeColor.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE763330034CD0CEB3E6F148 /* ThemeColor.swift */; };
 		B7688D4FB96CEA7382FDC71F /* Color+Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB5DB01330511281AED65F5D /* Color+Theme.swift */; };
 		B97A569EB0D34660FA19CA48 /* CircleRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = B57527E1EBC1269EACB65A37 /* CircleRepository.swift */; };
 		C1BB2E44C03E14D3F6C57E01 /* Habit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81274E10DB3D034993CAD125 /* Habit.swift */; };
@@ -106,7 +107,6 @@
 		35137C828BEDFE0F1A23F7C2 /* EmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyStateView.swift; sourceTree = "<group>"; };
 		370BFA08DA98388F57FA9FE3 /* Date+Tally.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Date+Tally.swift"; sourceTree = "<group>"; };
 		426A21943CB544027A7E415A /* HabitsSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HabitsSetupView.swift; sourceTree = "<group>"; };
-		4418F88D8856C241F4BDA750 /* FriendsListSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FriendsListSheet.swift; sourceTree = "<group>"; };
 		443EF2CA8E73B6034FCFF27D /* Goal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Goal.swift; sourceTree = "<group>"; };
 		46E01DF37CD02C2EC6B10B54 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		4802F94A3950D09668FD6ACA /* MockCircleDataRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockCircleDataRepository.swift; sourceTree = "<group>"; };
@@ -138,11 +138,13 @@
 		B23EFD69AE88007BCFBA851F /* HistoryCalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryCalendarView.swift; sourceTree = "<group>"; };
 		B57527E1EBC1269EACB65A37 /* CircleRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CircleRepository.swift; sourceTree = "<group>"; };
 		BD07A89C9EF367D0B3BF4C56 /* TallyTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = TallyTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		BE763330034CD0CEB3E6F148 /* ThemeColor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeColor.swift; sourceTree = "<group>"; };
 		C1E680C8647CCB622C23236B /* HabitRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HabitRowView.swift; sourceTree = "<group>"; };
 		C5E79DF71BCCE602887039DC /* CircleDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CircleDashboardView.swift; sourceTree = "<group>"; };
 		C6B3614B136953A5B2236493 /* CircleSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CircleSetupView.swift; sourceTree = "<group>"; };
 		C6E6BAAA6E9C4BAC1F2597EE /* MockCircleRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockCircleRepository.swift; sourceTree = "<group>"; };
 		C998D4524473F7524D00E4B9 /* WeekCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeekCalculator.swift; sourceTree = "<group>"; };
+		DA342347F6BF4B4C6E2F7968 /* ProfileSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileSettingsView.swift; sourceTree = "<group>"; };
 		DA4022F12FFC0A196A98FA76 /* ProfileRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileRepository.swift; sourceTree = "<group>"; };
 		E2A062890E118D54EA899C1D /* CKClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CKClient.swift; sourceTree = "<group>"; };
 		E512FAB643E4155FF24466F1 /* ProfileSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileSetupView.swift; sourceTree = "<group>"; };
@@ -285,7 +287,6 @@
 			isa = PBXGroup;
 			children = (
 				C5E79DF71BCCE602887039DC /* CircleDashboardView.swift */,
-				4418F88D8856C241F4BDA750 /* FriendsListSheet.swift */,
 				1DFE77214583F77CB5A7185D /* MemberRowView.swift */,
 			);
 			path = Views;
@@ -363,6 +364,7 @@
 				269FFB863CEE50D44AAEFF16 /* MainTabView.swift */,
 				16A5D0959672A1959EE771A7 /* PersonalStore.swift */,
 				46E01DF37CD02C2EC6B10B54 /* RootView.swift */,
+				BE763330034CD0CEB3E6F148 /* ThemeColor.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -381,6 +383,7 @@
 				572BA4BB19728F7A9F7AED04 /* GoalsSetupView.swift */,
 				426A21943CB544027A7E415A /* HabitsSetupView.swift */,
 				6AE3DEBFEA97C34B7EC75584 /* ICloudStatusGate.swift */,
+				DA342347F6BF4B4C6E2F7968 /* ProfileSettingsView.swift */,
 				E512FAB643E4155FF24466F1 /* ProfileSetupView.swift */,
 			);
 			path = Views;
@@ -579,7 +582,6 @@
 				140D4F90BABD9336827F0C43 /* DirectMessageThreadView.swift in Sources */,
 				0024E4E9B5BE578D82C70491 /* EmptyStateView.swift in Sources */,
 				2ED206940745EAAF4E55B38E /* Friend.swift in Sources */,
-				6DF4ABD5BC15D3C883B93C6F /* FriendsListSheet.swift in Sources */,
 				CA6D88B34B1C2CFF17595CBB /* FriendsView.swift in Sources */,
 				2F4E5A209E8F9855EA757C37 /* Goal.swift in Sources */,
 				4E0D613B82DDFD9130A82EAE /* GoalsSetupView.swift in Sources */,
@@ -606,12 +608,14 @@
 				C8EEF15AC254074D42C7EC9E /* PersonalRoot.swift in Sources */,
 				38D7FE8C5FE5104B4041C129 /* PersonalStore.swift in Sources */,
 				8703EE7AA29B3BDA766C7B66 /* ProfileRepository.swift in Sources */,
+				5ADCA9ACDD4588752936F53B /* ProfileSettingsView.swift in Sources */,
 				F0FD4C70A123C625BC14A7E0 /* ProfileSetupView.swift in Sources */,
 				1BF848C159AE44A46303C475 /* RootView.swift in Sources */,
 				C20854EC3BE56E3A54223FCF /* ShareCoordinator.swift in Sources */,
 				E28B30A6239671ECAF22C253 /* StreakCalculator.swift in Sources */,
 				35BBEA0B07AD308B03814152 /* TallyApp.swift in Sources */,
 				6968B68DFB910D9442F500FB /* TallyCircle.swift in Sources */,
+				B342C99CCA6052466B51F997 /* ThemeColor.swift in Sources */,
 				D7539724508FDA45F5EF819E /* UserProfile.swift in Sources */,
 				343BD6037A10410E91205018 /* WeekCalculator.swift in Sources */,
 			);

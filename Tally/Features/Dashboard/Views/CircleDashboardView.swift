@@ -3,7 +3,7 @@ import CloudKit
 
 struct CircleDashboardView: View {
     @Environment(AppState.self) private var appState
-    @State private var showFriendsList = false
+    @State private var showProfileSettings = false
     @State private var showAddTodayGoal = false
 
     /// Time-of-day greeting. Updated when the view recomputes.
@@ -69,17 +69,17 @@ struct CircleDashboardView: View {
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        showFriendsList = true
+                        showProfileSettings = true
                     } label: {
-                        Image(systemName: "person.2")
+                        Image(systemName: "person.crop.circle")
                     }
                 }
             }
             .navigationDestination(for: String.self) { userID in
                 MemberDetailView(memberID: userID)
             }
-            .sheet(isPresented: $showFriendsList) {
-                FriendsListSheet()
+            .sheet(isPresented: $showProfileSettings) {
+                ProfileSettingsView()
             }
             .sheet(isPresented: $showAddTodayGoal) {
                 AddGoalSheet(period: .day, periodStart: Date.now.startOfDay)

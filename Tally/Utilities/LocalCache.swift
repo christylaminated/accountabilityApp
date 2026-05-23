@@ -25,10 +25,11 @@ enum LocalCache {
         defaults.removeObject(forKey: key)
     }
 
-    /// Wipe every cache key — used on iCloud account change so we don't show
-    /// the previous user's data after a sign-in switch.
+    /// Wipe user-scoped cache keys — used on iCloud account change so we don't
+    /// show the previous user's data after a sign-in switch. UI preferences
+    /// like `themeColor` survive the wipe.
     static func clearAll() {
-        for key in LocalCacheKey.all {
+        for key in LocalCacheKey.userScoped {
             remove(forKey: key)
         }
     }
@@ -38,6 +39,9 @@ enum LocalCacheKey {
     static let currentUserID = "Tally.cache.currentUserID"
     static let ownProfile = "Tally.cache.ownProfile"
     static let personalStore = "Tally.cache.personalStore"
+    /// UI preference — not user-scoped, kept across account changes.
+    static let themeColor = "Tally.cache.themeColor"
 
-    static let all: [String] = [currentUserID, ownProfile, personalStore]
+    /// Cache keys cleared on iCloud account switch.
+    static let userScoped: [String] = [currentUserID, ownProfile, personalStore]
 }

@@ -4,8 +4,13 @@ import UIKit
 #endif
 
 extension Color {
-    /// Soft dusty pink — primary accent.
-    static let tallyAccent = Color(red: 245/255, green: 166/255, blue: 193/255)
+    /// Primary accent. Reads from `ThemeStore.shared` so the user's chosen
+    /// theme is reflected everywhere. Views observing `AppState.themeColor`
+    /// re-render automatically when the theme changes (the AppState mutator
+    /// updates the singleton + flips the observed property in one go).
+    static var tallyAccent: Color {
+        ThemeStore.shared.currentColor.color
+    }
 
     #if canImport(UIKit)
     /// Page background. Adapts to light/dark via system color.
@@ -25,9 +30,10 @@ extension Color {
     static let tallyHeat0 = Color.gray.opacity(0.1)
     #endif
 
-    // Heatmap (history calendar): accent pink with increasing opacity.
-    static let tallyHeat1 = Color(red: 245/255, green: 166/255, blue: 193/255).opacity(0.25)
-    static let tallyHeat2 = Color(red: 245/255, green: 166/255, blue: 193/255).opacity(0.50)
-    static let tallyHeat3 = Color(red: 245/255, green: 166/255, blue: 193/255).opacity(0.75)
-    static let tallyHeat4 = Color(red: 245/255, green: 166/255, blue: 193/255)
+    // Heatmap (history calendar): derived from the current accent so they
+    // follow the theme too.
+    static var tallyHeat1: Color { tallyAccent.opacity(0.25) }
+    static var tallyHeat2: Color { tallyAccent.opacity(0.50) }
+    static var tallyHeat3: Color { tallyAccent.opacity(0.75) }
+    static var tallyHeat4: Color { tallyAccent }
 }

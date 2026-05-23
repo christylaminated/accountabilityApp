@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import CloudKit
+import SwiftUI
 
 /// Top-level app state. Holds:
 ///   • iCloud / onboarding gate state (`onboardingState`)
@@ -36,6 +37,14 @@ final class AppState {
     /// Signed-in user's CloudKit record name. Empty until resolved on launch;
     /// every per-user lookup (own habits, own goals, "is this me") keys off it.
     var currentUserID: String = ""
+
+    /// The user's chosen accent-color preset. Mirrors `ThemeStore.shared` so
+    /// `Color.tallyAccent` and `appState.accentColor` agree. Persisted via
+    /// `LocalCacheKey.themeColor` (under the hood inside ThemeStore).
+    var themeColor: ThemeColor = ThemeStore.shared.currentColor
+
+    /// Convenience: the actual SwiftUI Color for the current theme.
+    var accentColor: Color { themeColor.color }
 
     // MARK: - Repositories + store
 
@@ -326,6 +335,35 @@ final class AppState {
     func member(for userID: String) -> Friend? {
         if userID == currentUserID { return meAsFriend }
         return personalStore.friend(id: userID)
+    }
+
+    // MARK: - Profile editing
+
+    /// Update the user's display name + avatar post-onboarding. Saves to
+    /// CloudKit (UserProfile + PersonalRoot so friends see the change) and
+    /// refreshes the local cache.
+    func updateProfile(displayName: String, avatarSymbol: String) async throws {
+        let trimmed = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let profile = try await profileRepository.saveOwnProfile(
+            displayName: trimmed,
+            avatarSymbol: avatarSymbol
+        )
+        ownCloudProfile = profile
+        LocalCache.save(profile, forKey: LocalCacheKey.ownProfile)
+
+        // Push to PersonalRoot so friends see the new name + avatar.
+        try? await personalRepository.updatePersonalRootProfile(
+            displayName: trimmed,
+            avatarSymbol: avatarSymbol
+        )
+    }
+
+    /// Set the user's accent-color preset. Local-only — no CloudKit round-trip.
+    /// Updates `ThemeStore` (which `Color.tallyAccent` reads from) and flips
+    /// our own observed `themeColor` to trigger SwiftUI re-renders.
+    func setThemeColor(_ color: ThemeColor) {
+        themeColor = color
+        ThemeStore.shared.update(color)
     }
 
     /// Called from `HabitsSetupView`. Persists each non-empty title as a habit in

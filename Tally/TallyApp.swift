@@ -15,7 +15,9 @@ struct TallyApp: App {
                 .environment(appState)
                 // App-wide rounded design — softer typographic feel without per-view font work.
                 .fontDesign(.rounded)
-                .tint(.tallyAccent)
+                // Drive root tint from AppState so theme changes from profile
+                // settings propagate to every tinted SwiftUI control.
+                .tint(appState.accentColor)
         }
     }
 }
