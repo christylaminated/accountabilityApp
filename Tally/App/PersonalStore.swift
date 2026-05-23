@@ -46,61 +46,100 @@ final class PersonalStore {
 
     init(repository: any PersonalRepository = CloudKitPersonalRepository()) {
         self.repository = repository
+        // Restore cached arrays synchronously so the dashboard renders
+        // immediately on launch — the CloudKit refresh runs in the background
+        // and atomically replaces these once it completes.
+        if let cached = LocalCache.load(CachedState.self, forKey: LocalCacheKey.personalStore) {
+            self.habits = cached.habits
+            self.completions = cached.completions
+            self.goals = cached.goals
+            self.friends = cached.friends
+        }
+    }
+
+    /// On-disk shape of the cached store. Excludes change tokens (CloudKit
+    /// internals don't serialize cleanly) — refresh after launch does a full
+    /// fetch and rebuilds tokens for the session.
+    private struct CachedState: Codable {
+        var habits: [Habit]
+        var completions: [HabitCompletion]
+        var goals: [Goal]
+        var friends: [Friend]
+    }
+
+    private func saveCache() {
+        LocalCache.save(
+            CachedState(habits: habits, completions: completions, goals: goals, friends: friends),
+            forKey: LocalCacheKey.personalStore
+        )
     }
 
     // MARK: - Lifecycle
 
-    /// Point the store at the signed-in user and do a full load (my shared zone
-    /// + my private zone + every friend zone visible in the shared DB).
+    /// Point the store at the signed-in user and do a full load. Only wipes
+    /// cached arrays if we're switching to a *different* user — when called
+    /// with the same user (the common case on launch after restoring from
+    /// `LocalCache`), the cached data stays visible while `load()` runs and
+    /// gets atomically replaced when fresh data arrives.
     func activate(currentUserID: String) async {
+        let userChanged = !self.currentUserID.isEmpty && self.currentUserID != currentUserID
         self.currentUserID = currentUserID
-        ownToken = nil
-        ownPrivateToken = nil
-        friendTokens = [:]
-        habits = []; completions = []; goals = []; friends = []
+        if userChanged {
+            ownToken = nil
+            ownPrivateToken = nil
+            friendTokens = [:]
+            habits = []; completions = []; goals = []; friends = []
+        }
         await load()
     }
 
-    /// Full load — replaces all cached state. Loads my shared zone, then my
-    /// private zone, then every friend zone I currently have access to.
+    /// Full load — fetches every zone, then atomically replaces the in-memory
+    /// arrays. Doing the assignment at the end (rather than as we go) means
+    /// cached data stays on screen during the network round-trip; nothing
+    /// flashes empty.
     func load() async {
         isLoading = true
         defer { isLoading = false }
         do {
             let mine = try await repository.ownSnapshot(since: nil)
-            ownToken = mine.token
-            habits = mine.habits
-            completions = mine.completions
-            goals = mine.goals
-
             let minePrivate = try await repository.ownPrivateSnapshot(since: nil)
-            ownPrivateToken = minePrivate.token
-            habits.append(contentsOf: minePrivate.habits)
-            completions.append(contentsOf: minePrivate.completions)
-            // Goals are always shared, so we don't merge minePrivate.goals.
-
             let zones = try await repository.friendZones()
-            var loadedFriends: [Friend] = []
+
+            var nextHabits = mine.habits + minePrivate.habits
+            var nextCompletions = mine.completions + minePrivate.completions
+            var nextGoals = mine.goals
+            // Goals are always shared — minePrivate.goals stays unused.
+            var nextFriends: [Friend] = []
+            var nextFriendTokens: [CKRecordZone.ID: CKServerChangeToken] = [:]
+
             for zone in zones {
                 let snap = try await repository.friendSnapshot(zoneID: zone.zoneID, since: nil)
-                friendTokens[zone.zoneID] = snap.token
-                habits.append(contentsOf: snap.habits)
-                completions.append(contentsOf: snap.completions)
-                goals.append(contentsOf: snap.goals)
+                nextFriendTokens[zone.zoneID] = snap.token
+                nextHabits.append(contentsOf: snap.habits)
+                nextCompletions.append(contentsOf: snap.completions)
+                nextGoals.append(contentsOf: snap.goals)
 
                 let userID = zone.zoneID.ownerName
                 if let root = snap.root {
-                    loadedFriends.append(Friend(
+                    nextFriends.append(Friend(
                         userID: userID,
                         displayName: root.displayName.isEmpty ? "Friend" : root.displayName,
                         avatarSymbol: root.avatarSymbol
                     ))
                 } else {
-                    // No root yet — friend's app hasn't written profile info.
-                    loadedFriends.append(Friend(userID: userID, displayName: "Friend", avatarSymbol: "leaf"))
+                    nextFriends.append(Friend(userID: userID, displayName: "Friend", avatarSymbol: "leaf"))
                 }
             }
-            friends = loadedFriends
+
+            // Atomic swap. The UI sees cached data right up until this point.
+            ownToken = mine.token
+            ownPrivateToken = minePrivate.token
+            friendTokens = nextFriendTokens
+            habits = nextHabits
+            completions = nextCompletions
+            goals = nextGoals
+            friends = nextFriends
+            saveCache()
         } catch {
             lastError = error.localizedDescription
         }
@@ -181,9 +220,12 @@ final class PersonalStore {
             ownPrivateToken = nil
             friendTokens = [:]
             await load()
+            return
         } catch {
             lastError = error.localizedDescription
+            return
         }
+        saveCache()
     }
 
     /// Merge a per-zone delta into our cached arrays. `ownerUserID` scopes the
@@ -264,6 +306,7 @@ final class PersonalStore {
         if let existing = completion(habit: habit, on: day) {
             completions.removeAll { $0.id == existing.id }
             persistDelete([existing.recordName], privacy: habit.privacy)
+            saveCache()
             return false
         }
         let new = HabitCompletion(
@@ -275,6 +318,7 @@ final class PersonalStore {
         )
         completions.append(new)
         persistSave([new], privacy: habit.privacy)
+        saveCache()
         return true
     }
 
@@ -289,12 +333,14 @@ final class PersonalStore {
         )
         habits.append(habit)
         persistSave([habit], privacy: privacy)
+        saveCache()
     }
 
     func archive(habit: Habit) {
         guard let i = habits.firstIndex(where: { $0.id == habit.id }) else { return }
         habits[i].archivedAt = .now
         persistSave([habits[i]], privacy: habit.privacy)
+        saveCache()
     }
 
     func delete(habit: Habit) {
@@ -302,6 +348,7 @@ final class PersonalStore {
         let staleCompletions = completions.filter { $0.habitID == habit.id }
         completions.removeAll { $0.habitID == habit.id }
         persistDelete([habit.recordName] + staleCompletions.map { $0.recordName }, privacy: habit.privacy)
+        saveCache()
     }
 
     // MARK: - Goals (daily / weekly / monthly / yearly)
@@ -331,6 +378,7 @@ final class PersonalStore {
         guard let i = goals.firstIndex(where: { $0.id == goal.id }) else { return }
         goals[i].completedAt = goals[i].completedAt == nil ? .now : nil
         persistSave([goals[i]])
+        saveCache()
     }
 
     func addGoal(title: String, for userID: String, period: GoalPeriod, periodStart: Date) {
@@ -346,6 +394,7 @@ final class PersonalStore {
         )
         goals.append(goal)
         persistSave([goal])
+        saveCache()
     }
 
     func carryForward(goal: Goal, to periodStart: Date) {
@@ -361,11 +410,13 @@ final class PersonalStore {
         )
         goals.append(copy)
         persistSave([copy])
+        saveCache()
     }
 
     func delete(goal: Goal) {
         goals.removeAll { $0.id == goal.id }
         persistDelete([goal.recordName])
+        saveCache()
     }
 
     // MARK: - Write-through

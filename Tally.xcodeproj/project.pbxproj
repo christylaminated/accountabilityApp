@@ -13,6 +13,7 @@
 		12D3538B795DC4CC4ADEDB79 /* MessageBubbleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56F319D35E92BE520565AEBF /* MessageBubbleView.swift */; };
 		140D4F90BABD9336827F0C43 /* DirectMessageThreadView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7621171426553E6ABA9F1C87 /* DirectMessageThreadView.swift */; };
 		1BF848C159AE44A46303C475 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46E01DF37CD02C2EC6B10B54 /* RootView.swift */; };
+		22E68C51D9AB0A507BB689BE /* LocalCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0A29B05674CBC519C2B01F0 /* LocalCache.swift */; };
 		241EE902D28B3AC998FD17F2 /* CreateCircleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 528E58669C73437CABA6DFA0 /* CreateCircleView.swift */; };
 		290BABB86CBD2D9826AC33E4 /* HabitCompletion.swift in Sources */ = {isa = PBXBuildFile; fileRef = F67E6D38950535254146D36C /* HabitCompletion.swift */; };
 		2C873E5ED0126C0807005F80 /* DeepLinkHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10C04B332FB0E9DCC14136A9 /* DeepLinkHandler.swift */; };
@@ -147,6 +148,7 @@
 		E512FAB643E4155FF24466F1 /* ProfileSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileSetupView.swift; sourceTree = "<group>"; };
 		EA662DA00B39395D803F0197 /* StreakCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreakCalculator.swift; sourceTree = "<group>"; };
 		EF0643AE001B774C4DBAAEE5 /* TallyCircle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TallyCircle.swift; sourceTree = "<group>"; };
+		F0A29B05674CBC519C2B01F0 /* LocalCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalCache.swift; sourceTree = "<group>"; };
 		F67E6D38950535254146D36C /* HabitCompletion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HabitCompletion.swift; sourceTree = "<group>"; };
 		F6DD670F1D258FBAD3801A69 /* HabitCelebrationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HabitCelebrationView.swift; sourceTree = "<group>"; };
 		FB5DB01330511281AED65F5D /* Color+Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Color+Theme.swift"; sourceTree = "<group>"; };
@@ -387,6 +389,7 @@
 		AC7FA6A0A93D4EFD1F9CC499 /* Utilities */ = {
 			isa = PBXGroup;
 			children = (
+				F0A29B05674CBC519C2B01F0 /* LocalCache.swift */,
 				EA662DA00B39395D803F0197 /* StreakCalculator.swift */,
 				C998D4524473F7524D00E4B9 /* WeekCalculator.swift */,
 			);
@@ -589,6 +592,7 @@
 				DFA18036DC32AFE857E88F4C /* HabitsSetupView.swift in Sources */,
 				DD3C34BA9BCF58E4313CF34C /* HistoryCalendarView.swift in Sources */,
 				7332561AE65743C77CF70FBE /* ICloudStatusGate.swift in Sources */,
+				22E68C51D9AB0A507BB689BE /* LocalCache.swift in Sources */,
 				A8F02C6763DBED2031D9F423 /* MainTabView.swift in Sources */,
 				2EF4CD66338EB2415A1B358D /* MemberDetailView.swift in Sources */,
 				D5E7F9B7014514226A1A68DC /* MemberRowView.swift in Sources */,

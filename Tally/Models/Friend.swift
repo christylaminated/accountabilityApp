@@ -3,7 +3,7 @@ import Foundation
 /// A friend the signed-in user is bidirectionally sharing with. Derived from
 /// the union of CKShare participants on my personal share + friend zones in
 /// my shared DB. Display name + avatar come from each friend's `PersonalRoot`.
-struct Friend: Identifiable, Hashable {
+struct Friend: Identifiable, Hashable, Codable {
     /// The friend's CloudKit user record name.
     let userID: String
     var displayName: String

@@ -99,6 +99,16 @@ final class AppState {
         self.circleStore = circleStore ?? CircleStore()
         self.personalStore = personalStore ?? PersonalStore(repository: personalRepository)
 
+        // Restore cached identity + profile so the dashboard renders
+        // immediately on launch — no "Checking iCloud…" spinner for returning
+        // users. The background refresh below verifies + updates everything.
+        if let cachedUserID = LocalCache.load(String.self, forKey: LocalCacheKey.currentUserID),
+           let cachedProfile = LocalCache.load(UserProfile.self, forKey: LocalCacheKey.ownProfile) {
+            self.currentUserID = cachedUserID
+            self.ownCloudProfile = cachedProfile
+            self.onboardingState = .ready
+        }
+
         registerAccountChangeObserver()
         Task { await self.refreshAccountState() }
     }
@@ -115,6 +125,9 @@ final class AppState {
                 forName: .CKAccountChanged, object: nil, queue: nil
             ) { [weak self] _ in
                 Task { @MainActor in
+                    // Wipe caches so we never show the previous user's data
+                    // after an iCloud account switch.
+                    LocalCache.clearAll()
                     await CKClient.shared.invalidateIdentityCache()
                     await self?.refreshAccountState()
                 }
@@ -144,8 +157,15 @@ final class AppState {
 
     /// Re-check account status + own profile and update `onboardingState`.
     /// Called on launch, on `CKAccountChanged`, and on scene-foreground.
+    ///
+    /// If we already have a `.ready` state from cached identity + profile,
+    /// we *don't* swap back to `.checkingICloud` — the user keeps seeing their
+    /// dashboard while the refresh runs silently. Only a first launch (no
+    /// cache) or a mid-onboarding state shows the spinner.
     func refreshAccountState() async {
-        onboardingState = .checkingICloud
+        if onboardingState != .ready {
+            onboardingState = .checkingICloud
+        }
 
         let status: CKAccountStatus
         do {
@@ -159,11 +179,14 @@ final class AppState {
         case .available:
             do {
                 currentUserID = try await CKClient.shared.userRecordID().recordName
+                LocalCache.save(currentUserID, forKey: LocalCacheKey.currentUserID)
                 if let profile = try await profileRepository.ownProfile() {
                     ownCloudProfile = profile
+                    LocalCache.save(profile, forKey: LocalCacheKey.ownProfile)
                     // Idempotent — sets up the personal zone + root record the
                     // first time a user reaches the main app, then loads habits
-                    // and goals from it.
+                    // and goals from it. activate() preserves cached arrays
+                    // on the in-memory store while the server fetch runs.
                     try? await personalRepository.ensurePersonalZone()
                     await personalStore.activate(currentUserID: currentUserID)
                     await handleIncomingShareIfNeeded()
@@ -206,6 +229,10 @@ final class AppState {
         )
         ownCloudProfile = profile
         isFirstRunOnboarding = true
+
+        // Cache profile + identity so the next launch skips the spinner.
+        LocalCache.save(profile, forKey: LocalCacheKey.ownProfile)
+        LocalCache.save(currentUserID, forKey: LocalCacheKey.currentUserID)
 
         // Ensure the personal zone exists, then write the friend-visible name
         // and avatar into PersonalRoot. Best-effort.
