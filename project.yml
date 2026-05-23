@@ -18,6 +18,12 @@ settings:
     INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
     INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
     INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: "UIInterfaceOrientationPortrait"
+    INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait"
+    # Portrait-only on both devices — the UI is phone-shaped. Setting
+    # UIRequiresFullScreen lets us declare fewer than all four orientations
+    # on iPad without Xcode warning; the trade-off is no Split View /
+    # Slide Over multitasking on iPad.
+    INFOPLIST_KEY_UIRequiresFullScreen: YES
     # Wakes the app for silent CloudKit pushes so friends' changes sync in the background.
     INFOPLIST_KEY_UIBackgroundModes: "remote-notification"
     TARGETED_DEVICE_FAMILY: "1,2"
