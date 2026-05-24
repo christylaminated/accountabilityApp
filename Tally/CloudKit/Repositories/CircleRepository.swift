@@ -60,6 +60,16 @@ protocol CircleRepository: Sendable {
     /// Owner deletes a Circle entirely: deletes the zone, which cascade-deletes
     /// every record inside it (root, members, messages, summaries, the share).
     func deleteCircle(_ circle: TallyCircle) async throws
+
+    /// Rename a Circle. Any participant can call this — the root record lives in
+    /// the shared zone and the share grants .readWrite to everyone.
+    func rename(_ circle: TallyCircle, to newName: String) async throws -> TallyCircle
+
+    /// Owner adds a known user to the Circle by their CKRecord.ID.recordName
+    /// (resolved upstream from a username lookup). Mirrors PersonalRepository's
+    /// addFriendParticipant: ensures the share exists, looks up the participant,
+    /// adds them with .readWrite, saves. Only the owner can save the share record.
+    func addMember(userRecordName: String, to circle: TallyCircle) async throws
 }
 
 // MARK: - CloudKit implementation
@@ -292,6 +302,80 @@ struct CloudKitCircleRepository: CircleRepository {
         // and the CKShare all go in one server-side op.
         let zoneName = CKClient.circleZoneName(circleID: circle.id)
         try await client.deletePrivateZone(named: zoneName)
+    }
+
+    func rename(_ circle: TallyCircle, to newName: String) async throws -> TallyCircle {
+        let trimmed = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            throw CKClientError.unexpected("Circle name can't be empty.")
+        }
+        let (db, zoneID) = try await locate(circle)
+        let rootID = CKRecord.ID(recordName: Self.rootRecordName, zoneID: zoneID)
+        let root = try await db.record(for: rootID)
+        root["name"] = trimmed
+        _ = try await db.modifyRecords(saving: [root], deleting: [])
+        var updated = circle
+        updated.name = trimmed
+        return updated
+    }
+
+    func addMember(userRecordName: String, to circle: TallyCircle) async throws {
+        // Adding a participant modifies the share record, which lives in the
+        // owner's private DB. CloudKit will reject this from a non-owner.
+        let (share, _) = try await makeShare(for: circle)
+
+        let userRecordID = CKRecord.ID(recordName: userRecordName)
+        if share.participants.contains(where: {
+            $0.userIdentity.userRecordID == userRecordID
+        }) {
+            return
+        }
+
+        let existing = try await members(of: circle)
+        if existing.count >= Constants.maxCircleMembers {
+            throw CKClientError.unexpected("This Circle is full (\(Constants.maxCircleMembers) members).")
+        }
+
+        let participant = try await lookupParticipant(userRecordID: userRecordID)
+        participant.permission = .readWrite
+        share.addParticipant(participant)
+
+        _ = try await client.privateDB.modifyRecords(
+            saving: [share],
+            deleting: [],
+            savePolicy: .allKeys,
+            atomically: false
+        )
+    }
+
+    /// Resolve a user record ID into a `CKShare.Participant` we can add to a share.
+    /// Mirrors `PersonalRepository.lookupParticipant`.
+    private func lookupParticipant(userRecordID: CKRecord.ID) async throws -> CKShare.Participant {
+        let lookupInfo = CKUserIdentity.LookupInfo(userRecordID: userRecordID)
+        return try await withCheckedThrowingContinuation { continuation in
+            var fetched: CKShare.Participant?
+            let op = CKFetchShareParticipantsOperation(userIdentityLookupInfos: [lookupInfo])
+            op.perShareParticipantResultBlock = { _, result in
+                if case .success(let participant) = result {
+                    fetched = participant
+                }
+            }
+            op.fetchShareParticipantsResultBlock = { result in
+                switch result {
+                case .success:
+                    if let participant = fetched {
+                        continuation.resume(returning: participant)
+                    } else {
+                        continuation.resume(throwing: CKClientError.unexpected(
+                            "Couldn't resolve user to a share participant."
+                        ))
+                    }
+                case .failure(let error):
+                    continuation.resume(throwing: error)
+                }
+            }
+            client.container.add(op)
+        }
     }
 
     // MARK: Helpers

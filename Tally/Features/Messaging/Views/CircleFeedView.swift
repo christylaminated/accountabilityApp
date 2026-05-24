@@ -3,6 +3,7 @@ import SwiftUI
 struct CircleFeedView: View {
     @Environment(AppState.self) private var appState
     @State private var composerText: String = ""
+    @State private var showSettings = false
 
     private var messages: [CircleMessage] {
         appState.circleStore.feed
@@ -40,8 +41,29 @@ struct CircleFeedView: View {
             MessageComposerView(text: $composerText) { send() }
         }
         .background(Color.tallyCanvas)
-        .navigationTitle(appState.activeCircle?.name ?? "Circle")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Button {
+                    if appState.activeCircle != nil { showSettings = true }
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(appState.activeCircle?.name ?? "Circle")
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(.primary)
+                        Image(systemName: "chevron.down")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .sheet(isPresented: $showSettings) {
+            if let circle = appState.activeCircle {
+                CircleSettingsView(circle: circle)
+            }
+        }
     }
 
     private func bubble(for msg: CircleMessage) -> some View {

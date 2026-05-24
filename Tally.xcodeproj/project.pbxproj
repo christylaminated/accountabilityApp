@@ -62,6 +62,7 @@
 		C1BB2E44C03E14D3F6C57E01 /* Habit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81274E10DB3D034993CAD125 /* Habit.swift */; };
 		C20854EC3BE56E3A54223FCF /* ShareCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C04FFCDBD8615D78004D547 /* ShareCoordinator.swift */; };
 		C625714CA898BACADBB5D1AF /* CircleSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EF5919B0A3456AC4D7520B1 /* CircleSettingsView.swift */; };
+		CA01ABEF11CE5722A6DEDADD /* CircleAddMemberByUsernameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA01ABEF11CE5722A6DEDADE /* CircleAddMemberByUsernameView.swift */; };
 		C6DEA3365130BE06EC19FBB8 /* HabitCelebrationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6DD670F1D258FBAD3801A69 /* HabitCelebrationView.swift */; };
 		C8EEF15AC254074D42C7EC9E /* PersonalRoot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 131B65496F7C2096D461EFB0 /* PersonalRoot.swift */; };
 		CA6D88B34B1C2CFF17595CBB /* FriendsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52D645AA20CC08D5771E92FB /* FriendsView.swift */; };
@@ -107,6 +108,7 @@
 		2C04FFCDBD8615D78004D547 /* ShareCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareCoordinator.swift; sourceTree = "<group>"; };
 		2E237822882594EFFAEB4744 /* MemberDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemberDetailView.swift; sourceTree = "<group>"; };
 		2EF5919B0A3456AC4D7520B1 /* CircleSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CircleSettingsView.swift; sourceTree = "<group>"; };
+		CA01ABEF11CE5722A6DEDADE /* CircleAddMemberByUsernameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CircleAddMemberByUsernameView.swift; sourceTree = "<group>"; };
 		3299AC9D570A5254E7ECF943 /* CircleMember.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CircleMember.swift; sourceTree = "<group>"; };
 		3399F493BC7F15DA8ADEB22C /* CloudShareInvitePresenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudShareInvitePresenter.swift; sourceTree = "<group>"; };
 		3505FB88C3FE6E97F1E72AB2 /* MockUsernameRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockUsernameRepository.swift; sourceTree = "<group>"; };
@@ -118,7 +120,7 @@
 		4802F94A3950D09668FD6ACA /* MockCircleDataRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockCircleDataRepository.swift; sourceTree = "<group>"; };
 		490E9F33986E58A9814F7891 /* CircleDataRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CircleDataRepository.swift; sourceTree = "<group>"; };
 		4C0DCF5404863ACA6CB96F03 /* CircleFeedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CircleFeedView.swift; sourceTree = "<group>"; };
-		4DCF1A5BC6FA366C4B658D35 /* Tally.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Tally.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		4DCF1A5BC6FA366C4B658D35 /* Tally.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Tally.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		4DD98198626AE43163D781E9 /* MockPersonalRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockPersonalRepository.swift; sourceTree = "<group>"; };
 		4F15892B83CA28E755E0D8E0 /* FriendSearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FriendSearchView.swift; sourceTree = "<group>"; };
 		528E58669C73437CABA6DFA0 /* CreateCircleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateCircleView.swift; sourceTree = "<group>"; };
@@ -352,6 +354,7 @@
 		8A5542201C3385052E70156B /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				CA01ABEF11CE5722A6DEDADE /* CircleAddMemberByUsernameView.swift */,
 				2EF5919B0A3456AC4D7520B1 /* CircleSettingsView.swift */,
 				C6B3614B136953A5B2236493 /* CircleSetupView.swift */,
 				3399F493BC7F15DA8ADEB22C /* CloudShareInvitePresenter.swift */,
@@ -530,9 +533,6 @@
 					18C27FB10FE5BE0283218A33 = {
 						DevelopmentTeam = 2UM67KP3T9;
 					};
-					A9C692CEE4C99A9267A1F79D = {
-						DevelopmentTeam = 2UM67KP3T9;
-					};
 				};
 			};
 			buildConfigurationList = 5C367879F862A4ED5849A1D0 /* Build configuration list for PBXProject "Tally" */;
@@ -593,6 +593,7 @@
 				88E18B78A088CC04B4908862 /* CircleMember.swift in Sources */,
 				11A3D04872770CC53D17C320 /* CircleMessage.swift in Sources */,
 				B97A569EB0D34660FA19CA48 /* CircleRepository.swift in Sources */,
+				CA01ABEF11CE5722A6DEDADD /* CircleAddMemberByUsernameView.swift in Sources */,
 				C625714CA898BACADBB5D1AF /* CircleSettingsView.swift in Sources */,
 				A6BA86C6A0E6AF9C19920828 /* CircleSetupView.swift in Sources */,
 				A017179519589452CA4057CC /* CircleStore.swift in Sources */,
@@ -732,7 +733,7 @@
 				CODE_SIGN_ENTITLEMENTS = Tally/Tally.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 2UM67KP3T9;
+				DEVELOPMENT_TEAM = C92M69NB5L;
 				ENABLE_PREVIEWS = YES;
 				INFOPLIST_FILE = Tally/Info.plist;
 				INFOPLIST_KEY_CFBundleIconName = AppIcon;
@@ -813,7 +814,7 @@
 				CODE_SIGN_ENTITLEMENTS = Tally/Tally.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 2UM67KP3T9;
+				DEVELOPMENT_TEAM = C92M69NB5L;
 				ENABLE_PREVIEWS = YES;
 				INFOPLIST_FILE = Tally/Info.plist;
 				INFOPLIST_KEY_CFBundleIconName = AppIcon;

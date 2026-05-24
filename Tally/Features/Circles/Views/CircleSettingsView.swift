@@ -15,22 +15,34 @@ struct CircleSettingsView: View {
     @State private var actionError: String?
     @State private var confirmDelete = false
     @State private var confirmLeave = false
+    @State private var nameDraft: String = ""
+    @State private var isSavingName = false
+    @State private var showAddByUsername = false
+    @FocusState private var nameFocused: Bool
 
     private var myRecordName: String { appState.currentUserID }
     private var isOwner: Bool { circle.ownerID == myRecordName }
     private var atCap: Bool { members.count >= Constants.maxCircleMembers }
+    /// Live name — prefer the freshly loaded version from AppState (post-rename)
+    /// so the header and "Add to …" sheet reflect edits without re-presenting.
+    private var liveCircle: TallyCircle {
+        appState.ownedCircles.first(where: { $0.id == circle.id })
+            ?? appState.joinedCircles.first(where: { $0.id == circle.id })
+            ?? circle
+    }
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 16) {
+                    nameEditor
                     header
 
                     if isLoading {
                         ProgressView().padding(.top, 40)
                     } else {
                         membersSection
-                        if isOwner { inviteButton }
+                        inviteSection
                         dangerZone
                     }
 
@@ -45,14 +57,17 @@ struct CircleSettingsView: View {
                 .padding(.top, 8)
             }
             .background(Color.tallyCanvas)
-            .navigationTitle(circle.name)
+            .navigationTitle(liveCircle.name)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }
                 }
             }
-            .task { await load() }
+            .task {
+                nameDraft = liveCircle.name
+                await load()
+            }
             .confirmationDialog("Delete this Circle?", isPresented: $confirmDelete, titleVisibility: .visible) {
                 Button("Delete Circle", role: .destructive) { Task { await deleteCircle() } }
             } message: {
@@ -60,6 +75,32 @@ struct CircleSettingsView: View {
             }
             .confirmationDialog("Leave this Circle?", isPresented: $confirmLeave, titleVisibility: .visible) {
                 Button("Leave", role: .destructive) { Task { await leave() } }
+            }
+            .sheet(isPresented: $showAddByUsername) {
+                CircleAddMemberByUsernameView(circle: liveCircle)
+            }
+        }
+    }
+
+    /// Anyone in the Circle can rename it — all participants have .readWrite on
+    /// the root record. Saves on blur or return; reverts on error.
+    private var nameEditor: some View {
+        VStack(spacing: 6) {
+            HStack {
+                TextField("Group name", text: $nameDraft)
+                    .font(.system(.title3, design: .rounded, weight: .semibold))
+                    .multilineTextAlignment(.center)
+                    .focused($nameFocused)
+                    .submitLabel(.done)
+                    .onSubmit { Task { await saveName() } }
+                    .disabled(isSavingName)
+                if isSavingName { ProgressView() }
+            }
+            .padding(12)
+            .background(Color.tallyCard)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .onChange(of: nameFocused) { _, focused in
+                if !focused { Task { await saveName() } }
             }
         }
     }
@@ -105,24 +146,43 @@ struct CircleSettingsView: View {
         }
     }
 
-    private var inviteButton: some View {
-        Button {
-            let repo = appState.circleRepository
-            let target = circle
-            CloudShareInvitePresenter.present {
-                try await repo.makeShare(for: target)
+    @ViewBuilder
+    private var inviteSection: some View {
+        VStack(spacing: 10) {
+            if isOwner {
+                Button {
+                    showAddByUsername = true
+                } label: {
+                    Label(atCap ? "Group is full" : "Add by username", systemImage: "person.badge.plus")
+                        .font(.system(.body, design: .rounded, weight: .semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(atCap ? Color.gray.opacity(0.3) : tallyAccent)
+                        .foregroundStyle(.white)
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .disabled(atCap)
             }
-        } label: {
-            Label(atCap ? "Circle is full" : "Invite someone", systemImage: "person.badge.plus")
-                .font(.system(.body, design: .rounded, weight: .semibold))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
-                .background(atCap ? Color.gray.opacity(0.3) : tallyAccent)
-                .foregroundStyle(.white)
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+            Button {
+                let repo = appState.circleRepository
+                let target = liveCircle
+                CloudShareInvitePresenter.present {
+                    try await repo.makeShare(for: target)
+                }
+            } label: {
+                Label("Share invite link", systemImage: "link")
+                    .font(.system(.body, design: .rounded, weight: .semibold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(Color.tallyCard)
+                    .foregroundStyle(.primary)
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .disabled(atCap)
         }
-        .buttonStyle(.plain)
-        .disabled(atCap)
     }
 
     @ViewBuilder
@@ -157,16 +217,32 @@ struct CircleSettingsView: View {
     private func load() async {
         isLoading = true
         do {
-            members = try await appState.circleRepository.members(of: circle)
+            members = try await appState.circleRepository.members(of: liveCircle)
         } catch {
             actionError = error.localizedDescription
         }
         isLoading = false
     }
 
+    private func saveName() async {
+        let trimmed = nameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed != liveCircle.name else {
+            nameDraft = liveCircle.name
+            return
+        }
+        isSavingName = true
+        defer { isSavingName = false }
+        do {
+            try await appState.renameCircle(liveCircle, to: trimmed)
+        } catch {
+            actionError = error.localizedDescription
+            nameDraft = liveCircle.name
+        }
+    }
+
     private func remove(_ member: CircleMember) async {
         do {
-            try await appState.circleRepository.removeMember(member, from: circle)
+            try await appState.circleRepository.removeMember(member, from: liveCircle)
             await load()
         } catch {
             actionError = error.localizedDescription
@@ -175,7 +251,7 @@ struct CircleSettingsView: View {
 
     private func leave() async {
         do {
-            try await appState.circleRepository.leaveCircle(circle)
+            try await appState.circleRepository.leaveCircle(liveCircle)
             await appState.loadCircles()
             dismiss()
         } catch {
@@ -185,7 +261,7 @@ struct CircleSettingsView: View {
 
     private func deleteCircle() async {
         do {
-            try await appState.circleRepository.deleteCircle(circle)
+            try await appState.circleRepository.deleteCircle(liveCircle)
             await appState.loadCircles()
             dismiss()
         } catch {

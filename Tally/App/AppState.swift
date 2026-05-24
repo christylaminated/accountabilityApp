@@ -334,6 +334,20 @@ final class AppState {
         }
     }
 
+    /// Rename a Group. Any participant can do this — CKShare grants .readWrite
+    /// on the root record. Reloads the Circle list so the header updates.
+    func renameCircle(_ circle: TallyCircle, to newName: String) async throws {
+        _ = try await circleRepository.rename(circle, to: newName)
+        await loadCircles()
+    }
+
+    /// Owner-only: add a known user (resolved via username search) to the
+    /// active Group. Throws if non-owner attempts — CloudKit rejects the
+    /// share modification at the boundary.
+    func addMemberToCircle(_ circle: TallyCircle, userRecordName: String) async throws {
+        try await circleRepository.addMember(userRecordName: userRecordName, to: circle)
+    }
+
     // MARK: - Members / friends (dashboard composition)
 
     /// "Me" rendered as a `Friend` for symmetric iteration on the dashboard.

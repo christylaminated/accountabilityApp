@@ -94,4 +94,31 @@ final class MockCircleRepository: CircleRepository, @unchecked Sendable {
         owned.removeAll { $0.id == circle.id }
         membersByCircle[circle.id] = nil
     }
+
+    func rename(_ circle: TallyCircle, to newName: String) async throws -> TallyCircle {
+        var updated = circle
+        updated.name = newName
+        if let idx = owned.firstIndex(where: { $0.id == circle.id }) {
+            owned[idx] = updated
+        } else if let idx = joined.firstIndex(where: { $0.id == circle.id }) {
+            joined[idx] = updated
+        }
+        return updated
+    }
+
+    func addMember(userRecordName: String, to circle: TallyCircle) async throws {
+        var members = membersByCircle[circle.id] ?? []
+        guard !members.contains(where: { $0.userID == userRecordName }) else { return }
+        members.append(
+            CircleMember(
+                circleID: circle.id,
+                userID: userRecordName,
+                displayName: userRecordName,
+                avatarSymbol: "person",
+                role: .member,
+                joinedAt: .now
+            )
+        )
+        membersByCircle[circle.id] = members
+    }
 }
