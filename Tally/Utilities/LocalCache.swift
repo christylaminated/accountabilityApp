@@ -46,6 +46,11 @@ enum LocalCacheKey {
     /// UI preference — not user-scoped, kept across account changes.
     static let themeColor = "Tally.cache.themeColor"
 
+    /// Friend-request IDs the user dismissed locally. Recipients can't delete
+    /// public-DB records they didn't create, so "decline" means "hide in our
+    /// inbox" — persisted here so the request stays gone across launches.
+    static let declinedFriendRequestIDs = "Tally.cache.declinedFriendRequestIDs"
+
     /// Cache keys cleared on iCloud account switch.
-    static let userScoped: [String] = [currentUserID, ownProfile, personalStore, hasOnboarded]
+    static let userScoped: [String] = [currentUserID, ownProfile, personalStore, hasOnboarded, declinedFriendRequestIDs]
 }

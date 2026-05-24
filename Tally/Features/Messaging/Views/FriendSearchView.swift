@@ -131,7 +131,7 @@ struct FriendSearchView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 12)
             case .sent:
-                Label("Request sent — they'll see it as an iCloud notification.", systemImage: "checkmark.circle.fill")
+                Label("Sent — they'll see it in their friend requests when they open Tally.", systemImage: "checkmark.circle.fill")
                     .font(.footnote)
                     .foregroundStyle(tallyAccent)
                     .frame(maxWidth: .infinity, alignment: .leading)

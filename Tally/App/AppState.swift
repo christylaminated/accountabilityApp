@@ -52,6 +52,7 @@ final class AppState {
     let circleRepository: any CircleRepository
     let personalRepository: any PersonalRepository
     let usernameRepository: any UsernameRepository
+    let friendRequestRepository: any FriendRequestRepository
     let shareCoordinator: ShareCoordinator
 
     /// Live data for the active Circle — members + chat. Habits and goals
@@ -80,6 +81,18 @@ final class AppState {
 
     var allCircles: [TallyCircle] { ownedCircles + joinedCircles }
 
+    /// Pending incoming friend requests addressed to me. Populated by
+    /// `refreshFriendRequests()` on launch and scene-foreground. Reciprocal
+    /// requests (auto-accepted) are processed and removed from this list
+    /// before it's published, so the UI only ever shows fresh ones the user
+    /// needs to act on.
+    var incomingFriendRequests: [FriendRequest] = []
+
+    /// Local-only set of declined request IDs. Since recipients can't delete
+    /// records they didn't create, decline = hide in our UI. Persisted via
+    /// LocalCache so the request stays hidden across launches.
+    private var declinedRequestIDs: Set<String> = []
+
     /// The one Circle the app is focused on. Owned takes priority so a user who
     /// created their own Circle and invited friends stays anchored to it.
     var activeCircle: TallyCircle? { ownedCircles.first ?? joinedCircles.first }
@@ -99,6 +112,7 @@ final class AppState {
         circleRepository: any CircleRepository = CloudKitCircleRepository(),
         personalRepository: any PersonalRepository = CloudKitPersonalRepository(),
         usernameRepository: any UsernameRepository = CloudKitUsernameRepository(),
+        friendRequestRepository: any FriendRequestRepository = CloudKitFriendRequestRepository(),
         shareCoordinator: ShareCoordinator = ShareCoordinator(),
         circleStore: CircleStore? = nil,
         personalStore: PersonalStore? = nil
@@ -107,9 +121,13 @@ final class AppState {
         self.circleRepository = circleRepository
         self.personalRepository = personalRepository
         self.usernameRepository = usernameRepository
+        self.friendRequestRepository = friendRequestRepository
         self.shareCoordinator = shareCoordinator
         self.circleStore = circleStore ?? CircleStore()
         self.personalStore = personalStore ?? PersonalStore(repository: personalRepository)
+        self.declinedRequestIDs = Set(
+            LocalCache.load([String].self, forKey: LocalCacheKey.declinedFriendRequestIDs) ?? []
+        )
 
         // Skip the "Checking iCloud…" spinner on launch for returning users.
         // The `hasOnboarded` flag is the source of truth — written the moment
@@ -206,6 +224,7 @@ final class AppState {
                     await personalStore.activate(currentUserID: currentUserID)
                     await handleIncomingShareIfNeeded()
                     await loadCircles()
+                    await refreshFriendRequests()
                     await enterMainAppOrCircleSetup()
                 } else {
                     onboardingState = .needsProfileSetup
@@ -429,14 +448,191 @@ final class AppState {
         return try await usernameRepository.lookup(normalized)
     }
 
-    /// Send a friend request to a specific user — adds them as a participant
-    /// on my personal CKShare. They receive an iOS system notification and
-    /// become a friend when they accept. Their app reciprocally shares back
-    /// via the existing `handleIncomingShareIfNeeded` flow.
+    /// Send a friend request to a specific user. Writes a FriendRequest record
+    /// to CloudKit's public DB so the recipient's app can pick it up reliably —
+    /// the prior design relied on iCloud system notifications firing when a
+    /// participant was added to a CKShare, which doesn't actually fire across
+    /// all account / iOS / TestFlight combinations and left requests invisible.
+    /// The recipient sees it in their in-app inbox; on Accept their app fetches
+    /// our personal share URL and accepts programmatically.
     func sendFriendRequest(to userRecordName: String) async throws {
-        let recordID = CKRecord.ID(recordName: userRecordName)
-        try await personalRepository.addFriendParticipant(userRecordID: recordID)
+        guard !currentUserID.isEmpty else {
+            throw NSError(
+                domain: "AppState.sendFriendRequest",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "Not signed into iCloud."]
+            )
+        }
+        guard let profile = ownCloudProfile else {
+            throw NSError(
+                domain: "AppState.sendFriendRequest",
+                code: 2,
+                userInfo: [NSLocalizedDescriptionKey: "Set up your profile before adding friends."]
+            )
+        }
+        guard let username = profile.username, !username.isEmpty else {
+            throw NSError(
+                domain: "AppState.sendFriendRequest",
+                code: 3,
+                userInfo: [NSLocalizedDescriptionKey: "Pick a username in your profile before sending friend requests so they know who you are."]
+            )
+        }
+        // Mint (or fetch) my personal share so the recipient has a URL to accept.
+        let (share, _) = try await personalRepository.makePersonalShare()
+        guard let shareURL = share.url else {
+            throw NSError(
+                domain: "AppState.sendFriendRequest",
+                code: 4,
+                userInfo: [NSLocalizedDescriptionKey: "Couldn't get a share URL — try again in a moment."]
+            )
+        }
+
+        let request = FriendRequest(
+            id: UUID(),
+            fromUserRecordName: currentUserID,
+            toUserRecordName: userRecordName,
+            shareURL: shareURL.absoluteString,
+            fromDisplayName: profile.displayName,
+            fromUsername: username,
+            fromAvatarSymbol: profile.avatarSymbol,
+            sentAt: .now,
+            isReciprocal: false
+        )
+        try await friendRequestRepository.send(request)
+    }
+
+    /// Recipient accepts an incoming friend request.
+    ///
+    /// 1. Fetch the sender's share metadata from the URL embedded in the
+    ///    request, then accept it via CKAcceptSharesOperation — this is what
+    ///    makes the sender's zone appear in our shared DB.
+    /// 2. Reciprocally add the sender as a participant on OUR personal share
+    ///    so they get access to our data too (same code path the legacy
+    ///    handleIncomingShareIfNeeded uses).
+    /// 3. Write a reciprocal FriendRequest record back to the sender — when
+    ///    their app polls, it auto-accepts (no UI prompt) and the bidirectional
+    ///    friend graph is complete.
+    /// 4. Refresh state so the friend appears immediately in the friends list.
+    func acceptFriendRequest(_ request: FriendRequest) async throws {
+        let shareURL = URL(string: request.shareURL)
+        guard let shareURL else {
+            throw NSError(
+                domain: "AppState.acceptFriendRequest",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "Invalid share URL on the request."]
+            )
+        }
+        let container = CKClient.shared.container
+        let metadata = try await container.shareMetadata(for: shareURL)
+        try await acceptShareMetadata(metadata)
+
+        let senderRecordID = CKRecord.ID(recordName: request.fromUserRecordName)
+        // Reciprocally add the sender to OUR personal share. This works because
+        // it's our own share — we own it — so CloudKit allows the modification.
+        try? await personalRepository.addFriendParticipant(userRecordID: senderRecordID)
+
+        // Tell the sender's app to silently auto-accept our share too, since
+        // iCloud's automatic notification on participant-add isn't reliable.
+        if let profile = ownCloudProfile {
+            let (myShare, _) = try await personalRepository.makePersonalShare()
+            if let myShareURL = myShare.url {
+                let reciprocal = FriendRequest(
+                    id: UUID(),
+                    fromUserRecordName: currentUserID,
+                    toUserRecordName: request.fromUserRecordName,
+                    shareURL: myShareURL.absoluteString,
+                    fromDisplayName: profile.displayName,
+                    fromUsername: profile.username ?? "",
+                    fromAvatarSymbol: profile.avatarSymbol,
+                    sentAt: .now,
+                    isReciprocal: true
+                )
+                try? await friendRequestRepository.send(reciprocal)
+            }
+        }
+
+        // The recipient can't delete the sender's original request (public-DB
+        // security blocks non-creator writes). The sender's cleanup pass will
+        // remove it when they detect us as a friend. Hide it locally so the
+        // inbox UI reflects the action immediately.
+        markRequestDeclined(request)
         await personalStore.refresh()
+        await refreshFriendRequests()
+    }
+
+    /// Hide the request locally. We can't delete the underlying record (only
+    /// the sender can), so we remember the ID in LocalCache and filter it out.
+    func declineFriendRequest(_ request: FriendRequest) async {
+        markRequestDeclined(request)
+        await refreshFriendRequests()
+    }
+
+    private func markRequestDeclined(_ request: FriendRequest) {
+        declinedRequestIDs.insert(request.id.uuidString)
+        LocalCache.save(Array(declinedRequestIDs), forKey: LocalCacheKey.declinedFriendRequestIDs)
+    }
+
+    /// Poll the public DB for requests addressed to me. Auto-processes
+    /// reciprocal requests (silently accept the sender's share so the
+    /// friend graph completes), then publishes the remaining fresh requests
+    /// to `incomingFriendRequests` for the inbox UI. Also runs the outgoing
+    /// cleanup: any request I sent where the target is now my friend is
+    /// deleted from the public DB so it doesn't pile up forever.
+    func refreshFriendRequests() async {
+        guard !currentUserID.isEmpty else { return }
+        do {
+            let incoming = try await friendRequestRepository.incoming(for: currentUserID)
+
+            // Auto-process reciprocal requests first — these arrive when a
+            // friend accepted MY earlier request. We need to accept their
+            // share silently so we see their data too.
+            for r in incoming where r.isReciprocal {
+                if let url = URL(string: r.shareURL) {
+                    do {
+                        let metadata = try await CKClient.shared.container.shareMetadata(for: url)
+                        try await acceptShareMetadata(metadata)
+                    } catch {
+                        NSLog("[Tally] Auto-accept reciprocal failed: \(error.localizedDescription)")
+                    }
+                }
+                // Hide it locally; the sender will clean up the record.
+                markRequestDeclined(r)
+            }
+
+            let friendIDs = Set(personalStore.friends.map(\.userID))
+            incomingFriendRequests = incoming.filter { r in
+                !r.isReciprocal
+                    && !declinedRequestIDs.contains(r.id.uuidString)
+                    && !friendIDs.contains(r.fromUserRecordName)
+            }
+
+            // Cleanup pass: delete any of MY outgoing requests where the
+            // target is now a confirmed friend — the request has served
+            // its purpose and only pollutes the public DB otherwise.
+            let outgoing = try await friendRequestRepository.outgoing(for: currentUserID)
+            for r in outgoing where friendIDs.contains(r.toUserRecordName) {
+                try? await friendRequestRepository.delete(r)
+            }
+            // Refresh friends so an accepted reciprocal shows up in the list.
+            await personalStore.refresh()
+        } catch {
+            NSLog("[Tally] refreshFriendRequests failed: \(error.localizedDescription)")
+        }
+    }
+
+    /// Accept a CKShare.Metadata via CKAcceptSharesOperation. Used by both the
+    /// in-app friend-request accept and the auto-reciprocal pass.
+    private func acceptShareMetadata(_ metadata: CKShare.Metadata) async throws {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            let op = CKAcceptSharesOperation(shareMetadatas: [metadata])
+            op.acceptSharesResultBlock = { result in
+                switch result {
+                case .success:           continuation.resume(returning: ())
+                case .failure(let err):  continuation.resume(throwing: err)
+                }
+            }
+            CKClient.shared.container.add(op)
+        }
     }
 
     /// Set the user's accent-color preset. Local-only — no CloudKit round-trip.
@@ -556,6 +752,7 @@ final class AppState {
     func refreshCircleData() async {
         await circleStore.refresh()
         await personalStore.refresh()
+        await refreshFriendRequests()
     }
 }
 

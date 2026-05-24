@@ -59,6 +59,10 @@
 		B342C99CCA6052466B51F997 /* ThemeColor.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE763330034CD0CEB3E6F148 /* ThemeColor.swift */; };
 		B7688D4FB96CEA7382FDC71F /* Color+Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB5DB01330511281AED65F5D /* Color+Theme.swift */; };
 		B97A569EB0D34660FA19CA48 /* CircleRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = B57527E1EBC1269EACB65A37 /* CircleRepository.swift */; };
+		D11B0DEFC0FFEE0011BABEAA /* FriendRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = D11B0DEFC0FFEE0011BABE01 /* FriendRequest.swift */; };
+		D22B0DEFC0FFEE0022BABEAA /* FriendRequestRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = D22B0DEFC0FFEE0022BABE01 /* FriendRequestRepository.swift */; };
+		D33B0DEFC0FFEE0033BABEAA /* MockFriendRequestRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = D33B0DEFC0FFEE0033BABE01 /* MockFriendRequestRepository.swift */; };
+		D44B0DEFC0FFEE0044BABEAA /* FriendRequestsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = D44B0DEFC0FFEE0044BABE01 /* FriendRequestsSection.swift */; };
 		C1BB2E44C03E14D3F6C57E01 /* Habit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81274E10DB3D034993CAD125 /* Habit.swift */; };
 		C20854EC3BE56E3A54223FCF /* ShareCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C04FFCDBD8615D78004D547 /* ShareCoordinator.swift */; };
 		C625714CA898BACADBB5D1AF /* CircleSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EF5919B0A3456AC4D7520B1 /* CircleSettingsView.swift */; };
@@ -147,6 +151,10 @@
 		A549BBDEB61F46E5176B90CE /* WeekCalculatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeekCalculatorTests.swift; sourceTree = "<group>"; };
 		B23EFD69AE88007BCFBA851F /* HistoryCalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryCalendarView.swift; sourceTree = "<group>"; };
 		B57527E1EBC1269EACB65A37 /* CircleRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CircleRepository.swift; sourceTree = "<group>"; };
+		D11B0DEFC0FFEE0011BABE01 /* FriendRequest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FriendRequest.swift; sourceTree = "<group>"; };
+		D22B0DEFC0FFEE0022BABE01 /* FriendRequestRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FriendRequestRepository.swift; sourceTree = "<group>"; };
+		D33B0DEFC0FFEE0033BABE01 /* MockFriendRequestRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockFriendRequestRepository.swift; sourceTree = "<group>"; };
+		D44B0DEFC0FFEE0044BABE01 /* FriendRequestsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FriendRequestsSection.swift; sourceTree = "<group>"; };
 		BD07A89C9EF367D0B3BF4C56 /* TallyTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = TallyTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		BE763330034CD0CEB3E6F148 /* ThemeColor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeColor.swift; sourceTree = "<group>"; };
 		C1E680C8647CCB622C23236B /* HabitRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HabitRowView.swift; sourceTree = "<group>"; };
@@ -197,6 +205,7 @@
 			children = (
 				4802F94A3950D09668FD6ACA /* MockCircleDataRepository.swift */,
 				C6E6BAAA6E9C4BAC1F2597EE /* MockCircleRepository.swift */,
+				D33B0DEFC0FFEE0033BABE01 /* MockFriendRequestRepository.swift */,
 				4DD98198626AE43163D781E9 /* MockPersonalRepository.swift */,
 				FD48B88B301E282AE67DF4A4 /* MockProfileRepository.swift */,
 				3505FB88C3FE6E97F1E72AB2 /* MockUsernameRepository.swift */,
@@ -227,6 +236,7 @@
 				4C0DCF5404863ACA6CB96F03 /* CircleFeedView.swift */,
 				6A96D357A003369225937AA7 /* DirectMessageListView.swift */,
 				7621171426553E6ABA9F1C87 /* DirectMessageThreadView.swift */,
+				D44B0DEFC0FFEE0044BABE01 /* FriendRequestsSection.swift */,
 				4F15892B83CA28E755E0D8E0 /* FriendSearchView.swift */,
 				52D645AA20CC08D5771E92FB /* FriendsView.swift */,
 				56F319D35E92BE520565AEBF /* MessageBubbleView.swift */,
@@ -292,6 +302,7 @@
 			children = (
 				490E9F33986E58A9814F7891 /* CircleDataRepository.swift */,
 				B57527E1EBC1269EACB65A37 /* CircleRepository.swift */,
+				D22B0DEFC0FFEE0022BABE01 /* FriendRequestRepository.swift */,
 				92FA5CF587378B479D1CD542 /* PersonalRepository.swift */,
 				DA4022F12FFC0A196A98FA76 /* ProfileRepository.swift */,
 				E5C60B0602DE98FD2B95D4AF /* UsernameRepository.swift */,
@@ -460,6 +471,7 @@
 				975BA3F618A269A8D5D8EA2A /* CircleMessage.swift */,
 				6A9A9D1DF334A01ADC0012B0 /* DirectMessage.swift */,
 				900DD838B2B98F9D16DBE48E /* Friend.swift */,
+				D11B0DEFC0FFEE0011BABE01 /* FriendRequest.swift */,
 				443EF2CA8E73B6034FCFF27D /* Goal.swift */,
 				81274E10DB3D034993CAD125 /* Habit.swift */,
 				F67E6D38950535254146D36C /* HabitCompletion.swift */,
@@ -593,6 +605,10 @@
 				88E18B78A088CC04B4908862 /* CircleMember.swift in Sources */,
 				11A3D04872770CC53D17C320 /* CircleMessage.swift in Sources */,
 				B97A569EB0D34660FA19CA48 /* CircleRepository.swift in Sources */,
+				D11B0DEFC0FFEE0011BABEAA /* FriendRequest.swift in Sources */,
+				D22B0DEFC0FFEE0022BABEAA /* FriendRequestRepository.swift in Sources */,
+				D33B0DEFC0FFEE0033BABEAA /* MockFriendRequestRepository.swift in Sources */,
+				D44B0DEFC0FFEE0044BABEAA /* FriendRequestsSection.swift in Sources */,
 				CA01ABEF11CE5722A6DEDADD /* CircleAddMemberByUsernameView.swift in Sources */,
 				C625714CA898BACADBB5D1AF /* CircleSettingsView.swift in Sources */,
 				A6BA86C6A0E6AF9C19920828 /* CircleSetupView.swift in Sources */,
@@ -732,7 +748,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Tally/Tally.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = C92M69NB5L;
 				ENABLE_PREVIEWS = YES;
 				INFOPLIST_FILE = Tally/Info.plist;
@@ -813,7 +829,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Tally/Tally.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = C92M69NB5L;
 				ENABLE_PREVIEWS = YES;
 				INFOPLIST_FILE = Tally/Info.plist;

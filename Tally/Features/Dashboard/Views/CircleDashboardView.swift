@@ -7,6 +7,16 @@ struct CircleDashboardView: View {
     @State private var showProfileSettings = false
     @State private var showAddTodayGoal = false
 
+    #if DEBUG
+    // Schema-seeding UI state. Wrapped in `#if DEBUG` so the whole mechanism
+    // is compiled out of Release builds (TestFlight, App Store). Trigger:
+    // 5-tap on the avatar in the header card.
+    @State private var debugShowSeedConfirm = false
+    @State private var debugSeedResult: String?
+    @State private var debugSeedError: String?
+    @State private var debugIsSeeding = false
+    #endif
+
     /// Time-of-day greeting. Updated when the view recomputes.
     private var greeting: String {
         let hour = Calendar.current.component(.hour, from: .now)
@@ -96,17 +106,64 @@ struct CircleDashboardView: View {
             } message: {
                 Text(appState.lastCloudShareError ?? "")
             }
+            #if DEBUG
+            .alert(
+                "[DEBUG] Seed CloudKit schema?",
+                isPresented: $debugShowSeedConfirm
+            ) {
+                Button("Cancel", role: .cancel) {}
+                Button("Seed") { Task { await runDebugSeed() } }
+            } message: {
+                Text("Writes a FriendRequest record to the public DB so CloudKit auto-creates the schema. Then deploy dev → prod and mark toUserRecordName as Queryable.")
+            }
+            .alert(
+                "Seed complete",
+                isPresented: Binding(
+                    get: { debugSeedResult != nil },
+                    set: { if !$0 { debugSeedResult = nil } }
+                )
+            ) {
+                Button("OK", role: .cancel) { debugSeedResult = nil }
+            } message: {
+                Text(debugSeedResult ?? "")
+            }
+            .alert(
+                "Seed failed",
+                isPresented: Binding(
+                    get: { debugSeedError != nil },
+                    set: { if !$0 { debugSeedError = nil } }
+                )
+            ) {
+                Button("OK", role: .cancel) { debugSeedError = nil }
+            } message: {
+                Text(debugSeedError ?? "")
+            }
+            #endif
         }
     }
 
+    #if DEBUG
+    private func runDebugSeed() async {
+        debugIsSeeding = true
+        defer { debugIsSeeding = false }
+        do {
+            let result = try await DebugSchemaSeeder.seed(appState: appState)
+            print("[DebugSchemaSeeder] Seeded \(result.seededTypes.joined(separator: ", "))")
+            for id in result.recordIDs {
+                print("[DebugSchemaSeeder] Seed record: \(id)")
+            }
+            debugSeedResult = "Seeded: \(result.seededTypes.joined(separator: ", "))." +
+                "\n\nRecord ID logged to console — search Xcode for [DebugSchemaSeeder]." +
+                "\n\nNext: in CloudKit Dashboard → Development → Schema → Record Types → FriendRequest, mark `toUserRecordName` as Queryable (and Sortable). Then Deploy Schema Changes…"
+        } catch {
+            debugSeedError = error.localizedDescription
+        }
+    }
+    #endif
+
     private var headerCard: some View {
         HStack(alignment: .center, spacing: 14) {
-            Image(systemName: avatarSymbol)
-                .font(.system(size: 26, weight: .medium))
-                .frame(width: 64, height: 64)
-                .foregroundStyle(tallyAccent)
-                .background(tallyAccent.opacity(0.15))
-                .clipShape(Circle())
+            avatarBadge
             VStack(alignment: .leading, spacing: 4) {
                 Text("\(greeting),")
                     .font(.system(.subheadline, design: .rounded))
@@ -120,6 +177,24 @@ struct CircleDashboardView: View {
         }
         .padding(.vertical, 8)
         .padding(.horizontal, 4)
+    }
+
+    private var avatarBadge: some View {
+        let view = Image(systemName: avatarSymbol)
+            .font(.system(size: 26, weight: .medium))
+            .frame(width: 64, height: 64)
+            .foregroundStyle(tallyAccent)
+            .background(tallyAccent.opacity(0.15))
+            .clipShape(Circle())
+        #if DEBUG
+        return view
+            .contentShape(Circle())
+            .onTapGesture(count: 5) {
+                debugShowSeedConfirm = true
+            }
+        #else
+        return view
+        #endif
     }
 
     /// Today-period goals card. Always visible: shows the goals if any, plus
@@ -232,3 +307,55 @@ private struct TodayGoalRow: View {
         }
     }
 }
+
+#if DEBUG
+/// DEBUG-only helper to coax CloudKit into auto-creating a record type's
+/// schema by writing a sample record. Triggered by a 5-tap on the dashboard
+/// avatar. Wrapped in `#if DEBUG` so the gesture, alerts, and this enum are
+/// all compiled out of Release builds — TestFlight and App Store builds
+/// can't reach it.
+///
+/// Currently seeds `FriendRequest`. Update when new record types are added
+/// that need schema seeding before a prod deploy.
+enum DebugSchemaSeeder {
+    static let seedMarker = "[schema_seed_v1_DELETE_ME]"
+
+    struct SeedResult {
+        let seededTypes: [String]
+        let recordIDs: [String]
+    }
+
+    @MainActor
+    static func seed(appState: AppState) async throws -> SeedResult {
+        let userID = appState.currentUserID
+        guard !userID.isEmpty else {
+            throw NSError(
+                domain: "DebugSchemaSeeder",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "No CloudKit user ID — sign into iCloud first."]
+            )
+        }
+
+        // Seed FriendRequest: self → self with a placeholder share URL.
+        // CloudKit doesn't validate the URL field, so a non-functional value
+        // is fine — the goal is only schema creation.
+        let req = FriendRequest(
+            id: UUID(),
+            fromUserRecordName: userID,
+            toUserRecordName: userID,
+            shareURL: "https://icloud.com/share/seed-placeholder",
+            fromDisplayName: seedMarker,
+            fromUsername: "seed",
+            fromAvatarSymbol: "leaf",
+            sentAt: .now,
+            isReciprocal: false
+        )
+        try await appState.friendRequestRepository.send(req)
+
+        return SeedResult(
+            seededTypes: ["FriendRequest"],
+            recordIDs: ["public / \(req.id.uuidString)"]
+        )
+    }
+}
+#endif

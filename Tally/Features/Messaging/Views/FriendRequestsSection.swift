@@ -1,0 +1,113 @@
+import SwiftUI
+
+/// Inbox of pending friend requests, rendered at the top of `FriendsView`.
+/// Reads `AppState.incomingFriendRequests` — the list is filtered upstream
+/// (reciprocal/auto-accept requests are processed silently, declined requests
+/// are hidden locally, already-friends are excluded), so anything that lands
+/// here is something the user genuinely needs to act on.
+struct FriendRequestsSection: View {
+    @Environment(\.tallyAccent) private var tallyAccent
+    @Environment(AppState.self) private var appState
+
+    var body: some View {
+        let requests = appState.incomingFriendRequests
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Friend requests")
+                    .font(.system(.headline, design: .rounded, weight: .semibold))
+                Spacer()
+                if !requests.isEmpty {
+                    Text("\(requests.count)")
+                        .font(.system(.caption, design: .rounded, weight: .semibold))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(tallyAccent)
+                        .foregroundStyle(.white)
+                        .clipShape(Capsule())
+                }
+            }
+            ForEach(requests) { request in
+                FriendRequestRow(request: request)
+            }
+        }
+    }
+}
+
+private struct FriendRequestRow: View {
+    @Environment(\.tallyAccent) private var tallyAccent
+    @Environment(AppState.self) private var appState
+
+    let request: FriendRequest
+
+    @State private var inFlight = false
+    @State private var error: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 12) {
+                AvatarView(symbolName: request.fromAvatarSymbol, size: 44)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(request.fromDisplayName)
+                        .font(.body.weight(.semibold))
+                    Text("@\(request.fromUsername)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+            }
+            HStack(spacing: 10) {
+                Button {
+                    Task { await accept() }
+                } label: {
+                    Text("Accept")
+                        .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(tallyAccent)
+                        .foregroundStyle(.white)
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .disabled(inFlight)
+
+                Button {
+                    Task { await decline() }
+                } label: {
+                    Text("Decline")
+                        .font(.system(.subheadline, design: .rounded, weight: .medium))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(Color.tallyCard)
+                        .foregroundStyle(.primary)
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .disabled(inFlight)
+            }
+            if let error {
+                Text(error)
+                    .font(.footnote)
+                    .foregroundStyle(.red)
+            }
+        }
+        .padding(14)
+        .background(Color.tallyCard)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
+    private func accept() async {
+        inFlight = true
+        defer { inFlight = false }
+        do {
+            try await appState.acceptFriendRequest(request)
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    private func decline() async {
+        inFlight = true
+        defer { inFlight = false }
+        await appState.declineFriendRequest(request)
+    }
+}

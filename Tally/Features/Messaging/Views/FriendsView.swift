@@ -30,6 +30,10 @@ struct FriendsView: View {
                     addFriendButton
                     findByUsernameButton
 
+                    if !appState.incomingFriendRequests.isEmpty {
+                        FriendRequestsSection()
+                    }
+
                     section("Friends") {
                         if friends.isEmpty {
                             emptyCard("No friends yet — tap above to invite someone.")
