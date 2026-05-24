@@ -32,8 +32,6 @@
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>
-		<string>bluetooth-peripheral</string>
-		<string>push-to-talk</string>
 	</array>
 	<key>UILaunchScreen</key>
 	<dict/>
