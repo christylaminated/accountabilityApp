@@ -113,16 +113,15 @@ struct FriendSearchView: View {
                 Button {
                     Task { await sendRequest(to: user) }
                 } label: {
-                    Text(isSelf(user) ? "That's you" : "Send friend request")
+                    Text(isSelf(user) ? "Send to yourself (test)" : "Send friend request")
                         .font(.system(.subheadline, design: .rounded, weight: .semibold))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
-                        .background(isSelf(user) ? Color.gray.opacity(0.3) : tallyAccent)
+                        .background(tallyAccent)
                         .foregroundStyle(.white)
                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 }
                 .buttonStyle(.plain)
-                .disabled(isSelf(user))
             case .sending:
                 HStack(spacing: 8) {
                     ProgressView()

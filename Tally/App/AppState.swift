@@ -514,6 +514,14 @@ final class AppState {
     ///    friend graph is complete.
     /// 4. Refresh state so the friend appears immediately in the friends list.
     func acceptFriendRequest(_ request: FriendRequest) async throws {
+        // Self-friending isn't a real CloudKit operation — you can't accept
+        // your own CKShare. Treat it as a test artifact and just dismiss.
+        if request.fromUserRecordName == currentUserID {
+            markRequestDeclined(request)
+            try? await friendRequestRepository.delete(request)
+            await refreshFriendRequests()
+            return
+        }
         let shareURL = URL(string: request.shareURL)
         guard let shareURL else {
             throw NSError(
@@ -564,6 +572,20 @@ final class AppState {
     /// the sender can), so we remember the ID in LocalCache and filter it out.
     func declineFriendRequest(_ request: FriendRequest) async {
         markRequestDeclined(request)
+        await refreshFriendRequests()
+    }
+
+    /// Remove a friend: drop them from MY personal CKShare so they lose access
+    /// to my data. This is a one-sided unfriend (CloudKit only lets the share
+    /// owner modify the share, so I can't also remove myself from THEIR share —
+    /// they'd have to do that on their end). On their next refresh my zone
+    /// disappears from their sharedDB, so I drop off their friend list too.
+    func unfriend(_ friend: Friend) async throws {
+        let recordID = CKRecord.ID(recordName: friend.userID)
+        try await personalRepository.removeFriendParticipant(userRecordID: recordID)
+        await personalStore.refresh()
+        // Also refresh requests in case any pending/outgoing involving this
+        // user need to clear out now that they're no longer a friend.
         await refreshFriendRequests()
     }
 

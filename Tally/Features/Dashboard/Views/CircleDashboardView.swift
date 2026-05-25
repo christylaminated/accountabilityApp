@@ -50,6 +50,9 @@ struct CircleDashboardView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 16) {
+                    if !appState.incomingFriendRequests.isEmpty {
+                        FriendRequestsSection()
+                    }
                     headerCard
                     todayGoalsCard
 

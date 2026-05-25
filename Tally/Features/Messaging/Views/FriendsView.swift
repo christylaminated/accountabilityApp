@@ -10,6 +10,8 @@ struct FriendsView: View {
     @State private var showFriendSearch = false
     @State private var groupToDelete: TallyCircle?
     @State private var groupToLeave: TallyCircle?
+    @State private var friendToUnfriend: Friend?
+    @State private var unfriendError: String?
 
     private var friends: [Friend] {
         appState.personalStore.friends
@@ -43,6 +45,13 @@ struct FriendsView: View {
                                     FriendRow(friend: friend)
                                 }
                                 .buttonStyle(.plain)
+                                .contextMenu {
+                                    Button(role: .destructive) {
+                                        friendToUnfriend = friend
+                                    } label: {
+                                        Label("Unfriend", systemImage: "person.badge.minus")
+                                    }
+                                }
                             }
                         }
                     }
@@ -128,6 +137,41 @@ struct FriendsView: View {
                 Button("Cancel", role: .cancel) { groupToLeave = nil }
             } message: { _ in
                 Text("You'll stop seeing this group's chat. The other members stay in it.")
+            }
+            .confirmationDialog(
+                "Unfriend?",
+                isPresented: Binding(
+                    get: { friendToUnfriend != nil },
+                    set: { if !$0 { friendToUnfriend = nil } }
+                ),
+                titleVisibility: .visible,
+                presenting: friendToUnfriend
+            ) { friend in
+                Button("Unfriend \(friend.displayName)", role: .destructive) {
+                    let target = friend
+                    friendToUnfriend = nil
+                    Task {
+                        do {
+                            try await appState.unfriend(target)
+                        } catch {
+                            unfriendError = error.localizedDescription
+                        }
+                    }
+                }
+                Button("Cancel", role: .cancel) { friendToUnfriend = nil }
+            } message: { friend in
+                Text("\(friend.displayName) will no longer see your habits and goals. On their next refresh you'll disappear from their friends list too.")
+            }
+            .alert(
+                "Couldn't unfriend",
+                isPresented: Binding(
+                    get: { unfriendError != nil },
+                    set: { if !$0 { unfriendError = nil } }
+                )
+            ) {
+                Button("OK", role: .cancel) { unfriendError = nil }
+            } message: {
+                Text(unfriendError ?? "")
             }
         }
     }
