@@ -32,6 +32,9 @@ struct FriendsView: View {
                     addFriendButton
                     findByUsernameButton
 
+                    if let err = appState.lastFriendRequestError {
+                        FriendRequestErrorBanner(message: err)
+                    }
                     if !appState.incomingFriendRequests.isEmpty {
                         FriendRequestsSection()
                     }

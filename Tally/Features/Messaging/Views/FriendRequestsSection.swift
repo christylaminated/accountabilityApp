@@ -33,6 +33,37 @@ struct FriendRequestsSection: View {
     }
 }
 
+/// Surfaces the actual CloudKit error from `refreshFriendRequests` so we don't
+/// fly blind when index config or schema deploys are wrong. Tap to dismiss.
+struct FriendRequestErrorBanner: View {
+    @Environment(AppState.self) private var appState
+    let message: String
+
+    var body: some View {
+        Button {
+            appState.lastFriendRequestError = nil
+        } label: {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Friend-request sync error")
+                        .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                    Text(message)
+                        .font(.system(.footnote, design: .rounded))
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.leading)
+                }
+                Spacer()
+            }
+            .padding(12)
+            .background(Color.orange.opacity(0.12))
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
 private struct FriendRequestRow: View {
     @Environment(\.tallyAccent) private var tallyAccent
     @Environment(AppState.self) private var appState

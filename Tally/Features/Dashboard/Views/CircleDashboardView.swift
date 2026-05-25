@@ -50,6 +50,9 @@ struct CircleDashboardView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 16) {
+                    if let err = appState.lastFriendRequestError {
+                        FriendRequestErrorBanner(message: err)
+                    }
                     if !appState.incomingFriendRequests.isEmpty {
                         FriendRequestsSection()
                     }

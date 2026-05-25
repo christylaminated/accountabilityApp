@@ -93,6 +93,11 @@ final class AppState {
     /// LocalCache so the request stays hidden across launches.
     private var declinedRequestIDs: Set<String> = []
 
+    /// Last error from the public-DB friend-request refresh, surfaced as a
+    /// banner so we don't fly blind when CloudKit query-index config is wrong.
+    /// Cleared on the next successful refresh.
+    var lastFriendRequestError: String?
+
     /// The one Circle the app is focused on. Owned takes priority so a user who
     /// created their own Circle and invited friends stays anchored to it.
     var activeCircle: TallyCircle? { ownedCircles.first ?? joinedCircles.first }
@@ -499,6 +504,9 @@ final class AppState {
             isReciprocal: false
         )
         try await friendRequestRepository.send(request)
+        // Refresh immediately so a self-send (or any quick verification) shows
+        // up in the inbox without requiring a manual pull-to-refresh.
+        await refreshFriendRequests()
     }
 
     /// Recipient accepts an incoming friend request.
@@ -604,6 +612,9 @@ final class AppState {
         guard !currentUserID.isEmpty else { return }
         do {
             let incoming = try await friendRequestRepository.incoming(for: currentUserID)
+            // Clear any stale error message from a previous failed refresh.
+            lastFriendRequestError = nil
+            NSLog("[Tally] refreshFriendRequests: incoming=\(incoming.count) for userID=\(currentUserID)")
 
             // Auto-process reciprocal requests first — these arrive when a
             // friend accepted MY earlier request. We need to accept their
@@ -639,6 +650,7 @@ final class AppState {
             await personalStore.refresh()
         } catch {
             NSLog("[Tally] refreshFriendRequests failed: \(error.localizedDescription)")
+            lastFriendRequestError = error.localizedDescription
         }
     }
 
