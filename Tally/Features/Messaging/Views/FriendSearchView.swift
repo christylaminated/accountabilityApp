@@ -108,6 +108,15 @@ struct FriendSearchView: View {
                 Spacer()
             }
 
+            if isAlreadyFriend(user) {
+                Label("Already friends", systemImage: "checkmark.seal.fill")
+                    .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                    .foregroundStyle(tallyAccent)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(tallyAccent.opacity(0.12))
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            } else {
             switch sendStatus {
             case .idle:
                 Button {
@@ -139,14 +148,21 @@ struct FriendSearchView: View {
                     .font(.footnote)
                     .foregroundStyle(.red)
             }
+            }
         }
         .padding(16)
         .background(Color.tallyCard)
         .clipShape(RoundedRectangle(cornerRadius: 14))
     }
 
+    private func isAlreadyFriend(_ user: UserSearchResult) -> Bool {
+        appState.personalStore.friends.contains { $0.userID == user.userRecordName }
+    }
+
     private func isSelf(_ user: UserSearchResult) -> Bool {
-        user.userRecordName == appState.currentUserID
+        let match = user.userRecordName == appState.currentUserID
+        NSLog("[Tally] isSelf check: match=\(match) searchedUserRecordName=\(user.userRecordName) currentUserID=\(appState.currentUserID)")
+        return match
     }
 
     // MARK: - Actions

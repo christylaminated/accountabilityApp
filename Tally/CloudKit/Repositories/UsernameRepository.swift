@@ -87,11 +87,10 @@ struct CloudKitUsernameRepository: UsernameRepository {
 
     func isAvailable(_ normalized: String) async throws -> Bool {
         let recordID = CKRecord.ID(recordName: normalized)
-        let myUserID = try await client.userRecordID()
         do {
             let existing = try await publicDB.record(for: recordID)
             // Available if it's already mine.
-            return existing.creatorUserRecordID == myUserID
+            return try await isCreatedByMe(existing)
         } catch let error as CKError where error.code == .unknownItem {
             return true
         }
@@ -103,8 +102,6 @@ struct CloudKitUsernameRepository: UsernameRepository {
         displayName: String,
         avatarSymbol: String
     ) async throws {
-        let myUserID = try await client.userRecordID()
-
         // Release the old claim first (so re-naming "alice" → "alyce" frees
         // "alice" for someone else). Best-effort: ignore any delete failure.
         if let prev = previousUsername, prev != normalized {
@@ -115,7 +112,7 @@ struct CloudKitUsernameRepository: UsernameRepository {
         do {
             let existing = try await publicDB.record(for: recordID)
             // Someone has this name — has to be me to update it.
-            guard existing.creatorUserRecordID == myUserID else {
+            guard try await isCreatedByMe(existing) else {
                 throw UsernameError.alreadyTaken
             }
             existing["displayName"] = displayName
@@ -147,10 +144,36 @@ struct CloudKitUsernameRepository: UsernameRepository {
                 username: normalized,
                 displayName: displayName,
                 avatarSymbol: avatarSymbol,
-                userRecordName: creatorID.recordName
+                userRecordName: try await resolveCreatorRecordName(creatorID)
             )
         } catch let error as CKError where error.code == .unknownItem {
             return nil
         }
+    }
+
+    /// Did the *current* iCloud user create this record?
+    ///
+    /// CloudKit returns the `CKCurrentUserDefaultName` sentinel ("__defaultOwner__")
+    /// for `creatorUserRecordID` when the current user is the creator — comparing
+    /// directly to `client.userRecordID()` would give a false negative because
+    /// the sentinel doesn't match the actual record ID string. Treat the sentinel
+    /// as a yes, otherwise compare to our real ID.
+    private func isCreatedByMe(_ record: CKRecord) async throws -> Bool {
+        guard let creatorID = record.creatorUserRecordID else { return false }
+        if creatorID.recordName == CKCurrentUserDefaultName { return true }
+        let myUserID = try await client.userRecordID()
+        return creatorID == myUserID
+    }
+
+    /// Same sentinel quirk as above but for the *outbound* path — `lookup` returns
+    /// a record name that other code uses as a recipient ID. Substitute our real
+    /// user record ID when the lookup hits our own record, so downstream
+    /// equality checks (e.g., FriendRequest.toUserRecordName == currentUserID)
+    /// actually match.
+    private func resolveCreatorRecordName(_ creatorID: CKRecord.ID) async throws -> String {
+        if creatorID.recordName == CKCurrentUserDefaultName {
+            return try await client.userRecordID().recordName
+        }
+        return creatorID.recordName
     }
 }
