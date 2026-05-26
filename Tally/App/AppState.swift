@@ -53,6 +53,7 @@ final class AppState {
     let personalRepository: any PersonalRepository
     let usernameRepository: any UsernameRepository
     let friendRequestRepository: any FriendRequestRepository
+    let groupInviteRepository: any GroupInviteRepository
     let shareCoordinator: ShareCoordinator
 
     /// Live data for the active Circle — members + chat. Habits and goals
@@ -98,6 +99,20 @@ final class AppState {
     /// Cleared on the next successful refresh.
     var lastFriendRequestError: String?
 
+    /// Pending incoming group invites addressed to me. Same lifecycle as
+    /// `incomingFriendRequests`: refreshed on launch and scene-foreground,
+    /// filtered to hide locally-declined ones and invites for Circles I'm
+    /// already in.
+    var incomingGroupInvites: [GroupInvite] = []
+
+    /// Local-only set of declined invite IDs (recipients can't delete
+    /// public-DB records they didn't create).
+    private var declinedGroupInviteIDs: Set<String> = []
+
+    /// Last error from the public-DB group-invite refresh, surfaced as a
+    /// banner. Cleared on the next successful refresh.
+    var lastGroupInviteError: String?
+
     /// The one Circle the app is focused on. Owned takes priority so a user who
     /// created their own Circle and invited friends stays anchored to it.
     var activeCircle: TallyCircle? { ownedCircles.first ?? joinedCircles.first }
@@ -118,6 +133,7 @@ final class AppState {
         personalRepository: any PersonalRepository = CloudKitPersonalRepository(),
         usernameRepository: any UsernameRepository = CloudKitUsernameRepository(),
         friendRequestRepository: any FriendRequestRepository = CloudKitFriendRequestRepository(),
+        groupInviteRepository: any GroupInviteRepository = CloudKitGroupInviteRepository(),
         shareCoordinator: ShareCoordinator = ShareCoordinator(),
         circleStore: CircleStore? = nil,
         personalStore: PersonalStore? = nil
@@ -127,11 +143,15 @@ final class AppState {
         self.personalRepository = personalRepository
         self.usernameRepository = usernameRepository
         self.friendRequestRepository = friendRequestRepository
+        self.groupInviteRepository = groupInviteRepository
         self.shareCoordinator = shareCoordinator
         self.circleStore = circleStore ?? CircleStore()
         self.personalStore = personalStore ?? PersonalStore(repository: personalRepository)
         self.declinedRequestIDs = Set(
             LocalCache.load([String].self, forKey: LocalCacheKey.declinedFriendRequestIDs) ?? []
+        )
+        self.declinedGroupInviteIDs = Set(
+            LocalCache.load([String].self, forKey: LocalCacheKey.declinedGroupInviteIDs) ?? []
         )
 
         // Skip the "Checking iCloud…" spinner on launch for returning users.
@@ -230,6 +250,7 @@ final class AppState {
                     await handleIncomingShareIfNeeded()
                     await loadCircles()
                     await refreshFriendRequests()
+                    await refreshGroupInvites()
                     await enterMainAppOrCircleSetup()
                 } else {
                     onboardingState = .needsProfileSetup
@@ -367,11 +388,12 @@ final class AppState {
         await loadCircles()
     }
 
-    /// Owner-only: add a known user (resolved via username search) to the
-    /// active Group. Throws if non-owner attempts — CloudKit rejects the
-    /// share modification at the boundary.
+    /// Owner-only: invite a known user (resolved via username search) to the
+    /// active Group. Goes through `sendGroupInvite` so the recipient sees the
+    /// invitation in their in-app inbox rather than relying on iOS's
+    /// unreliable CKShare push notification.
     func addMemberToCircle(_ circle: TallyCircle, userRecordName: String) async throws {
-        try await circleRepository.addMember(userRecordName: userRecordName, to: circle)
+        try await sendGroupInvite(to: userRecordName, circle: circle)
     }
 
     // MARK: - Members / friends (dashboard composition)
@@ -695,6 +717,165 @@ final class AppState {
         }
     }
 
+    // MARK: - Group invites
+
+    /// Send a group invite to `userRecordName`, inviting them to `circle`.
+    /// Writes a `GroupInvite` to the public DB *and* adds them as a CKShare
+    /// participant — same belt-and-suspenders pattern as friend requests:
+    /// the participant entry establishes their identity on the share; the
+    /// public-DB record is the discovery mechanism that actually reaches
+    /// them on TestFlight without relying on iCloud system notifications.
+    ///
+    /// Owner-only. Non-owners can't modify the share's participant list, so
+    /// CloudKit will reject the underlying call from anyone but the owner.
+    func sendGroupInvite(to userRecordName: String, circle: TallyCircle) async throws {
+        guard !currentUserID.isEmpty else {
+            throw NSError(
+                domain: "AppState.sendGroupInvite",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "Not signed into iCloud."]
+            )
+        }
+        guard let profile = ownCloudProfile else {
+            throw NSError(
+                domain: "AppState.sendGroupInvite",
+                code: 2,
+                userInfo: [NSLocalizedDescriptionKey: "Set up your profile before inviting friends."]
+            )
+        }
+        guard circle.ownerID == currentUserID else {
+            throw NSError(
+                domain: "AppState.sendGroupInvite",
+                code: 3,
+                userInfo: [NSLocalizedDescriptionKey: "Only the group's creator can invite new members."]
+            )
+        }
+        guard userRecordName != currentUserID else {
+            throw NSError(
+                domain: "AppState.sendGroupInvite",
+                code: 4,
+                userInfo: [NSLocalizedDescriptionKey: "You can't invite yourself."]
+            )
+        }
+
+        // Mint/fetch the share so we have a URL for the invite.
+        let (share, _) = try await circleRepository.makeShare(for: circle)
+        guard let shareURL = share.url else {
+            throw NSError(
+                domain: "AppState.sendGroupInvite",
+                code: 5,
+                userInfo: [NSLocalizedDescriptionKey: "Couldn't get an invite link — try again in a moment."]
+            )
+        }
+
+        // Add as participant. Best-effort — the URL + publicPermission also
+        // grants access on accept, so a hiccup here doesn't sink the invite.
+        do {
+            try await circleRepository.addMember(userRecordName: userRecordName, to: circle)
+        } catch {
+            NSLog("[Tally] sendGroupInvite: addMember failed: \(error.localizedDescription)")
+        }
+
+        let invite = GroupInvite(
+            id: UUID(),
+            fromUserRecordName: currentUserID,
+            toUserRecordName: userRecordName,
+            circleID: circle.id,
+            circleName: circle.name,
+            circleKind: circle.kind,
+            dmPeerID: circle.dmPeerID,
+            shareURL: shareURL.absoluteString,
+            fromDisplayName: profile.displayName,
+            fromUsername: profile.username ?? "",
+            fromAvatarSymbol: profile.avatarSymbol,
+            sentAt: .now
+        )
+        try await groupInviteRepository.send(invite)
+        // Refresh in case we want to surface our own outgoing in the future,
+        // or to surface a clear error banner if the schema isn't ready.
+        await refreshGroupInvites()
+    }
+
+    /// Recipient accepts a group invite: fetch share metadata, accept the
+    /// share so the Circle's zone appears in our sharedDB, then write our
+    /// CircleMember row so the owner sees us in the members list.
+    func acceptGroupInvite(_ invite: GroupInvite) async throws {
+        guard let shareURL = URL(string: invite.shareURL) else {
+            throw NSError(
+                domain: "AppState.acceptGroupInvite",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "Invalid invite link."]
+            )
+        }
+        let container = CKClient.shared.container
+        let metadata = try await container.shareMetadata(for: shareURL)
+        try await acceptShareMetadata(metadata)
+
+        let profile = ownCloudProfile
+        try await circleRepository.recordOwnMembership(
+            circleID: invite.circleID,
+            displayName: profile?.displayName ?? "Me",
+            avatarSymbol: profile?.avatarSymbol ?? "leaf"
+        )
+
+        // Hide locally (we didn't create the record, so we can't delete it).
+        // The owner's cleanup pass removes it once they see us as a member.
+        markGroupInviteDeclined(invite)
+        await loadCircles()
+        await refreshGroupInvites()
+    }
+
+    /// Hide the invite locally without accepting it.
+    func declineGroupInvite(_ invite: GroupInvite) async {
+        markGroupInviteDeclined(invite)
+        await refreshGroupInvites()
+    }
+
+    private func markGroupInviteDeclined(_ invite: GroupInvite) {
+        declinedGroupInviteIDs.insert(invite.id.uuidString)
+        LocalCache.save(Array(declinedGroupInviteIDs), forKey: LocalCacheKey.declinedGroupInviteIDs)
+    }
+
+    /// Poll the public DB for incoming group invites and surface fresh ones
+    /// in `incomingGroupInvites`. Also runs the owner-side cleanup: any
+    /// outgoing invite where the recipient now appears in the Circle's
+    /// member list (or any Circle the recipient is in that I own) is no
+    /// longer pending and gets removed from the public DB.
+    func refreshGroupInvites() async {
+        guard !currentUserID.isEmpty else { return }
+        do {
+            let incoming = try await groupInviteRepository.incoming(for: currentUserID)
+            lastGroupInviteError = nil
+            NSLog("[Tally] refreshGroupInvites: incoming=\(incoming.count) for userID=\(currentUserID)")
+
+            // Surface invites that aren't declined and don't reference a
+            // Circle I'm already in. Joined circles always include accepted
+            // ones, so once the user accepts, the inbox quietly empties.
+            let myCircleIDs = Set(allCircles.map(\.id))
+            incomingGroupInvites = incoming.filter { inv in
+                !declinedGroupInviteIDs.contains(inv.id.uuidString)
+                    && !myCircleIDs.contains(inv.circleID)
+            }
+
+            // Cleanup outgoing invites whose recipient is now a member.
+            // We only have membership for circles we own (members live in
+            // our private DB) and circles we've joined. For circles I own,
+            // I can fetch members directly to confirm acceptance.
+            let outgoing = try await groupInviteRepository.outgoing(for: currentUserID)
+            for inv in outgoing {
+                if let owned = ownedCircles.first(where: { $0.id == inv.circleID }) {
+                    if let members = try? await circleRepository.members(of: owned),
+                       members.contains(where: { $0.userID == inv.toUserRecordName }) {
+                        try? await groupInviteRepository.delete(inv)
+                    }
+                }
+            }
+        } catch {
+            NSLog("[Tally] refreshGroupInvites failed: \(error.localizedDescription)")
+            lastGroupInviteError = error.localizedDescription
+        }
+    }
+
     /// Accept a CKShare.Metadata via CKAcceptSharesOperation. Used by both the
     /// in-app friend-request accept and the auto-reciprocal pass.
     private func acceptShareMetadata(_ metadata: CKShare.Metadata) async throws {
@@ -819,17 +1000,14 @@ final class AppState {
             dmPeerID: friend.userID
         )
 
-        // 3. Invite the peer onto the share so they see the DM on their side.
-        // This still uses the legacy iCloud-notification path until the
-        // GroupInvite flow ships in Commit 2 — visible from the peer's side
-        // only after they accept the iCloud invite.
+        // 3. Invite the peer via the public-DB GroupInvite flow so they
+        // actually see the invitation on their device (the bare CKShare
+        // participant-add doesn't reliably trigger an iCloud notification
+        // on TestFlight, which is what motivated this rewrite).
         do {
-            try await circleRepository.addMember(
-                userRecordName: friend.userID,
-                to: circle
-            )
+            try await sendGroupInvite(to: friend.userID, circle: circle)
         } catch {
-            NSLog("[Tally] openOrCreateDM: addMember failed: \(error.localizedDescription)")
+            NSLog("[Tally] openOrCreateDM: sendGroupInvite failed: \(error.localizedDescription)")
         }
 
         await loadCircles()
@@ -881,6 +1059,7 @@ final class AppState {
         await circleStore.refresh()
         await personalStore.refresh()
         await refreshFriendRequests()
+        await refreshGroupInvites()
     }
 }
 

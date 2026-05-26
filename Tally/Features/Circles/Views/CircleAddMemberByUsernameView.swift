@@ -133,7 +133,7 @@ struct CircleAddMemberByUsernameView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 12)
             case .added:
-                Label("Added — they'll see an iCloud invitation to join.", systemImage: "checkmark.circle.fill")
+                Label("Invited — they'll see it in their group invites when they open Tally.", systemImage: "checkmark.circle.fill")
                     .font(.footnote)
                     .foregroundStyle(tallyAccent)
                     .frame(maxWidth: .infinity, alignment: .leading)

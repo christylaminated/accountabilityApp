@@ -51,6 +51,14 @@ enum LocalCacheKey {
     /// inbox" — persisted here so the request stays gone across launches.
     static let declinedFriendRequestIDs = "Tally.cache.declinedFriendRequestIDs"
 
+    /// Group-invite IDs the user dismissed locally. Same constraint as
+    /// declinedFriendRequestIDs — only the inviting owner can delete the
+    /// underlying record, so we hide locally and persist.
+    static let declinedGroupInviteIDs = "Tally.cache.declinedGroupInviteIDs"
+
     /// Cache keys cleared on iCloud account switch.
-    static let userScoped: [String] = [currentUserID, ownProfile, personalStore, hasOnboarded, declinedFriendRequestIDs]
+    static let userScoped: [String] = [
+        currentUserID, ownProfile, personalStore, hasOnboarded,
+        declinedFriendRequestIDs, declinedGroupInviteIDs
+    ]
 }

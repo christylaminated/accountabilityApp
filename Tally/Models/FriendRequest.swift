@@ -74,3 +74,83 @@ extension FriendRequest: CKRecordConvertible {
         record["isReciprocal"] = isReciprocal ? 1 : 0
     }
 }
+
+// MARK: - Group invites
+
+/// An in-app invitation to join a Group (or DM) — public-DB equivalent of
+/// `FriendRequest`, for the same reason: relying on iOS to deliver a CKShare
+/// invite notification proved unreliable on TestFlight, so we mirror the
+/// invitation in the public database and let the recipient's app poll for it.
+///
+/// Recipient flow on Accept:
+///   1. Fetch share metadata for `shareURL`.
+///   2. CKAcceptSharesOperation → the Circle's zone appears in their sharedDB.
+///   3. recordOwnMembership(circleID:) writes their CircleMember row.
+///   4. The invite stays in the public DB until the owner's cleanup pass
+///      removes it (recipients can't delete records they didn't create).
+///
+/// Decline: hidden locally (declinedGroupInviteIDs), since the recipient
+/// can't delete the underlying record — same constraint as FriendRequest.
+struct GroupInvite: Identifiable, Hashable {
+    let id: UUID
+    var fromUserRecordName: String
+    var toUserRecordName: String
+    var circleID: UUID
+    var circleName: String
+    var circleKind: CircleKind
+    var dmPeerID: String?
+    var shareURL: String
+    var fromDisplayName: String
+    var fromUsername: String
+    var fromAvatarSymbol: String
+    var sentAt: Date
+}
+
+extension GroupInvite: CKRecordConvertible {
+    static let recordType = "GroupInvite"
+
+    init?(record: CKRecord) {
+        guard
+            let idString = record["id"] as? String,
+            let id = UUID(uuidString: idString),
+            let fromUserRecordName = record["fromUserRecordName"] as? String,
+            let toUserRecordName = record["toUserRecordName"] as? String,
+            let circleIDString = record["circleID"] as? String,
+            let circleID = UUID(uuidString: circleIDString),
+            let circleName = record["circleName"] as? String,
+            let shareURL = record["shareURL"] as? String,
+            let fromDisplayName = record["fromDisplayName"] as? String,
+            let fromUsername = record["fromUsername"] as? String,
+            let fromAvatarSymbol = record["fromAvatarSymbol"] as? String,
+            let sentAt = record["sentAt"] as? Date
+        else { return nil }
+        self.id = id
+        self.fromUserRecordName = fromUserRecordName
+        self.toUserRecordName = toUserRecordName
+        self.circleID = circleID
+        self.circleName = circleName
+        self.circleKind = (record["circleKind"] as? String)
+            .flatMap(CircleKind.init(rawValue:)) ?? .group
+        self.dmPeerID = record["dmPeerID"] as? String
+        self.shareURL = shareURL
+        self.fromDisplayName = fromDisplayName
+        self.fromUsername = fromUsername
+        self.fromAvatarSymbol = fromAvatarSymbol
+        self.sentAt = sentAt
+    }
+
+    func populate(_ record: CKRecord) {
+        record["id"] = id.uuidString
+        record["fromUserRecordName"] = fromUserRecordName
+        record["toUserRecordName"] = toUserRecordName
+        record["circleID"] = circleID.uuidString
+        record["circleName"] = circleName
+        record["circleKind"] = circleKind.rawValue
+        record["dmPeerID"] = dmPeerID
+        record["shareURL"] = shareURL
+        record["fromDisplayName"] = fromDisplayName
+        record["fromUsername"] = fromUsername
+        record["fromAvatarSymbol"] = fromAvatarSymbol
+        record["sentAt"] = sentAt
+    }
+}
