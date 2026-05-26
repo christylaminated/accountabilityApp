@@ -44,7 +44,7 @@ struct FriendsView: View {
                     }
 
                     friendsSection
-                    if !dms.isEmpty { messagesSection }
+                    messagesSection
                     groupsSection
 
                     Spacer().frame(height: 24)
@@ -164,25 +164,29 @@ struct FriendsView: View {
     @ViewBuilder
     private var messagesSection: some View {
         section("Messages") {
-            ForEach(dms) { dm in
-                NavigationLink {
-                    GroupChatHost(circle: dm)
-                } label: {
-                    DMRow(circle: dm)
-                }
-                .buttonStyle(.plain)
-                .contextMenu {
-                    if isOwner(of: dm) {
-                        Button(role: .destructive) {
-                            groupToDelete = dm
-                        } label: {
-                            Label("Delete chat", systemImage: "trash")
-                        }
-                    } else {
-                        Button(role: .destructive) {
-                            groupToLeave = dm
-                        } label: {
-                            Label("Leave chat", systemImage: "rectangle.portrait.and.arrow.right")
+            if dms.isEmpty {
+                emptyCard("No conversations yet — open a friend's profile and tap Message to start one.")
+            } else {
+                ForEach(dms) { dm in
+                    NavigationLink {
+                        GroupChatHost(circle: dm)
+                    } label: {
+                        DMRow(circle: dm)
+                    }
+                    .buttonStyle(.plain)
+                    .contextMenu {
+                        if isOwner(of: dm) {
+                            Button(role: .destructive) {
+                                groupToDelete = dm
+                            } label: {
+                                Label("Delete chat", systemImage: "trash")
+                            }
+                        } else {
+                            Button(role: .destructive) {
+                                groupToLeave = dm
+                            } label: {
+                                Label("Leave chat", systemImage: "rectangle.portrait.and.arrow.right")
+                            }
                         }
                     }
                 }
