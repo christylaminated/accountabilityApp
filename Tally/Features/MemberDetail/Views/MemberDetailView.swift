@@ -193,7 +193,14 @@ struct MemberDetailView: View {
         Task {
             defer { isOpeningDM = false }
             do {
-                dmCircle = try await appState.openOrCreateDM(with: member)
+                let circle = try await appState.openOrCreateDM(with: member)
+                // Activate the DM on CircleStore BEFORE pushing navigation, so
+                // the chat view renders with the right circle's content (title
+                // + feed) immediately instead of briefly flashing the
+                // previously-active Circle (e.g., a Group chat the user was
+                // last in) while the activate roundtrip is in flight.
+                await appState.activateCircle(circle)
+                dmCircle = circle
             } catch {
                 dmError = error.localizedDescription
             }

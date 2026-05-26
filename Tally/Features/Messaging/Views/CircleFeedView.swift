@@ -9,11 +9,20 @@ struct CircleFeedView: View {
         appState.circleStore.feed
     }
 
+    /// The Circle whose chat is currently displayed. Reads from `CircleStore`
+    /// (the chat-room scope), NOT from `appState.activeCircle` — those can
+    /// disagree: `activeCircle` is the user's primary/first-owned Circle for
+    /// dashboard purposes, while `circleStore.circle` is whichever Circle the
+    /// user navigated into (a Group, a DM, etc).
+    private var shownCircle: TallyCircle? {
+        appState.circleStore.circle
+    }
+
     /// Title shown in the toolbar. For DMs, prefer the peer's live display name
     /// (from PersonalStore) so a rename on the friend's side shows up here
     /// without us having to rewrite the Circle's `name` field every time.
     private var titleText: String {
-        guard let circle = appState.activeCircle else { return "Circle" }
+        guard let circle = shownCircle else { return "Circle" }
         if circle.kind == .dm,
            let peerID = circle.dmPeer(forViewer: appState.currentUserID),
            let peer = appState.personalStore.friend(id: peerID) {
@@ -58,7 +67,7 @@ struct CircleFeedView: View {
         .toolbar {
             ToolbarItem(placement: .principal) {
                 Button {
-                    if appState.activeCircle != nil { showSettings = true }
+                    if shownCircle != nil { showSettings = true }
                 } label: {
                     HStack(spacing: 4) {
                         Text(titleText)
@@ -73,7 +82,7 @@ struct CircleFeedView: View {
             }
         }
         .sheet(isPresented: $showSettings) {
-            if let circle = appState.activeCircle {
+            if let circle = shownCircle {
                 CircleSettingsView(circle: circle)
             }
         }
