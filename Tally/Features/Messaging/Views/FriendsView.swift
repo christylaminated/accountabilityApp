@@ -17,8 +17,12 @@ struct FriendsView: View {
         appState.personalStore.friends
     }
 
+    private var dms: [TallyCircle] {
+        appState.allCircles.filter { $0.kind == .dm }
+    }
+
     private var groups: [TallyCircle] {
-        appState.allCircles
+        appState.allCircles.filter { $0.kind == .group }
     }
 
     private func isOwner(of group: TallyCircle) -> Bool {
@@ -39,56 +43,9 @@ struct FriendsView: View {
                         FriendRequestsSection()
                     }
 
-                    section("Friends") {
-                        if friends.isEmpty {
-                            emptyCard("No friends yet — tap above to invite someone.")
-                        } else {
-                            ForEach(friends) { friend in
-                                NavigationLink(value: friend.userID) {
-                                    FriendRow(friend: friend)
-                                }
-                                .buttonStyle(.plain)
-                                .contextMenu {
-                                    Button(role: .destructive) {
-                                        friendToUnfriend = friend
-                                    } label: {
-                                        Label("Unfriend", systemImage: "person.badge.minus")
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    section("Groups") {
-                        if groups.isEmpty {
-                            emptyCard("No groups yet — start a group chat with your friends.")
-                        } else {
-                            ForEach(groups) { group in
-                                NavigationLink {
-                                    GroupChatHost(circle: group)
-                                } label: {
-                                    GroupRow(group: group)
-                                }
-                                .buttonStyle(.plain)
-                                .contextMenu {
-                                    if isOwner(of: group) {
-                                        Button(role: .destructive) {
-                                            groupToDelete = group
-                                        } label: {
-                                            Label("Delete group", systemImage: "trash")
-                                        }
-                                    } else {
-                                        Button(role: .destructive) {
-                                            groupToLeave = group
-                                        } label: {
-                                            Label("Leave group", systemImage: "rectangle.portrait.and.arrow.right")
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        newGroupButton
-                    }
+                    friendsSection
+                    if !dms.isEmpty { messagesSection }
+                    groupsSection
 
                     Spacer().frame(height: 24)
                 }
@@ -176,6 +133,94 @@ struct FriendsView: View {
             } message: {
                 Text(unfriendError ?? "")
             }
+        }
+    }
+
+    // MARK: - Sections
+
+    @ViewBuilder
+    private var friendsSection: some View {
+        section("Friends") {
+            if friends.isEmpty {
+                emptyCard("No friends yet — tap above to invite someone.")
+            } else {
+                ForEach(friends) { friend in
+                    NavigationLink(value: friend.userID) {
+                        FriendRow(friend: friend)
+                    }
+                    .buttonStyle(.plain)
+                    .contextMenu {
+                        Button(role: .destructive) {
+                            friendToUnfriend = friend
+                        } label: {
+                            Label("Unfriend", systemImage: "person.badge.minus")
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var messagesSection: some View {
+        section("Messages") {
+            ForEach(dms) { dm in
+                NavigationLink {
+                    GroupChatHost(circle: dm)
+                } label: {
+                    DMRow(circle: dm)
+                }
+                .buttonStyle(.plain)
+                .contextMenu {
+                    if isOwner(of: dm) {
+                        Button(role: .destructive) {
+                            groupToDelete = dm
+                        } label: {
+                            Label("Delete chat", systemImage: "trash")
+                        }
+                    } else {
+                        Button(role: .destructive) {
+                            groupToLeave = dm
+                        } label: {
+                            Label("Leave chat", systemImage: "rectangle.portrait.and.arrow.right")
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var groupsSection: some View {
+        section("Groups") {
+            if groups.isEmpty {
+                emptyCard("No groups yet — start a group chat with your friends.")
+            } else {
+                ForEach(groups) { group in
+                    NavigationLink {
+                        GroupChatHost(circle: group)
+                    } label: {
+                        GroupRow(group: group)
+                    }
+                    .buttonStyle(.plain)
+                    .contextMenu {
+                        if isOwner(of: group) {
+                            Button(role: .destructive) {
+                                groupToDelete = group
+                            } label: {
+                                Label("Delete group", systemImage: "trash")
+                            }
+                        } else {
+                            Button(role: .destructive) {
+                                groupToLeave = group
+                            } label: {
+                                Label("Leave group", systemImage: "rectangle.portrait.and.arrow.right")
+                            }
+                        }
+                    }
+                }
+            }
+            newGroupButton
         }
     }
 
@@ -295,6 +340,46 @@ private struct FriendRow: View {
     }
 }
 
+/// Row for a 1:1 DM Circle. Displays the *peer's* name + avatar so the user
+/// sees who the chat is with, not the Circle's stored name (which is set at
+/// create time and goes stale if the friend renames themselves). Falls back to
+/// the Circle's stored name if the peer isn't in our friend list yet (e.g.,
+/// the DM exists but personalStore hasn't caught up yet).
+private struct DMRow: View {
+    @Environment(\.tallyAccent) private var tallyAccent
+    @Environment(AppState.self) private var appState
+    let circle: TallyCircle
+
+    private var peerID: String? {
+        circle.dmPeer(forViewer: appState.currentUserID)
+    }
+
+    private var peer: Friend? {
+        peerID.flatMap { appState.personalStore.friend(id: $0) }
+    }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            AvatarView(symbolName: peer?.avatarSymbol ?? "person", size: 44)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(peer?.displayName ?? circle.name)
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(.primary)
+                Text("Direct message")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Image(systemName: "chevron.right")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.tertiary)
+        }
+        .padding(14)
+        .background(Color.tallyCard)
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+    }
+}
+
 private struct GroupRow: View {
     @Environment(\.tallyAccent) private var tallyAccent
     @Environment(AppState.self) private var appState
@@ -330,10 +415,10 @@ private struct GroupRow: View {
 }
 
 /// Activates `circle` on the `CircleStore` when entered, then renders the
-/// shared `CircleFeedView` against the active Circle. Multi-Group switching
-/// works by activating whichever Group's chat the user navigates into.
-private struct GroupChatHost: View {
-    @Environment(\.tallyAccent) private var tallyAccent
+/// shared `CircleFeedView` against the active Circle. Used by every entry
+/// point that opens a chat (Groups list, DMs list, Message-from-profile)
+/// so CircleStore stays the single source of truth for the active conversation.
+struct GroupChatHost: View {
     @Environment(AppState.self) private var appState
     let circle: TallyCircle
 

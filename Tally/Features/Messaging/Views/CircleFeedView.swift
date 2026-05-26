@@ -9,6 +9,19 @@ struct CircleFeedView: View {
         appState.circleStore.feed
     }
 
+    /// Title shown in the toolbar. For DMs, prefer the peer's live display name
+    /// (from PersonalStore) so a rename on the friend's side shows up here
+    /// without us having to rewrite the Circle's `name` field every time.
+    private var titleText: String {
+        guard let circle = appState.activeCircle else { return "Circle" }
+        if circle.kind == .dm,
+           let peerID = circle.dmPeer(forViewer: appState.currentUserID),
+           let peer = appState.personalStore.friend(id: peerID) {
+            return peer.displayName
+        }
+        return circle.name
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             ScrollViewReader { proxy in
@@ -48,7 +61,7 @@ struct CircleFeedView: View {
                     if appState.activeCircle != nil { showSettings = true }
                 } label: {
                     HStack(spacing: 4) {
-                        Text(appState.activeCircle?.name ?? "Circle")
+                        Text(titleText)
                             .font(.body.weight(.semibold))
                             .foregroundStyle(.primary)
                         Image(systemName: "chevron.down")

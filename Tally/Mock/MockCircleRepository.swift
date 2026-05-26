@@ -28,14 +28,18 @@ final class MockCircleRepository: CircleRepository, @unchecked Sendable {
         name: String,
         emoji: String?,
         ownerDisplayName: String,
-        ownerAvatarSymbol: String
+        ownerAvatarSymbol: String,
+        kind: CircleKind,
+        dmPeerID: String?
     ) async throws -> TallyCircle {
         let circle = TallyCircle(
             id: UUID(),
             name: name,
             emoji: emoji,
             ownerID: "mock-owner",
-            createdAt: .now
+            createdAt: .now,
+            kind: kind,
+            dmPeerID: dmPeerID
         )
         owned.append(circle)
         membersByCircle[circle.id] = [

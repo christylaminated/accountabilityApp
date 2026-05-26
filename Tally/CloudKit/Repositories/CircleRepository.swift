@@ -24,11 +24,15 @@ protocol CircleRepository: Sendable {
     /// Create a Circle: new custom zone, root record, and the owner's
     /// CircleMember row. No share yet — the share is minted lazily by
     /// `makeShare(for:)` when the user actually invites someone.
+    /// `kind` distinguishes a normal Group from a 1:1 DM; for DMs the
+    /// `dmPeerID` is the other participant's user record name.
     func createCircle(
         name: String,
         emoji: String?,
         ownerDisplayName: String,
-        ownerAvatarSymbol: String
+        ownerAvatarSymbol: String,
+        kind: CircleKind,
+        dmPeerID: String?
     ) async throws -> TallyCircle
 
     /// Create-or-fetch the CKShare for a Circle and return it with its container.
@@ -118,7 +122,9 @@ struct CloudKitCircleRepository: CircleRepository {
         name: String,
         emoji: String?,
         ownerDisplayName: String,
-        ownerAvatarSymbol: String
+        ownerAvatarSymbol: String,
+        kind: CircleKind,
+        dmPeerID: String?
     ) async throws -> TallyCircle {
         let circleID = UUID()
         let zoneName = CKClient.circleZoneName(circleID: circleID)
@@ -134,7 +140,9 @@ struct CloudKitCircleRepository: CircleRepository {
             name: name,
             emoji: emoji,
             ownerID: ownerID,
-            createdAt: .now
+            createdAt: .now,
+            kind: kind,
+            dmPeerID: dmPeerID
         )
         let rootID = CKRecord.ID(recordName: Self.rootRecordName, zoneID: zoneID)
         let rootRecord = circle.toRecord(recordID: rootID)

@@ -308,7 +308,9 @@ final class AppState {
             name: trimmed.isEmpty ? "My Circle" : trimmed,
             emoji: nil,
             ownerDisplayName: profile?.displayName ?? "Me",
-            ownerAvatarSymbol: profile?.avatarSymbol ?? "leaf"
+            ownerAvatarSymbol: profile?.avatarSymbol ?? "leaf",
+            kind: .group,
+            dmPeerID: nil
         )
         await loadCircles()
         await circleStore.activate(circle, currentUserID: currentUserID)
@@ -772,12 +774,65 @@ final class AppState {
             name: name,
             emoji: emoji,
             ownerDisplayName: profile?.displayName ?? "Me",
-            ownerAvatarSymbol: profile?.avatarSymbol ?? "leaf"
+            ownerAvatarSymbol: profile?.avatarSymbol ?? "leaf",
+            kind: .group,
+            dmPeerID: nil
         )
         await loadCircles()
         if let active = activeCircle {
             await circleStore.activate(active, currentUserID: currentUserID)
         }
+        return circle
+    }
+
+    /// Find an existing 1:1 DM Circle with `friend`, or create one. Used by the
+    /// "Message" button on a friend's profile so DMs are one tap away without
+    /// the user having to create a Group manually.
+    ///
+    /// Lookup matches a `.dm` Circle where either:
+    ///   • I own it and `dmPeerID == friend.userID`, or
+    ///   • The friend owns it and `dmPeerID == currentUserID`.
+    ///
+    /// When creating a new DM we name it after the peer for cache friendliness
+    /// (the chat view also re-derives the title from the live friend record at
+    /// render time, so renames stay current). The other party gets added as a
+    /// CKShare participant through the same `addMemberToCircle` path Groups
+    /// use; once Commit 2 lands, that path will switch to the public-DB
+    /// GroupInvite flow so DM invitations actually reach the peer.
+    @discardableResult
+    func openOrCreateDM(with friend: Friend) async throws -> TallyCircle {
+        // 1. Look for an existing DM, on either side.
+        if let existing = allCircles.first(where: { circle in
+            circle.kind == .dm && circle.dmPeer(forViewer: currentUserID) == friend.userID
+        }) {
+            return existing
+        }
+
+        // 2. Create a fresh DM Circle.
+        let profile = ownCloudProfile
+        let circle = try await circleRepository.createCircle(
+            name: friend.displayName,
+            emoji: nil,
+            ownerDisplayName: profile?.displayName ?? "Me",
+            ownerAvatarSymbol: profile?.avatarSymbol ?? "leaf",
+            kind: .dm,
+            dmPeerID: friend.userID
+        )
+
+        // 3. Invite the peer onto the share so they see the DM on their side.
+        // This still uses the legacy iCloud-notification path until the
+        // GroupInvite flow ships in Commit 2 — visible from the peer's side
+        // only after they accept the iCloud invite.
+        do {
+            try await circleRepository.addMember(
+                userRecordName: friend.userID,
+                to: circle
+            )
+        } catch {
+            NSLog("[Tally] openOrCreateDM: addMember failed: \(error.localizedDescription)")
+        }
+
+        await loadCircles()
         return circle
     }
 

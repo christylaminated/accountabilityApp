@@ -5,11 +5,19 @@ struct MemberDetailView: View {
     @Environment(AppState.self) private var appState
     let memberID: String
 
+    @State private var dmCircle: TallyCircle?
+    @State private var isOpeningDM = false
+    @State private var dmError: String?
+
     private var member: Friend? {
         appState.member(for: memberID)
     }
 
     private var isMe: Bool { memberID == appState.currentUserID }
+
+    private var canDM: Bool {
+        !isMe && appState.personalStore.friends.contains { $0.userID == memberID }
+    }
 
     private var habits: [Habit] {
         appState.personalStore.habits(for: memberID)
@@ -63,14 +71,15 @@ struct MemberDetailView: View {
                             }
                         }
 
+                        if canDM {
+                            messageButton
+                        }
+
                         NavigationLink {
                             HistoryCalendarView(targetUserID: memberID)
                         } label: {
                             actionCard(icon: "calendar", text: "View history", filled: false)
                         }
-
-                        // Direct-message-with-friend isn't a feature in the
-                        // friends + groups model — chat lives in Groups.
 
                         Spacer().frame(height: 24)
                     }
@@ -80,6 +89,20 @@ struct MemberDetailView: View {
                 .background(Color.tallyCanvas)
                 .navigationTitle(member.displayName)
                 .navigationBarTitleDisplayMode(.inline)
+                .navigationDestination(item: $dmCircle) { circle in
+                    GroupChatHost(circle: circle)
+                }
+                .alert(
+                    "Couldn't open message",
+                    isPresented: Binding(
+                        get: { dmError != nil },
+                        set: { if !$0 { dmError = nil } }
+                    )
+                ) {
+                    Button("OK", role: .cancel) { dmError = nil }
+                } message: {
+                    Text(dmError ?? "")
+                }
             } else {
                 EmptyStateView(icon: "person.fill.questionmark", title: "Member not found", message: "")
             }
@@ -137,6 +160,44 @@ struct MemberDetailView: View {
         .background(filled ? tallyAccent : Color.tallyCard)
         .foregroundStyle(filled ? .white : .primary)
         .clipShape(RoundedRectangle(cornerRadius: 14))
+    }
+
+    private var messageButton: some View {
+        Button {
+            openDM()
+        } label: {
+            HStack {
+                Image(systemName: "bubble.left.fill")
+                Text(isOpeningDM ? "Opening…" : "Message")
+                Spacer()
+                if isOpeningDM {
+                    ProgressView().tint(.white)
+                } else {
+                    Image(systemName: "chevron.right")
+                        .foregroundStyle(Color.white.opacity(0.7))
+                }
+            }
+            .font(.body.weight(.semibold))
+            .padding(14)
+            .background(tallyAccent)
+            .foregroundStyle(.white)
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+        }
+        .buttonStyle(.plain)
+        .disabled(isOpeningDM)
+    }
+
+    private func openDM() {
+        guard let member, !isOpeningDM else { return }
+        isOpeningDM = true
+        Task {
+            defer { isOpeningDM = false }
+            do {
+                dmCircle = try await appState.openOrCreateDM(with: member)
+            } catch {
+                dmError = error.localizedDescription
+            }
+        }
     }
 }
 
