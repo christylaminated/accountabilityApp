@@ -57,6 +57,12 @@ protocol PersonalRepository: Sendable {
     /// Remove a friend from my personal share (unfriend, on my side).
     func removeFriendParticipant(userRecordID: CKRecord.ID) async throws
 
+    /// Leave a friend's personal share (the symmetric half of unfriending —
+    /// removes me from their share so their zone drops out of my sharedDB).
+    /// Non-owners can remove themselves from a share via sharedDB; CloudKit
+    /// permits this so participants always have an "I'm out" option.
+    func leaveFriendShare(ownerRecordName: String) async throws
+
     /// All personal zones from friends who've shared with me (lives in shared DB).
     /// Their data is fetched via `friendSnapshot`.
     func friendZones() async throws -> [CKRecordZone]
@@ -256,12 +262,44 @@ struct CloudKitPersonalRepository: PersonalRepository {
         let fetched = try await client.privateDB.record(for: shareRef.recordID)
         guard let share = fetched as? CKShare else { return }
 
+        // Compare by recordName rather than full CKRecord.ID — userRecordIDs
+        // always live in `_defaultZone` but the equality check is finicky.
         guard let participant = share.participants.first(where: {
-            $0.userIdentity.userRecordID == userRecordID
+            $0.userIdentity.userRecordID?.recordName == userRecordID.recordName
         }) else { return }
 
         share.removeParticipant(participant)
         _ = try await client.privateDB.modifyRecords(
+            saving: [share],
+            deleting: [],
+            savePolicy: .allKeys,
+            atomically: false
+        )
+    }
+
+    func leaveFriendShare(ownerRecordName: String) async throws {
+        // The friend's personal zone lives in our sharedDB under their
+        // ownerName. Find it; if it's already gone (e.g., they unfriended
+        // us first), the call is a no-op.
+        let zones = try await client.sharedDB.allRecordZones()
+        guard let zone = zones.first(where: {
+            $0.zoneID.zoneName == Self.zoneName
+                && $0.zoneID.ownerName == ownerRecordName
+        }) else { return }
+
+        let rootID = CKRecord.ID(recordName: Self.rootRecordName, zoneID: zone.zoneID)
+        let root = try await client.sharedDB.record(for: rootID)
+        guard let shareRef = root.share else { return }
+        let fetched = try await client.sharedDB.record(for: shareRef.recordID)
+        guard let share = fetched as? CKShare else { return }
+
+        let myRecordName = try await client.userRecordID().recordName
+        guard let me = share.participants.first(where: {
+            $0.userIdentity.userRecordID?.recordName == myRecordName
+        }) else { return }
+
+        share.removeParticipant(me)
+        _ = try await client.sharedDB.modifyRecords(
             saving: [share],
             deleting: [],
             savePolicy: .allKeys,

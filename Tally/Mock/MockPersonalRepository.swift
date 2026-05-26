@@ -39,6 +39,11 @@ final class MockPersonalRepository: PersonalRepository, @unchecked Sendable {
         friends.removeAll { $0 == userRecordID }
     }
 
+    func leaveFriendShare(ownerRecordName: String) async throws {
+        // No-op for the mock; the symmetric half lives on the friend's device
+        // in production. Previews don't model the other side.
+    }
+
     func friendZones() async throws -> [CKRecordZone] { [] }
 
     func friendSnapshot(zoneID: CKRecordZone.ID, since token: CKServerChangeToken?) async throws -> PersonalSnapshot {

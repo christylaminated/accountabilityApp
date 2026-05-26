@@ -635,14 +635,26 @@ final class AppState {
         await refreshFriendRequests()
     }
 
-    /// Remove a friend: drop them from MY personal CKShare so they lose access
-    /// to my data. This is a one-sided unfriend (CloudKit only lets the share
-    /// owner modify the share, so I can't also remove myself from THEIR share —
-    /// they'd have to do that on their end). On their next refresh my zone
-    /// disappears from their sharedDB, so I drop off their friend list too.
+    /// Remove a friend on both sides:
+    ///   1. Drop them from MY personal CKShare so they lose read access to my
+    ///      zone — on their next refresh my data disappears from their friend
+    ///      list.
+    ///   2. Remove MYSELF from THEIR share so their zone drops out of my
+    ///      sharedDB — without this their profile would linger in my friend
+    ///      list because CloudKit still considers me a participant on their
+    ///      share. Non-owners can self-remove via sharedDB, so this works.
+    ///
+    /// Step 1 is the trust-relevant half (revokes their access). Step 2 is
+    /// the bookkeeping half (clears my own view). Step 2 is best-effort; if
+    /// it fails we still want step 1 to stick.
     func unfriend(_ friend: Friend) async throws {
         let recordID = CKRecord.ID(recordName: friend.userID)
         try await personalRepository.removeFriendParticipant(userRecordID: recordID)
+        do {
+            try await personalRepository.leaveFriendShare(ownerRecordName: friend.userID)
+        } catch {
+            NSLog("[Tally] unfriend: leaveFriendShare failed: \(error.localizedDescription)")
+        }
         await personalStore.refresh()
         // Also refresh requests in case any pending/outgoing involving this
         // user need to clear out now that they're no longer a friend.

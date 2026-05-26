@@ -33,6 +33,9 @@ struct CircleFeedView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            if let err = appState.circleStore.lastError {
+                chatErrorBanner(err)
+            }
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 4) {
@@ -86,6 +89,31 @@ struct CircleFeedView: View {
                 CircleSettingsView(circle: circle)
             }
         }
+    }
+
+    /// Surface chat-save errors so a failed send isn't silent. Tap to dismiss;
+    /// CircleStore re-clears the error on the next successful save anyway.
+    private func chatErrorBanner(_ message: String) -> some View {
+        Button {
+            appState.circleStore.lastError = nil
+        } label: {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Couldn't send the last message")
+                        .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                    Text(message)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.leading)
+                }
+                Spacer()
+            }
+            .padding(12)
+            .background(Color.orange.opacity(0.12))
+        }
+        .buttonStyle(.plain)
     }
 
     private func bubble(for msg: CircleMessage) -> some View {

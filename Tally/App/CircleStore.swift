@@ -31,6 +31,14 @@ final class CircleStore {
     /// Server change token for incremental fetches. Reset when the Circle changes.
     private var token: CKServerChangeToken?
 
+    /// Record names of writes currently in flight (and ones that have failed,
+    /// pending retry). load() preserves these across a server fetch so a quick
+    /// re-navigation doesn't wipe an optimistic send before its CloudKit
+    /// write completes. Entries are removed only when the save succeeds —
+    /// failures stay in the set so the message remains visible and the user
+    /// can see something's wrong via `lastError`.
+    private var pendingSaves: Set<String> = []
+
     init(dataRepo: any CircleDataRepository = CloudKitCircleDataRepository()) {
         self.dataRepo = dataRepo
     }
@@ -53,20 +61,41 @@ final class CircleStore {
         try? await dataRepo.subscribeToChanges(for: circle)
     }
 
-    /// Full load — replaces all cached state.
+    /// Full load — replaces all cached state, except for records whose writes
+    /// are still in flight (or have failed and not retried). Those stay so a
+    /// just-sent message doesn't blink out of view when the user navigates
+    /// back into a Circle before its persist completes.
     func load() async {
         guard let circle else { return }
+        // Capture pending entries BEFORE the fetch so we can splice them
+        // back in afterwards.
+        let pendingCircleMsgs = circleMessages.filter {
+            pendingSaves.contains($0.recordName)
+        }
+        let pendingDirectMsgs = directMessages.filter {
+            pendingSaves.contains($0.recordName)
+        }
         isLoading = true
         defer { isLoading = false }
         do {
             let snap = try await dataRepo.snapshot(for: circle, since: nil)
             token = snap.token
             members = snap.members
-            circleMessages = snap.circleMessages
-            directMessages = snap.directMessages
+            circleMessages = Self.spliceIn(pendingCircleMsgs, into: snap.circleMessages)
+            directMessages = Self.spliceIn(pendingDirectMsgs, into: snap.directMessages)
         } catch {
             lastError = error.localizedDescription
         }
+    }
+
+    /// Append `pending` entries to `fetched` unless the same recordName
+    /// already came back from the server. Used during full reloads to keep
+    /// optimistic-send records on screen while their CloudKit write is in
+    /// flight.
+    private static func spliceIn<T: ZoneRecord>(_ pending: [T], into fetched: [T]) -> [T] {
+        guard !pending.isEmpty else { return fetched }
+        let serverNames = Set(fetched.map(\.recordName))
+        return fetched + pending.filter { !serverNames.contains($0.recordName) }
     }
 
     /// Incremental refresh — merges the server delta into cached state. Falls back
@@ -186,10 +215,23 @@ final class CircleStore {
 
     private func persistSave(_ records: [any ZoneRecord]) {
         guard let circle else { return }
+        let names = records.map(\.recordName)
+        // Mark as pending BEFORE the network call so load() running
+        // concurrently with the send still preserves these records.
+        for n in names { pendingSaves.insert(n) }
         Task {
             do {
                 try await dataRepo.save(records, in: circle)
+                // Success: drop from pending so the next refresh can
+                // treat the record as canonical-server.
+                for n in names { pendingSaves.remove(n) }
+                // Clear any prior error if this save succeeded.
+                if lastError != nil { lastError = nil }
             } catch {
+                // KEEP in pendingSaves so the local copy stays visible,
+                // and surface the error so the user can see something
+                // failed instead of silently losing the message.
+                NSLog("[Tally] persistSave failed: \(error.localizedDescription)")
                 lastError = error.localizedDescription
             }
         }
