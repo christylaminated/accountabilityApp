@@ -203,15 +203,31 @@ struct CircleDashboardView: View {
     }
 
     /// 7-dot streak chain + streak count below. No card wrapper.
+    /// Past and today dots are tappable — they push a `DayDetailView`
+    /// scoped to that calendar day so the chain feels live, not
+    /// decorative. Future dots stay non-interactive (no data to show).
     private var streakSection: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 12) {
                 ForEach(streakDays, id: \.self) { day in
-                    StreakDot(
-                        day: day,
-                        today: today,
-                        isActive: activeDayKeys.contains(day.startOfDay)
-                    )
+                    if day.startOfDay <= today.startOfDay {
+                        NavigationLink {
+                            DayDetailView(date: day, userID: appState.currentUserID)
+                        } label: {
+                            StreakDot(
+                                day: day,
+                                today: today,
+                                isActive: activeDayKeys.contains(day.startOfDay)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    } else {
+                        StreakDot(
+                            day: day,
+                            today: today,
+                            isActive: activeDayKeys.contains(day.startOfDay)
+                        )
+                    }
                 }
                 Spacer(minLength: 0)
             }
@@ -321,7 +337,7 @@ struct CircleDashboardView: View {
                 Image(systemName: "person.badge.plus")
                     .font(.system(size: 14))
                     .foregroundStyle(Color.tallyTextSecondary)
-                Text("Add a friend to make it count")
+                Text("Add a friend to keep each other accountable")
                     .font(.system(size: 14).italic())
                     .foregroundStyle(Color.tallyTextSecondary)
                 Spacer()
