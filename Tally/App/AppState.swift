@@ -618,46 +618,71 @@ final class AppState {
         try await acceptShareMetadata(metadata)
 
         let senderRecordID = CKRecord.ID(recordName: request.fromUserRecordName)
-        // Reciprocally add the sender to OUR personal share. This works because
-        // it's our own share — we own it — so CloudKit allows the modification.
-        // Non-fatal but logged: the share-URL auto-accept below is what actually
-        // gives the sender access, so a failure here doesn't break the friend
-        // graph — it just leaves the sender absent from our share's participant
-        // list. Still worth surfacing in logs.
-        do {
-            try await personalRepository.addFriendParticipant(userRecordID: senderRecordID)
-        } catch {
-            NSLog("[Tally] acceptFriendRequest: addFriendParticipant failed: \(error.localizedDescription)")
-        }
+        NSLog("[Tally] acceptFriendRequest: accepted share for sender=\(request.fromUserRecordName)")
 
-        // Tell the sender's app to silently auto-accept our share too, since
-        // iCloud's automatic notification on participant-add isn't reliable.
-        // Non-fatal but logged: if this fails the sender won't see our data
-        // until they manually retry, which is exactly the bug we want
-        // visibility into.
-        if let profile = ownCloudProfile {
-            do {
-                let (myShare, _) = try await personalRepository.makePersonalShare()
-                if let myShareURL = myShare.url {
-                    let reciprocal = FriendRequest(
-                        id: UUID(),
-                        fromUserRecordName: currentUserID,
-                        toUserRecordName: request.fromUserRecordName,
-                        shareURL: myShareURL.absoluteString,
-                        fromDisplayName: profile.displayName,
-                        fromUsername: profile.username ?? "",
-                        fromAvatarSymbol: profile.avatarSymbol,
-                        sentAt: .now,
-                        isReciprocal: true
-                    )
-                    try await friendRequestRepository.send(reciprocal)
-                } else {
-                    NSLog("[Tally] acceptFriendRequest: own share has no URL — reciprocal not sent.")
-                }
-            } catch {
-                NSLog("[Tally] acceptFriendRequest: reciprocal send failed: \(error.localizedDescription)")
-            }
+        // Add the sender as a participant on OUR share so they can read
+        // our data. This is what unlocks the bidirectional friend graph —
+        // without it the sender never gains access to my zone even after
+        // they accept our reciprocal share URL. Throws because if this
+        // step fails the friend genuinely can't see us afterwards.
+        try await personalRepository.addFriendParticipant(userRecordID: senderRecordID)
+        NSLog("[Tally] acceptFriendRequest: added sender as participant on my share")
+
+        // Mint/fetch my share and write the reciprocal FriendRequest so
+        // the sender's app can pick up MY share URL and auto-accept it.
+        // Both steps throw on failure so the user sees a "Couldn't
+        // complete friend request" alert — previously these failed
+        // silently into NSLog, which is exactly why the user reported
+        // "they see me but I don't see them" with no error indication.
+        guard let profile = ownCloudProfile else {
+            throw NSError(
+                domain: "AppState.acceptFriendRequest",
+                code: 2,
+                userInfo: [NSLocalizedDescriptionKey: "Set up your profile before accepting friend requests."]
+            )
         }
+        let (myShare, _) = try await personalRepository.makePersonalShare()
+        NSLog("[Tally] acceptFriendRequest: makePersonalShare returned share recordName=\(myShare.recordID.recordName) url=\(myShare.url?.absoluteString ?? "nil")")
+
+        // The share URL is what the sender's app fetches metadata from
+        // when auto-accepting the reciprocal. If it's nil the reciprocal
+        // is useless — retry a couple of times with a short delay because
+        // CloudKit can take a beat to populate `.url` on freshly-saved
+        // shares (this is the most likely silent failure mode that
+        // matches the user's symptom).
+        var resolvedShare = myShare
+        var urlRetries = 0
+        while resolvedShare.url == nil && urlRetries < 4 {
+            NSLog("[Tally] acceptFriendRequest: share URL not yet populated, retry \(urlRetries + 1)")
+            try await Task.sleep(nanoseconds: 500_000_000)
+            let refreshed = try await CKClient.shared.privateDB.record(for: resolvedShare.recordID)
+            if let s = refreshed as? CKShare {
+                resolvedShare = s
+            }
+            urlRetries += 1
+        }
+        guard let myShareURL = resolvedShare.url else {
+            throw NSError(
+                domain: "AppState.acceptFriendRequest",
+                code: 3,
+                userInfo: [NSLocalizedDescriptionKey: "Couldn't get a share URL from CloudKit — try accepting again."]
+            )
+        }
+        NSLog("[Tally] acceptFriendRequest: resolved share URL after \(urlRetries) retries")
+
+        let reciprocal = FriendRequest(
+            id: UUID(),
+            fromUserRecordName: currentUserID,
+            toUserRecordName: request.fromUserRecordName,
+            shareURL: myShareURL.absoluteString,
+            fromDisplayName: profile.displayName,
+            fromUsername: profile.username ?? "",
+            fromAvatarSymbol: profile.avatarSymbol,
+            sentAt: .now,
+            isReciprocal: true
+        )
+        try await friendRequestRepository.send(reciprocal)
+        NSLog("[Tally] acceptFriendRequest: reciprocal sent id=\(reciprocal.id)")
 
         // The recipient can't delete the sender's original request (public-DB
         // security blocks non-creator writes). The sender's cleanup pass will
@@ -666,6 +691,7 @@ final class AppState {
         markRequestDeclined(request)
         await personalStore.refresh()
         await refreshFriendRequests()
+        NSLog("[Tally] acceptFriendRequest: done")
     }
 
     /// Hide the request locally. We can't delete the underlying record (only
@@ -759,20 +785,34 @@ final class AppState {
             // otherwise a single hiccup would permanently strand the sender
             // without the recipient's data.
             for r in incoming where r.isReciprocal {
+                NSLog("[Tally] reciprocal: processing from=\(r.fromUserRecordName) id=\(r.id)")
                 guard let url = URL(string: r.shareURL) else {
-                    // Malformed URL — no point retrying. Hide it.
+                    NSLog("[Tally] reciprocal: malformed URL — hiding")
                     markRequestDeclined(r)
                     continue
                 }
                 do {
                     let metadata = try await CKClient.shared.container.shareMetadata(for: url)
+                    NSLog("[Tally] reciprocal: fetched metadata")
                     try await acceptShareMetadata(metadata)
+                    NSLog("[Tally] reciprocal: acceptShareMetadata ok")
                     // Refresh immediately so the friend's data appears in the
                     // friends list without waiting for the loop to finish.
                     await personalStore.refresh()
-                    markRequestDeclined(r)
+                    // Only hide the reciprocal once the friend is actually
+                    // visible in our friend graph. CloudKit zone-propagation
+                    // can lag the accept by a few seconds; if we hide
+                    // unconditionally and the zone isn't ready yet, we lose
+                    // the only retry signal we have. Leaving the reciprocal
+                    // un-declined makes the next refresh re-process it.
+                    if personalStore.friends.contains(where: { $0.userID == r.fromUserRecordName }) {
+                        NSLog("[Tally] reciprocal: friend visible — hiding reciprocal")
+                        markRequestDeclined(r)
+                    } else {
+                        NSLog("[Tally] reciprocal: friend NOT yet visible in personalStore — leaving for retry")
+                    }
                 } catch {
-                    NSLog("[Tally] Auto-accept reciprocal failed (will retry next refresh): \(error.localizedDescription)")
+                    NSLog("[Tally] reciprocal: auto-accept failed (will retry next refresh): \(error.localizedDescription)")
                 }
             }
 
