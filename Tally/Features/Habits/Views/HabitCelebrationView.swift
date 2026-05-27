@@ -1,36 +1,43 @@
 import SwiftUI
 
+/// Inline "all done today" surface for the Habits tab. Renders only when
+/// the caller decides the day is complete; visibility is reactive (the
+/// caller un-renders it when the user unchecks a habit). No scrim, no
+/// modal, no auto-dismiss. The body text matches the habit list's
+/// `.body` weight so it feels like part of the list; the streak row is
+/// the only "loud" element by design — that's the moment.
 struct HabitCelebrationView: View {
-    @Environment(\.tallyAccent) private var tallyAccent
-    @State private var scale: CGFloat = 0.6
-    @State private var opacity: Double = 0
+    let streakCount: Int
 
     var body: some View {
-        ZStack {
-            Color.black.opacity(0.25)
-                .ignoresSafeArea()
+        VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("all done today.")
+                Text("see you tomorrow.")
+            }
+            .font(.body.weight(.medium))
+            .foregroundStyle(Color.tallyTextPrimary)
 
-            VStack(spacing: 12) {
-                Image(systemName: "sparkles")
-                    .font(.system(size: 56, weight: .light))
-                    .symbolRenderingMode(.monochrome)
-                    .foregroundStyle(.white)
-                Text("All done today!")
-                    .font(.title2.weight(.semibold))
-                    .foregroundStyle(.white)
+            // Flame + count. Number is bolder than the flame so it reads as
+            // the focal point (visual hierarchy: streak first, decoration
+            // second). Both accent so they share the same emotional weight.
+            HStack(spacing: 8) {
+                Image(systemName: "flame.fill")
+                    .font(.system(size: 22, weight: .medium))
+                Text("\(streakCount)")
+                    .font(.system(size: 26, weight: .bold))
+                    .monospacedDigit()
             }
-            .padding(32)
-            .background(tallyAccent.opacity(0.95))
-            .clipShape(RoundedRectangle(cornerRadius: 24))
-            .shadow(color: .black.opacity(0.25), radius: 16, y: 8)
-            .scaleEffect(scale)
-            .opacity(opacity)
+            .foregroundStyle(Color.tallyAccent)
         }
-        .onAppear {
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) {
-                scale = 1.0
-                opacity = 1.0
-            }
-        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            // Faintest possible tint — feels like part of the list rather
+            // than a card on top of it. 6% opacity reads as a whisper on
+            // every theme.
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.tallyAccent.opacity(0.06))
+        )
     }
 }

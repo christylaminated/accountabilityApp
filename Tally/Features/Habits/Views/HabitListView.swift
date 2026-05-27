@@ -4,7 +4,6 @@ struct HabitListView: View {
     @Environment(\.tallyAccent) private var tallyAccent
     @Environment(AppState.self) private var appState
     @State private var showAddSheet = false
-    @State private var showCelebration = false
 
     private var habits: [Habit] {
         appState.personalStore.habits(for: appState.currentUserID)
@@ -18,61 +17,76 @@ struct HabitListView: View {
         !habits.isEmpty && doneToday == habits.count
     }
 
+    /// "Days you've completed every habit in a row." Equivalent to the
+    /// minimum across each habit's individual current streak — if every
+    /// habit has streak ≥ K, every habit was done each of the last K days,
+    /// which is the same as K consecutive all-done days.
+    private var celebrationStreak: Int {
+        guard !habits.isEmpty else { return 0 }
+        let streaks = habits.map { habit in
+            StreakCalculator.currentStreak(
+                completions: appState.personalStore.completionDates(habit: habit),
+                habitCreatedAt: habit.createdAt
+            )
+        }
+        return streaks.min() ?? 0
+    }
+
     var body: some View {
         NavigationStack {
-            ZStack {
-                Color.tallyCanvas.ignoresSafeArea()
-                if habits.isEmpty {
-                    EmptyStateView(
-                        icon: "checkmark.circle",
-                        title: "No habits yet",
-                        message: "Add your first daily habit to start tracking."
-                    )
-                } else {
-                    ScrollView {
-                        VStack(spacing: 12) {
-                            progressCard
-                            ForEach(habits) { habit in
-                                HabitRowView(habit: habit)
-                            }
-                            Spacer().frame(height: 24)
+            Color.tallyCanvas.ignoresSafeArea().overlay(content)
+                .navigationTitle("Habits")
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            showAddSheet = true
+                        } label: {
+                            Image(systemName: "plus")
                         }
-                        .padding(.horizontal, 16)
-                        .padding(.top, 8)
                     }
                 }
+                .sheet(isPresented: $showAddSheet) {
+                    AddHabitSheet()
+                }
+                // Haptic only on the false→true transition, not on every
+                // re-render. Unchecking the final habit silently retracts
+                // the celebration — no haptic on the reverse direction.
+                .onChange(of: allDone) { wasAllDone, nowAllDone in
+                    if nowAllDone && !wasAllDone {
+                        #if canImport(UIKit)
+                        UINotificationFeedbackGenerator().notificationOccurred(.success)
+                        #endif
+                    }
+                }
+        }
+    }
 
-                if showCelebration {
-                    HabitCelebrationView()
-                        .transition(.opacity.combined(with: .scale))
-                        .zIndex(10)
-                }
-            }
-            .navigationTitle("Habits")
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showAddSheet = true
-                    } label: {
-                        Image(systemName: "plus")
+    @ViewBuilder
+    private var content: some View {
+        if habits.isEmpty {
+            EmptyStateView(
+                icon: "checkmark.circle",
+                title: "No habits yet",
+                message: "Add your first daily habit to start tracking."
+            )
+        } else {
+            ScrollView {
+                VStack(spacing: 12) {
+                    if allDone {
+                        HabitCelebrationView(streakCount: celebrationStreak)
+                            .transition(.move(edge: .top).combined(with: .opacity))
                     }
-                }
-            }
-            .sheet(isPresented: $showAddSheet) {
-                AddHabitSheet()
-            }
-            .onChange(of: doneToday) { _, _ in
-                if allDone {
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) {
-                        showCelebration = true
+                    progressCard
+                    ForEach(habits) { habit in
+                        HabitRowView(habit: habit)
                     }
-                    #if canImport(UIKit)
-                    UINotificationFeedbackGenerator().notificationOccurred(.success)
-                    #endif
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) {
-                        withAnimation { showCelebration = false }
-                    }
+                    Spacer().frame(height: 24)
                 }
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+                // Scoped to allDone so unrelated state changes (sheet
+                // dismissals, habit additions) don't ride the same animation.
+                .animation(.easeInOut(duration: 0.3), value: allDone)
             }
         }
     }

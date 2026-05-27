@@ -339,7 +339,7 @@ struct CircleDashboardView: View {
                         Image(systemName: "plus.circle")
                             .font(.system(size: 14))
                             .foregroundStyle(Color.tallyTextSecondary)
-                        Text("Add a to-do for today")
+                        Text("Add a goal for today")
                             .font(.system(size: 14).italic())
                             .foregroundStyle(Color.tallyTextSecondary)
                         Spacer()
