@@ -1,14 +1,19 @@
 import SwiftUI
 import Foundation
 import Observation
+#if canImport(UIKit)
+import UIKit
+#endif
 
 /// The four curated themes the user picks from. Classic is monochrome — the
 /// default, intentionally restrained. Sage / Berry / Midnight are color
 /// options the user opts into.
 ///
-/// Each case carries the full palette so views can derive any role
-/// (background, card, accent, destructive, etc.) from the current theme
-/// without per-call branching.
+/// Every role (accent / background / card / textPrimary / textSecondary /
+/// completed / streak / destructive) carries BOTH a light-mode hex and a
+/// dark-mode hex. Returned Colors are wrapped in a UIColor dynamic
+/// provider so SwiftUI re-resolves them when the system's
+/// `userInterfaceStyle` flips.
 enum TallyTheme: String, CaseIterable, Codable, Hashable, Identifiable {
     case classic
     case sage
@@ -26,71 +31,81 @@ enum TallyTheme: String, CaseIterable, Codable, Hashable, Identifiable {
         }
     }
 
-    var accent: Color         { Color(tallyHex: paletteHex.accent) }
-    var background: Color     { Color(tallyHex: paletteHex.background) }
-    var card: Color           { Color(tallyHex: paletteHex.card) }
-    var completed: Color      { Color(tallyHex: paletteHex.completed) }
-    var streak: Color         { Color(tallyHex: paletteHex.streak) }
-    var textPrimary: Color    { Color(tallyHex: paletteHex.textPrimary) }
-    var textSecondary: Color  { Color(tallyHex: paletteHex.textSecondary) }
-    var destructive: Color    { Color(tallyHex: paletteHex.destructive) }
+    var accent: Color        { Color(tallyAdaptive: palette.accent) }
+    var background: Color    { Color(tallyAdaptive: palette.background) }
+    var card: Color          { Color(tallyAdaptive: palette.card) }
+    var completed: Color     { Color(tallyAdaptive: palette.completed) }
+    var streak: Color        { Color(tallyAdaptive: palette.streak) }
+    var textPrimary: Color   { Color(tallyAdaptive: palette.textPrimary) }
+    var textSecondary: Color { Color(tallyAdaptive: palette.textSecondary) }
+    var destructive: Color   { Color(tallyAdaptive: palette.destructive) }
 
-    private struct PaletteHex {
-        var accent: String
-        var background: String
-        var card: String
-        var completed: String
-        var streak: String
-        var textPrimary: String
-        var textSecondary: String
-        var destructive: String
+    /// Light + dark hex strings for one role.
+    struct HexPair {
+        var light: String
+        var dark: String
     }
 
-    private var paletteHex: PaletteHex {
+    private struct Palette {
+        var accent: HexPair
+        var background: HexPair
+        var card: HexPair
+        var completed: HexPair
+        var streak: HexPair
+        var textPrimary: HexPair
+        var textSecondary: HexPair
+        var destructive: HexPair
+    }
+
+    /// Destructive renders the same coral-red in every theme, both modes —
+    /// it's the warning signal, not a brand color.
+    private static let destructive = HexPair(light: "D44638", dark: "D44638")
+
+    private var palette: Palette {
         switch self {
         case .classic:
-            return PaletteHex(
-                accent: "1A1A1A",
-                background: "FFFFFF",
-                card: "F5F5F5",
-                completed: "1A1A1A",
-                streak: "1A1A1A",
-                textPrimary: "1A1A1A",
-                textSecondary: "8E8E8E",
-                destructive: "D44638"
+            return Palette(
+                accent:        HexPair(light: "1A1A1A", dark: "F5F5F5"),
+                background:    HexPair(light: "FFFFFF", dark: "000000"),
+                card:          HexPair(light: "F5F5F5", dark: "1C1C1E"),
+                completed:     HexPair(light: "1A1A1A", dark: "F5F5F5"),
+                streak:        HexPair(light: "1A1A1A", dark: "F5F5F5"),
+                textPrimary:   HexPair(light: "1A1A1A", dark: "FFFFFF"),
+                textSecondary: HexPair(light: "8E8E8E", dark: "8E8E8E"),
+                destructive:   Self.destructive
             )
         case .sage:
-            return PaletteHex(
-                accent: "A8B5A0",
-                background: "FAF9F6",
-                card: "FFFFFF",
-                completed: "A8B5A0",
-                streak: "8B9E82",
-                textPrimary: "1A1A1A",
-                textSecondary: "6B6B6B",
-                destructive: "D44638"
+            return Palette(
+                accent:        HexPair(light: "A8B5A0", dark: "A8B5A0"),
+                background:    HexPair(light: "FAF9F6", dark: "1A1817"),
+                card:          HexPair(light: "FFFFFF", dark: "252321"),
+                completed:     HexPair(light: "A8B5A0", dark: "A8B5A0"),
+                streak:        HexPair(light: "8B9E82", dark: "B8C5B0"),
+                textPrimary:   HexPair(light: "1A1A1A", dark: "FAF9F6"),
+                textSecondary: HexPair(light: "6B6B6B", dark: "8E8E8E"),
+                destructive:   Self.destructive
             )
         case .berry:
-            return PaletteHex(
-                accent: "C4849A",
-                background: "FFFAF8",
-                card: "FFFFFF",
-                completed: "C4849A",
-                streak: "B07388",
-                textPrimary: "1A1A1A",
-                textSecondary: "6B6B6B",
-                destructive: "D44638"
+            return Palette(
+                accent:        HexPair(light: "C4849A", dark: "C4849A"),
+                background:    HexPair(light: "FFFAF8", dark: "1E1818"),
+                card:          HexPair(light: "FFFFFF", dark: "2A2222"),
+                completed:     HexPair(light: "C4849A", dark: "C4849A"),
+                streak:        HexPair(light: "B07388", dark: "D49AAE"),
+                textPrimary:   HexPair(light: "1A1A1A", dark: "FFFAF8"),
+                textSecondary: HexPair(light: "6B6B6B", dark: "8E8E8E"),
+                destructive:   Self.destructive
             )
         case .midnight:
-            return PaletteHex(
-                accent: "7B9EB8",
-                background: "F8FAFB",
-                card: "FFFFFF",
-                completed: "7B9EB8",
-                streak: "6889A0",
-                textPrimary: "1A1A1A",
-                textSecondary: "6B6B6B",
-                destructive: "D44638"
+            return Palette(
+                accent:        HexPair(light: "7B9EB8", dark: "7B9EB8"),
+                background:    HexPair(light: "F8FAFB", dark: "14171A"),
+                card:          HexPair(light: "FFFFFF", dark: "1F2328"),
+                completed:     HexPair(light: "7B9EB8", dark: "7B9EB8"),
+                streak:        HexPair(light: "6889A0", dark: "9AB8CC"),
+                textPrimary:   HexPair(light: "1A1A1A", dark: "F8FAFB"),
+                textSecondary: HexPair(light: "6B6B6B", dark: "8E8E8E"),
+                destructive:   Self.destructive
             )
         }
     }
@@ -134,7 +149,7 @@ final class ThemeManager: @unchecked Sendable {
     }
 }
 
-// MARK: - Color hex helper
+// MARK: - Color hex / adaptive helpers
 
 extension Color {
     /// Decode a 6-digit RGB hex string ("1A1A1A") into a SwiftUI Color.
@@ -152,4 +167,39 @@ extension Color {
             blue:  Double( rgb        & 0xFF) / 255.0
         )
     }
+
+    /// Build an adaptive Color that flips between two hex strings based on
+    /// the current `userInterfaceStyle`. Internally wraps a UIColor with a
+    /// dynamic provider, so SwiftUI re-resolves it automatically when the
+    /// system switches between light and dark mode.
+    init(tallyAdaptive pair: TallyTheme.HexPair) {
+        #if canImport(UIKit)
+        let lightUI = UIColor(tallyHex: pair.light)
+        let darkUI  = UIColor(tallyHex: pair.dark)
+        self.init(uiColor: UIColor { trait in
+            trait.userInterfaceStyle == .dark ? darkUI : lightUI
+        })
+        #else
+        self.init(tallyHex: pair.light)
+        #endif
+    }
 }
+
+#if canImport(UIKit)
+extension UIColor {
+    /// Hex-string init parallel to `Color.init(tallyHex:)` — used when we
+    /// need a UIColor for dynamic-provider wrapping.
+    convenience init(tallyHex hex: String) {
+        var s = hex
+        if s.hasPrefix("#") { s.removeFirst() }
+        var rgb: UInt64 = 0
+        Scanner(string: s).scanHexInt64(&rgb)
+        self.init(
+            red:   CGFloat((rgb >> 16) & 0xFF) / 255.0,
+            green: CGFloat((rgb >> 8)  & 0xFF) / 255.0,
+            blue:  CGFloat( rgb        & 0xFF) / 255.0,
+            alpha: 1.0
+        )
+    }
+}
+#endif
