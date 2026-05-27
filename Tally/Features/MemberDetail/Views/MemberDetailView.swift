@@ -3,11 +3,15 @@ import SwiftUI
 struct MemberDetailView: View {
     @Environment(\.tallyAccent) private var tallyAccent
     @Environment(AppState.self) private var appState
+    @Environment(\.dismiss) private var dismiss
     let memberID: String
 
     @State private var dmCircle: TallyCircle?
     @State private var isOpeningDM = false
     @State private var dmError: String?
+    @State private var showUnfriendConfirm = false
+    @State private var isUnfriending = false
+    @State private var unfriendError: String?
 
     private var member: Friend? {
         appState.member(for: memberID)
@@ -15,9 +19,12 @@ struct MemberDetailView: View {
 
     private var isMe: Bool { memberID == appState.currentUserID }
 
-    private var canDM: Bool {
-        !isMe && appState.personalStore.friends.contains { $0.userID == memberID }
+    private var isFriend: Bool {
+        appState.personalStore.friends.contains { $0.userID == memberID }
     }
+
+    private var canDM: Bool { !isMe && isFriend }
+    private var canUnfriend: Bool { !isMe && isFriend }
 
     private var habits: [Habit] {
         appState.personalStore.habits(for: memberID)
@@ -81,6 +88,10 @@ struct MemberDetailView: View {
                             actionCard(icon: "calendar", text: "View history", filled: false)
                         }
 
+                        if canUnfriend {
+                            unfriendButton
+                        }
+
                         Spacer().frame(height: 24)
                     }
                     .padding(.horizontal, 16)
@@ -102,6 +113,27 @@ struct MemberDetailView: View {
                     Button("OK", role: .cancel) { dmError = nil }
                 } message: {
                     Text(dmError ?? "")
+                }
+                .confirmationDialog(
+                    "Unfriend \(member.displayName)?",
+                    isPresented: $showUnfriendConfirm,
+                    titleVisibility: .visible
+                ) {
+                    Button("Unfriend", role: .destructive) { performUnfriend() }
+                    Button("Cancel", role: .cancel) { }
+                } message: {
+                    Text("\(member.displayName) will lose access to your habits and goals, and you'll lose access to theirs. They'll drop off both friend lists on the next refresh.")
+                }
+                .alert(
+                    "Couldn't unfriend",
+                    isPresented: Binding(
+                        get: { unfriendError != nil },
+                        set: { if !$0 { unfriendError = nil } }
+                    )
+                ) {
+                    Button("OK", role: .cancel) { unfriendError = nil }
+                } message: {
+                    Text(unfriendError ?? "")
                 }
             } else {
                 EmptyStateView(icon: "person.fill.questionmark", title: "Member not found", message: "")
@@ -185,6 +217,44 @@ struct MemberDetailView: View {
         }
         .buttonStyle(.plain)
         .disabled(isOpeningDM)
+    }
+
+    private var unfriendButton: some View {
+        Button(role: .destructive) {
+            showUnfriendConfirm = true
+        } label: {
+            HStack {
+                Image(systemName: "person.badge.minus")
+                Text(isUnfriending ? "Unfriending…" : "Unfriend")
+                Spacer()
+                if isUnfriending {
+                    ProgressView()
+                }
+            }
+            .font(.body.weight(.medium))
+            .padding(14)
+            .background(Color.tallyCard)
+            .foregroundStyle(.red)
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+        }
+        .buttonStyle(.plain)
+        .disabled(isUnfriending)
+    }
+
+    private func performUnfriend() {
+        guard let member, !isUnfriending else { return }
+        isUnfriending = true
+        Task {
+            do {
+                try await appState.unfriend(member)
+                // Pop back to the friends list — the member view would
+                // otherwise show "Member not found" once they're gone.
+                dismiss()
+            } catch {
+                unfriendError = error.localizedDescription
+                isUnfriending = false
+            }
+        }
     }
 
     private func openDM() {
