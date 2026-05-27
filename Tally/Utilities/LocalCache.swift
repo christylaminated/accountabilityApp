@@ -56,9 +56,19 @@ enum LocalCacheKey {
     /// underlying record, so we hide locally and persist.
     static let declinedGroupInviteIDs = "Tally.cache.declinedGroupInviteIDs"
 
+    /// User record names of friends the user has unfriended on this
+    /// device. Persisted because the friend's zone still lives in our
+    /// sharedDB until they too leave the share, and we don't call
+    /// `CKShare.removeParticipant` on the friend's share anymore (it
+    /// raises NSExceptions on iOS 26 under certain CloudKit states,
+    /// crashing the app). `PersonalStore.refresh` filters friend zones
+    /// against this set so unfriended friends stay gone across launches.
+    static let locallyUnfriendedIDs = "Tally.cache.locallyUnfriendedIDs"
+
     /// Cache keys cleared on iCloud account switch.
     static let userScoped: [String] = [
         currentUserID, ownProfile, personalStore, hasOnboarded,
-        declinedFriendRequestIDs, declinedGroupInviteIDs
+        declinedFriendRequestIDs, declinedGroupInviteIDs,
+        locallyUnfriendedIDs
     ]
 }

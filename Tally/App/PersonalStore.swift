@@ -44,6 +44,14 @@ final class PersonalStore {
     /// Server change tokens per friend zone.
     private var friendTokens: [CKRecordZone.ID: CKServerChangeToken] = [:]
 
+    /// User record names of friends the user has unfriended on this device.
+    /// Persisted across launches via `LocalCacheKey.locallyUnfriendedIDs`.
+    /// Filters out friend zones at load + refresh time so unfriended
+    /// friends stay gone — replaces the old `leaveFriendShare` approach
+    /// which called `CKShare.removeParticipant` on someone else's share
+    /// and could raise an uncatchable NSException in iOS 26's CloudKit.
+    private var locallyUnfriendedIDs: Set<String> = []
+
     init(repository: any PersonalRepository = CloudKitPersonalRepository()) {
         self.repository = repository
         // Restore cached arrays synchronously so the dashboard renders
@@ -55,6 +63,9 @@ final class PersonalStore {
             self.goals = cached.goals
             self.friends = cached.friends
         }
+        self.locallyUnfriendedIDs = Set(
+            LocalCache.load([String].self, forKey: LocalCacheKey.locallyUnfriendedIDs) ?? []
+        )
     }
 
     /// On-disk shape of the cached store. Excludes change tokens (CloudKit
@@ -103,7 +114,12 @@ final class PersonalStore {
         do {
             let mine = try await repository.ownSnapshot(since: nil)
             let minePrivate = try await repository.ownPrivateSnapshot(since: nil)
+            // Filter out zones belonging to locally-unfriended users so
+            // they never enter the visible friend graph. Their zone may
+            // still be in our sharedDB (we don't leave their share), but
+            // we treat them as gone.
             let zones = try await repository.friendZones()
+                .filter { !locallyUnfriendedIDs.contains($0.zoneID.ownerName) }
 
             var nextHabits = mine.habits + minePrivate.habits
             var nextCompletions = mine.completions + minePrivate.completions
@@ -162,8 +178,13 @@ final class PersonalStore {
             ownPrivateToken = minePrivate.token
             apply(minePrivate, ownerUserID: currentUserID)
 
-            // Friend zones — pick up new ones, drop departed ones, delta-fetch the rest
+            // Friend zones — pick up new ones, drop departed ones,
+            // delta-fetch the rest. Locally-unfriended zones get
+            // filtered out before any further processing so they're
+            // treated as departed even when the underlying share is
+            // still there.
             let zones = try await repository.friendZones()
+                .filter { !locallyUnfriendedIDs.contains($0.zoneID.ownerName) }
             let currentZoneIDs = Set(zones.map { $0.zoneID })
             let knownZoneIDs = Set(friendTokens.keys)
 
@@ -269,11 +290,9 @@ final class PersonalStore {
     }
 
     /// Drop a friend (and all their cached habits / goals / completions) from
-    /// in-memory state without waiting for a CloudKit refresh to catch up.
-    /// Called from `AppState.unfriend` so the user sees the friend disappear
-    /// the moment the CloudKit unfriend succeeds, and `FriendSearchView`'s
-    /// "already friends" check returns false right away if they want to
-    /// re-add the same person later in the same session.
+    /// in-memory state without waiting for a CloudKit refresh to catch up,
+    /// AND persist the unfriend so subsequent refreshes don't re-add them
+    /// from the still-present zone in our sharedDB.
     func dropFriendLocally(userID: String) {
         friends.removeAll { $0.userID == userID }
         habits.removeAll { $0.userID == userID }
@@ -283,7 +302,25 @@ final class PersonalStore {
         for zoneID in zoneIDs {
             friendTokens.removeValue(forKey: zoneID)
         }
+        locallyUnfriendedIDs.insert(userID)
+        LocalCache.save(Array(locallyUnfriendedIDs), forKey: LocalCacheKey.locallyUnfriendedIDs)
         saveCache()
+    }
+
+    /// Clear the locally-unfriended flag for `userID`. Called when the
+    /// user explicitly re-engages with a previously-unfriended person
+    /// (sending them a new friend request, or accepting one from them).
+    func clearLocalUnfriend(userID: String) {
+        guard locallyUnfriendedIDs.contains(userID) else { return }
+        locallyUnfriendedIDs.remove(userID)
+        LocalCache.save(Array(locallyUnfriendedIDs), forKey: LocalCacheKey.locallyUnfriendedIDs)
+    }
+
+    /// True iff the user has locally unfriended this person. Lets callers
+    /// (e.g., the friend-search view) treat them as not-a-friend even
+    /// though CloudKit may still surface their zone.
+    func isLocallyUnfriended(userID: String) -> Bool {
+        locallyUnfriendedIDs.contains(userID)
     }
 
     /// Upsert changed records by `recordName`, then drop anything deleted from

@@ -515,6 +515,11 @@ final class AppState {
     /// The recipient sees it in their in-app inbox; on Accept their app fetches
     /// our personal share URL and accepts programmatically.
     func sendFriendRequest(to userRecordName: String) async throws {
+        // Re-engagement: if this person was previously unfriended on
+        // this device, clear the local filter so they can re-appear
+        // when their zone comes back into our friend graph.
+        personalStore.clearLocalUnfriend(userID: userRecordName)
+
         guard !currentUserID.isEmpty else {
             throw NSError(
                 domain: "AppState.sendFriendRequest",
@@ -587,6 +592,11 @@ final class AppState {
     ///    friend graph is complete.
     /// 4. Refresh state so the friend appears immediately in the friends list.
     func acceptFriendRequest(_ request: FriendRequest) async throws {
+        // Re-engagement: if I previously unfriended this person on
+        // this device, clear the local filter now that I'm accepting
+        // them back in.
+        personalStore.clearLocalUnfriend(userID: request.fromUserRecordName)
+
         // Self-friending isn't a real CloudKit operation — you can't accept
         // your own CKShare. Treat it as a test artifact and just dismiss.
         if request.fromUserRecordName == currentUserID {
@@ -685,38 +695,26 @@ final class AppState {
         // the trust-relevant half. If this throws the user sees the
         // standard "Couldn't unfriend" alert and the friend stays in the
         // list (correct: we haven't actually unfriended them yet).
+        // Their next refresh will drop our zone from their sharedDB so
+        // we disappear from their friend list automatically.
         try await personalRepository.removeFriendParticipant(userRecordID: recordID)
         NSLog("[Tally] unfriend: step 1 ok — removed friend from my share")
 
-        // Step 2: leave their share so they drop out of MY friends list.
-        // Best-effort: failures here mean the friend's zone might linger
-        // in our sharedDB until the next refresh reconciles it, but the
-        // important half (their access to MY data) is already done. We
-        // log the failure and store it as `lastUnfriendCleanupError` so
-        // it can be surfaced without blocking the dismiss.
-        //
-        // Specifically guarding against state where the friend already
-        // half-unfriended us on the old broken build: their share might
-        // be in an unmodifiable intermediate state server-side.
-        do {
-            try await personalRepository.leaveFriendShare(ownerRecordName: friend.userID)
-            NSLog("[Tally] unfriend: step 2 ok — left their share")
-        } catch {
-            NSLog("[Tally] unfriend: step 2 failed (non-fatal) — \(error.localizedDescription)")
-            lastUnfriendCleanupError = error.localizedDescription
-        }
-
-        // Drop them from in-memory state immediately so the UI updates
-        // without waiting for the CloudKit refresh. Important for
-        // re-friending in the same session: FriendSearchView's
-        // `isAlreadyFriend` check would otherwise stay true until the
-        // refresh below completes.
+        // Step 2 used to be `leaveFriendShare` (calling
+        // CKShare.removeParticipant on the friend's share via
+        // sharedDB). That API has been observed raising
+        // NSInternalInconsistencyException on iOS 26 under various
+        // CloudKit states — an Obj-C exception Swift `try` can't catch,
+        // so the app aborts. We've replaced it with a persistent local
+        // filter: `dropFriendLocally` marks the friend in
+        // `personalStore.locallyUnfriendedIDs` (saved to LocalCache),
+        // and `PersonalStore.load` / `.refresh` filter friend zones
+        // against that set so the friend stays gone across launches
+        // even though their zone technically remains in our sharedDB.
         personalStore.dropFriendLocally(userID: friend.userID)
         await personalStore.refresh()
-        // Also refresh requests in case any pending/outgoing involving
-        // this user need to clear out now that they're no longer a friend.
         await refreshFriendRequests()
-        NSLog("[Tally] unfriend: done")
+        NSLog("[Tally] unfriend: done (local-filter mode)")
     }
 
     /// Surfaced when step 2 of unfriend (leaving the friend's share)
