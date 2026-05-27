@@ -264,24 +264,83 @@ struct CloudKitPersonalRepository: PersonalRepository {
     }
 
     func removeFriendParticipant(userRecordID: CKRecord.ID) async throws {
-        let root = try await client.privateDB.record(for: rootRecordID)
-        guard let shareRef = root.share else { return }
-        let fetched = try await client.privateDB.record(for: shareRef.recordID)
-        guard let share = fetched as? CKShare else { return }
+        NSLog("[Tally] removeFriendParticipant: start friend=\(userRecordID.recordName)")
+        let root: CKRecord
+        do {
+            root = try await client.privateDB.record(for: rootRecordID)
+        } catch let error as CKError where error.code == .unknownItem {
+            NSLog("[Tally] removeFriendParticipant: no own root yet — nothing to revoke")
+            return
+        }
+        guard let shareRef = root.share else {
+            NSLog("[Tally] removeFriendParticipant: no share on my root yet — nothing to revoke")
+            return
+        }
+        let fetched: CKRecord
+        do {
+            fetched = try await client.privateDB.record(for: shareRef.recordID)
+        } catch let error as CKError where error.code == .unknownItem {
+            NSLog("[Tally] removeFriendParticipant: share record missing — nothing to revoke")
+            return
+        }
+        guard let share = fetched as? CKShare else {
+            NSLog("[Tally] removeFriendParticipant: share record cast failed")
+            return
+        }
 
         // Compare by recordName rather than full CKRecord.ID — userRecordIDs
         // always live in `_defaultZone` but the equality check is finicky.
         guard let participant = share.participants.first(where: {
             $0.userIdentity.userRecordID?.recordName == userRecordID.recordName
-        }) else { return }
+        }) else {
+            NSLog("[Tally] removeFriendParticipant: friend not a participant — already revoked?")
+            return
+        }
 
+        // Same precondition guards leaveFriendShare uses. The crash log
+        // (build 16) showed an uncatchable NSException raised by
+        // CKShare.removeParticipant from this exact call site — preconditions
+        // weren't checked on this path. Each guard targets a documented
+        // case where removeParticipant raises NSInternalInconsistencyException.
+
+        // 1. Never call removeParticipant on the share's owner. The friend
+        //    can't be the owner of OUR share, so this should always pass,
+        //    but state corruption from earlier broken-build runs could
+        //    trip it.
+        guard participant.role != .owner else {
+            NSLog("[Tally] removeFriendParticipant: refusing to remove the share OWNER")
+            return
+        }
+
+        // 2. Only remove participants in `.accepted` or `.pending` state.
+        //    `.removed` participants raise on re-remove; `.unknown` is
+        //    undefined territory.
+        guard participant.acceptanceStatus == .accepted
+                || participant.acceptanceStatus == .pending else {
+            NSLog("[Tally] removeFriendParticipant: status=\(participant.acceptanceStatus.rawValue) — skipping remove")
+            return
+        }
+
+        // 3. Sanity: participant is still actually in share.participants.
+        guard share.participants.contains(where: { $0 == participant }) else {
+            NSLog("[Tally] removeFriendParticipant: participant not in array — race? skipping")
+            return
+        }
+
+        NSLog("[Tally] removeFriendParticipant: removing (role=\(participant.role.rawValue), status=\(participant.acceptanceStatus.rawValue))")
         share.removeParticipant(participant)
-        _ = try await client.privateDB.modifyRecords(
-            saving: [share],
-            deleting: [],
-            savePolicy: .allKeys,
-            atomically: false
-        )
+        do {
+            _ = try await client.privateDB.modifyRecords(
+                saving: [share],
+                deleting: [],
+                savePolicy: .ifServerRecordUnchanged,
+                atomically: false
+            )
+            NSLog("[Tally] removeFriendParticipant: revoked friend's access")
+        } catch {
+            NSLog("[Tally] removeFriendParticipant: modifyRecords failed — \(error.localizedDescription)")
+            throw error
+        }
     }
 
     func leaveFriendShare(ownerRecordName: String) async throws {
