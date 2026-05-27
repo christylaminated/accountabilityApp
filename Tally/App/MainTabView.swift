@@ -4,45 +4,14 @@ import UIKit
 #endif
 
 struct MainTabView: View {
-    init() {
-        // Selected state is communicated through icon + label tint alone —
-        // no pill behind the active item.
-        //
-        // Caveat: iOS 26's "Liquid Glass" tab bar renders the selection
-        // background in a layer above standard UITabBar chrome, so
-        // setting `selectionIndicatorTintColor` and the per-state item
-        // appearances doesn't fully strip the pill on that OS. The
-        // configuration below DOES correctly set the icon/label colors
-        // (textSecondary unselected, accent selected) and zero out the
-        // selection indicator on iOS 17/18. On iOS 26 a faint
-        // system-drawn pill may remain behind the active item until
-        // Apple ships an API to opt out (or we replace TabView with a
-        // fully custom bar).
-        #if canImport(UIKit)
-        let appearance = UITabBarAppearance()
-        appearance.configureWithOpaqueBackground()
-        appearance.backgroundColor = UIColor(Color.tallyCanvas)
-        appearance.shadowColor = .clear
-        appearance.selectionIndicatorTintColor = .clear
-        // Empty UIImage further suppresses the indicator on older OSes.
-        appearance.selectionIndicatorImage = UIImage()
+    @Environment(AppState.self) private var appState
 
-        let itemAppearance = UITabBarItemAppearance()
-        itemAppearance.selected.iconColor = UIColor(Color.tallyAccent)
-        itemAppearance.selected.titleTextAttributes = [
-            .foregroundColor: UIColor(Color.tallyAccent)
-        ]
-        itemAppearance.normal.iconColor = UIColor(Color.tallyTextSecondary)
-        itemAppearance.normal.titleTextAttributes = [
-            .foregroundColor: UIColor(Color.tallyTextSecondary)
-        ]
-        appearance.stackedLayoutAppearance = itemAppearance
-        appearance.inlineLayoutAppearance = itemAppearance
-        appearance.compactInlineLayoutAppearance = itemAppearance
-
-        UITabBar.appearance().standardAppearance = appearance
-        UITabBar.appearance().scrollEdgeAppearance = appearance
-        #endif
+    /// Identity that changes whenever any visible-on-tab-bar theme value
+    /// changes (preset case OR the user-picked accent hex for the Custom
+    /// theme). Used as the `value:` on `.onChange` so we re-apply the
+    /// `UITabBarAppearance` on theme switches AND on custom-color tweaks.
+    private var themeKey: String {
+        "\(appState.theme.rawValue)-\(ThemeManager.shared.customAccentHex)"
     }
 
     var body: some View {
@@ -65,5 +34,78 @@ struct MainTabView: View {
             .tabItem { Label("History", systemImage: "calendar") }
         }
         .tint(Color.tallyAccent)
+        // Apply appearance on first appearance and re-apply whenever the
+        // theme identity changes. Without this, the UITabBarAppearance
+        // captures the launch-time accent and never updates, so a Berry →
+        // Midnight switch (or Custom color tweak) leaves the bottom tab
+        // looking like the old theme.
+        .onAppear { applyTabBarAppearance() }
+        .onChange(of: themeKey) { _, _ in applyTabBarAppearance() }
     }
+
+    /// Reads the current theme's colors and writes them into the global
+    /// `UITabBar.appearance()` defaults AND every currently-attached
+    /// `UITabBar` instance in the window hierarchy. The hierarchy walk
+    /// is what makes the live tab bar update — setting
+    /// `UITabBar.appearance()` alone only affects future instances.
+    private func applyTabBarAppearance() {
+        #if canImport(UIKit)
+        let appearance = UITabBarAppearance()
+        appearance.configureWithOpaqueBackground()
+        appearance.backgroundColor = UIColor(Color.tallyCanvas)
+        appearance.shadowColor = .clear
+        appearance.selectionIndicatorTintColor = .clear
+        appearance.selectionIndicatorImage = UIImage()
+
+        let item = UITabBarItemAppearance()
+        item.selected.iconColor = UIColor(Color.tallyAccent)
+        item.selected.titleTextAttributes = [
+            .foregroundColor: UIColor(Color.tallyAccent)
+        ]
+        item.normal.iconColor = UIColor(Color.tallyTextSecondary)
+        item.normal.titleTextAttributes = [
+            .foregroundColor: UIColor(Color.tallyTextSecondary)
+        ]
+        appearance.stackedLayoutAppearance = item
+        appearance.inlineLayoutAppearance = item
+        appearance.compactInlineLayoutAppearance = item
+
+        UITabBar.appearance().standardAppearance = appearance
+        UITabBar.appearance().scrollEdgeAppearance = appearance
+
+        // Reach into the running window hierarchy and update any live
+        // UITabBar instances. UITabBar.appearance() only seeds new ones;
+        // existing ones keep their original appearance until forcibly
+        // overwritten.
+        for window in UIApplication.shared.connectedScenes
+            .compactMap({ $0 as? UIWindowScene })
+            .flatMap({ $0.windows }) {
+            for tabBar in Self.findTabBars(in: window.rootViewController) {
+                tabBar.standardAppearance = appearance
+                tabBar.scrollEdgeAppearance = appearance
+            }
+        }
+        #endif
+    }
+
+    #if canImport(UIKit)
+    /// Recursively collect every `UITabBar` reachable from `vc` — through
+    /// child view controllers and through whatever is currently presented.
+    /// Returns a list (rather than the first) so nested tab controllers in
+    /// sheets / popovers also get refreshed.
+    private static func findTabBars(in vc: UIViewController?) -> [UITabBar] {
+        guard let vc else { return [] }
+        var result: [UITabBar] = []
+        if let tabVC = vc as? UITabBarController {
+            result.append(tabVC.tabBar)
+        }
+        for child in vc.children {
+            result.append(contentsOf: findTabBars(in: child))
+        }
+        if let presented = vc.presentedViewController {
+            result.append(contentsOf: findTabBars(in: presented))
+        }
+        return result
+    }
+    #endif
 }
