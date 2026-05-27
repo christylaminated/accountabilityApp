@@ -162,25 +162,84 @@ struct ProfileSetupView: View {
     /// through to `localizedDescription` for anything we haven't
     /// special-cased.
     static func friendlyMessage(for error: Error) -> String {
-        if let ck = error as? CKError {
-            switch ck.code {
-            case .quotaExceeded:
-                return "Your iCloud is full. Free up space in Settings → [Your Name] → iCloud → Manage Account Storage, or upgrade to iCloud+ — then come back and tap Continue."
-            case .notAuthenticated:
-                return "You're not signed into iCloud. Open Settings, sign in, then return to Tally."
-            case .networkUnavailable, .networkFailure:
-                return "No internet connection. Check your network and try again."
-            case .accountTemporarilyUnavailable:
-                return "iCloud is temporarily unavailable. Try again in a moment."
-            case .serviceUnavailable, .zoneBusy:
-                return "iCloud is busy right now. Try again in a few seconds."
-            case .permissionFailure:
-                return "Tally doesn't have permission to use your iCloud. Open Settings → [Your Name] → iCloud → Apps Using iCloud and make sure Tally is on."
-            default:
-                return ck.localizedDescription
+        // CKError can arrive in three shapes for the same underlying
+        // condition, and the helper needs to catch all of them:
+        //
+        //  1. Top-level CKError with the meaningful code on the outside.
+        //  2. CKError(.partialFailure) wrapping per-record errors —
+        //     the real reason is buried in partialErrorsByItemID.
+        //  3. NSError with a CKError as underlyingError (rare but
+        //     happens with some CloudKit ops that bridge through
+        //     Objective-C exceptions).
+        //
+        // We flatten the chain into a list of effective CKError codes
+        // + concatenated localized text, then map.
+
+        let codes = effectiveCKErrorCodes(from: error)
+        let text = error.localizedDescription.lowercased()
+
+        // Apply code-based mapping first.
+        if codes.contains(.quotaExceeded) || text.contains("quota") {
+            return "iCloud says your storage is full. Three things to check, in order:\n\n• Settings → [Your Name] → iCloud → Manage Account Storage — make sure you have space.\n• Settings → [Your Name] → iCloud → Apps Using iCloud — make sure Tally is on.\n• If both look fine and the error keeps happening, your iCloud account may still be provisioning Tally for the first time. Wait a few minutes and try again, or sign out / back into iCloud."
+        }
+        if codes.contains(.notAuthenticated) {
+            return "You're not signed into iCloud. Open Settings, sign in, then return to Tally."
+        }
+        if codes.contains(.networkUnavailable) || codes.contains(.networkFailure) {
+            return "No internet connection. Check your network and try again."
+        }
+        if codes.contains(.accountTemporarilyUnavailable) {
+            return "iCloud is temporarily unavailable. Try again in a moment."
+        }
+        if codes.contains(.serviceUnavailable) || codes.contains(.zoneBusy) {
+            return "iCloud is busy right now. Try again in a few seconds."
+        }
+        if codes.contains(.permissionFailure) {
+            return "Tally doesn't have permission to use your iCloud. Open Settings → [Your Name] → iCloud → Apps Using iCloud and make sure Tally is on."
+        }
+
+        // String-fallback for shapes that Apple delivers without a
+        // matching CKError.code (e.g., a generic NSError that mentions
+        // "quota" in its description). Lets the user see actionable
+        // copy even if the underlying error type doesn't match our
+        // switch.
+        if text.contains("not authenticated") {
+            return "You're not signed into iCloud. Open Settings, sign in, then return to Tally."
+        }
+        if text.contains("network") {
+            return "No internet connection. Check your network and try again."
+        }
+        if text.contains("permission") {
+            return "Tally doesn't have permission to use your iCloud. Open Settings → [Your Name] → iCloud → Apps Using iCloud and make sure Tally is on."
+        }
+
+        return error.localizedDescription
+    }
+
+    /// Returns every CKError.Code found at the top level, in the
+    /// `partialErrorsByItemID` map of a `.partialFailure`, or in the
+    /// `underlyingError` chain. Lets `friendlyMessage` match on the
+    /// real underlying condition regardless of which level CloudKit
+    /// surfaced it at.
+    private static func effectiveCKErrorCodes(from error: Error) -> Set<CKError.Code> {
+        var out: Set<CKError.Code> = []
+        func walk(_ err: Error) {
+            if let ck = err as? CKError {
+                out.insert(ck.code)
+                if let partial = ck.partialErrorsByItemID {
+                    for sub in partial.values {
+                        walk(sub as Error)
+                    }
+                }
+            }
+            let ns = err as NSError
+            if let underlying = ns.userInfo[NSUnderlyingErrorKey] as? Error,
+               !(underlying is CKError && (underlying as! CKError).code == (err as? CKError)?.code) {
+                walk(underlying)
             }
         }
-        return error.localizedDescription
+        walk(error)
+        return out
     }
 }
 
