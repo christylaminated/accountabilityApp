@@ -287,16 +287,26 @@ struct MemberDetailView: View {
 
     private func performUnfriend() {
         guard let member, !isUnfriending else { return }
+        // Capture the target FIRST so we can dismiss before any state
+        // mutation happens. Previous flow awaited unfriend (which
+        // mutates personalStore.friends mid-call), then dismissed; that
+        // forced SwiftUI to re-render MemberDetailView with member==nil
+        // (switching to the "Member not found" branch) immediately
+        // before the nav pop, which crashed under iOS 26's navigation
+        // stack. Popping the view first avoids that re-render entirely.
+        let target = member
         isUnfriending = true
+        dismiss()
         Task {
             do {
-                try await appState.unfriend(member)
-                // Pop back to the friends list — the member view would
-                // otherwise show "Member not found" once they're gone.
-                dismiss()
+                try await appState.unfriend(target)
             } catch {
-                unfriendError = error.localizedDescription
-                isUnfriending = false
+                // The view is already gone — surface via a global app
+                // error field so the friends list can flag it on its
+                // next refresh instead of trying to alert from a popped
+                // controller.
+                NSLog("[Tally] unfriend failed after dismiss: \(error.localizedDescription)")
+                appState.lastUnfriendError = error.localizedDescription
             }
         }
     }

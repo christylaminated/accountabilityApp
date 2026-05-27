@@ -725,6 +725,13 @@ final class AppState {
     /// the user without blocking the unfriend flow.
     var lastUnfriendCleanupError: String?
 
+    /// Surfaced when an unfriend was kicked off from MemberDetailView's
+    /// "dismiss-then-unfriend" path and the whole operation failed.
+    /// Since the view was already popped, errors can't be shown via the
+    /// usual in-view alert; FriendsView watches this and surfaces a
+    /// banner on its next render.
+    var lastUnfriendError: String?
+
     private func markRequestDeclined(_ request: FriendRequest) {
         declinedRequestIDs.insert(request.id.uuidString)
         LocalCache.save(Array(declinedRequestIDs), forKey: LocalCacheKey.declinedFriendRequestIDs)
