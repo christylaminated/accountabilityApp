@@ -1,4 +1,5 @@
 import SwiftUI
+import CloudKit
 
 /// First-launch profile setup. Takes a display name + an SF Symbol avatar and
 /// hands the pair to a parent-supplied async closure (typically `AppState.saveProfile`).
@@ -149,10 +150,37 @@ struct ProfileSetupView: View {
             do {
                 try await onSubmit(trimmedName, avatarSymbol)
             } catch {
-                errorMessage = error.localizedDescription
+                errorMessage = ProfileSetupView.friendlyMessage(for: error)
                 isSubmitting = false
             }
         }
+    }
+
+    /// Translate the raw CloudKit error string ("Error saving record
+    /// <CKRecordID: …> to server: Quota exceeded") into copy that tells
+    /// the user what's wrong and what they can do about it. Falls
+    /// through to `localizedDescription` for anything we haven't
+    /// special-cased.
+    static func friendlyMessage(for error: Error) -> String {
+        if let ck = error as? CKError {
+            switch ck.code {
+            case .quotaExceeded:
+                return "Your iCloud is full. Free up space in Settings → [Your Name] → iCloud → Manage Account Storage, or upgrade to iCloud+ — then come back and tap Continue."
+            case .notAuthenticated:
+                return "You're not signed into iCloud. Open Settings, sign in, then return to Tally."
+            case .networkUnavailable, .networkFailure:
+                return "No internet connection. Check your network and try again."
+            case .accountTemporarilyUnavailable:
+                return "iCloud is temporarily unavailable. Try again in a moment."
+            case .serviceUnavailable, .zoneBusy:
+                return "iCloud is busy right now. Try again in a few seconds."
+            case .permissionFailure:
+                return "Tally doesn't have permission to use your iCloud. Open Settings → [Your Name] → iCloud → Apps Using iCloud and make sure Tally is on."
+            default:
+                return ck.localizedDescription
+            }
+        }
+        return error.localizedDescription
     }
 }
 
