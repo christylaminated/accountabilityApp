@@ -20,6 +20,7 @@ final class AppState {
         case needsSignIn(reason: CKAccountStatus)
         case needsProfileSetup
         case needsCircleSetup
+        case needsThemePick
         case needsHabitsSetup
         case needsGoalsSetup
         case ready
@@ -38,13 +39,16 @@ final class AppState {
     /// every per-user lookup (own habits, own goals, "is this me") keys off it.
     var currentUserID: String = ""
 
-    /// The user's chosen accent-color preset. Mirrors `ThemeStore.shared` so
-    /// `tallyAccent` and `appState.accentColor` agree. Persisted via
-    /// `LocalCacheKey.themeColor` (under the hood inside ThemeStore).
-    var themeColor: ThemeColor = ThemeStore.shared.currentColor
+    /// The user's currently-selected theme. Mirrors `ThemeManager.shared`
+    /// so SwiftUI views can read `appState.theme` instead of poking the
+    /// singleton directly. Setting this property here forwards to the
+    /// manager via `setTheme(_:)` so persistence lives in one place.
+    var theme: TallyTheme = ThemeManager.shared.current
 
-    /// Convenience: the actual SwiftUI Color for the current theme.
-    var accentColor: Color { themeColor.color }
+    /// Convenience: the SwiftUI Color for the theme's accent. Retained so
+    /// the existing `TallyApp` injection (which reads `accentColor`) keeps
+    /// working without churning every callsite.
+    var accentColor: Color { theme.accent }
 
     // MARK: - Repositories + store
 
@@ -316,8 +320,20 @@ final class AppState {
             avatarSymbol: avatarSymbol
         )
 
-        onboardingState = .needsHabitsSetup
+        // Route through the theme picker on a first run if the user hasn't
+        // picked one yet. Returning users (who already have hasPickedTheme
+        // set) skip straight to habits setup.
+        let hasPickedTheme = UserDefaults.standard.bool(forKey: ThemeManager.hasPickedThemeKey)
+        onboardingState = hasPickedTheme ? .needsHabitsSetup : .needsThemePick
         await handleIncomingShareIfNeeded()
+    }
+
+    /// Called from the onboarding theme picker. Persists the choice via
+    /// ThemeManager, marks the picker as seen, and routes forward.
+    func finishThemePick(_ chosen: TallyTheme) {
+        setTheme(chosen)
+        UserDefaults.standard.set(true, forKey: ThemeManager.hasPickedThemeKey)
+        onboardingState = .needsHabitsSetup
     }
 
     /// Called from `CircleSetupView`. Creates the user's first Circle, activates
@@ -904,12 +920,13 @@ final class AppState {
         }
     }
 
-    /// Set the user's accent-color preset. Local-only — no CloudKit round-trip.
-    /// Updates `ThemeStore` (which `tallyAccent` reads from) and flips
-    /// our own observed `themeColor` to trigger SwiftUI re-renders.
-    func setThemeColor(_ color: ThemeColor) {
-        themeColor = color
-        ThemeStore.shared.update(color)
+    /// Switch the active theme. Local-only — no CloudKit round-trip.
+    /// Updates `ThemeManager` (the source of truth for `Color.tallyAccent`
+    /// and friends) and mirrors the value onto our own observed `theme`
+    /// property so SwiftUI re-renders.
+    func setTheme(_ theme: TallyTheme) {
+        self.theme = theme
+        ThemeManager.shared.current = theme
     }
 
     /// Called from `HabitsSetupView`. Persists each non-empty title as a habit in

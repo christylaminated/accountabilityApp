@@ -39,6 +39,12 @@ struct RootView: View {
                 }
                 .transition(.opacity)
 
+            case .needsThemePick:
+                ThemePickerOnboardingView { chosen in
+                    appState.finishThemePick(chosen)
+                }
+                .transition(.opacity)
+
             case .needsHabitsSetup:
                 HabitsSetupView { titles in
                     appState.saveInitialHabits(titles)
@@ -61,6 +67,10 @@ struct RootView: View {
                 }
             }
         }
+        // Root background is theme-aware so every onboarding step + the
+        // main tab view sit on the chosen palette's canvas. No more
+        // system-grouped-background gray underneath.
+        .background(Color.tallyCanvas.ignoresSafeArea())
         .animation(.easeInOut(duration: 0.25), value: appState.onboardingState)
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active {
@@ -94,17 +104,18 @@ private struct ErrorScreen: View {
         VStack(spacing: 16) {
             Image(systemName: "exclamationmark.triangle")
                 .font(.system(size: 44))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.tallyTextSecondary)
             Text("Something went wrong")
-                .font(.system(.title3, design: .rounded, weight: .semibold))
+                .font(.system(.title3, weight: .semibold))
+                .foregroundStyle(Color.tallyTextPrimary)
             Text(message)
-                .font(.system(.subheadline, design: .rounded))
-                .foregroundStyle(.secondary)
+                .font(.subheadline)
+                .foregroundStyle(Color.tallyTextSecondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
             Button("Try again", action: onRetry)
                 .buttonStyle(.borderedProminent)
-                .tint(.tallyAccent)
+                .tint(Color.tallyAccent)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.tallyCanvas)

@@ -1,63 +1,155 @@
 import SwiftUI
 import Foundation
+import Observation
 
-/// Curated accent-color presets the user can switch between in profile
-/// settings. Persisted to UserDefaults via `ThemeStore`; `tallyAccent`
-/// reads from the singleton so the chosen color shows everywhere.
-enum ThemeColor: String, CaseIterable, Codable, Hashable {
-    case pink, rose, peach, amber, mint, teal, blue, indigo, purple
+/// The four curated themes the user picks from. Classic is monochrome — the
+/// default, intentionally restrained. Sage / Berry / Midnight are color
+/// options the user opts into.
+///
+/// Each case carries the full palette so views can derive any role
+/// (background, card, accent, destructive, etc.) from the current theme
+/// without per-call branching.
+enum TallyTheme: String, CaseIterable, Codable, Hashable, Identifiable {
+    case classic
+    case sage
+    case berry
+    case midnight
 
-    /// The actual SwiftUI Color for each preset. The `.pink` value matches
-    /// the historical `tallyAccent` so existing installs see no change unless
-    /// the user picks a different theme.
-    var color: Color {
-        switch self {
-        case .pink:   Color(red: 245/255, green: 166/255, blue: 193/255)
-        case .rose:   Color(red: 235/255, green: 110/255, blue: 120/255)
-        case .peach:  Color(red: 250/255, green: 178/255, blue: 130/255)
-        case .amber:  Color(red: 240/255, green: 195/255, blue:  95/255)
-        case .mint:   Color(red: 130/255, green: 200/255, blue: 160/255)
-        case .teal:   Color(red:  90/255, green: 195/255, blue: 185/255)
-        case .blue:   Color(red: 120/255, green: 170/255, blue: 230/255)
-        case .indigo: Color(red: 135/255, green: 135/255, blue: 215/255)
-        case .purple: Color(red: 180/255, green: 130/255, blue: 215/255)
-        }
-    }
+    var id: String { rawValue }
 
     var displayName: String {
         switch self {
-        case .pink:   "Pink"
-        case .rose:   "Rose"
-        case .peach:  "Peach"
-        case .amber:  "Amber"
-        case .mint:   "Mint"
-        case .teal:   "Teal"
-        case .blue:   "Blue"
-        case .indigo: "Indigo"
-        case .purple: "Purple"
+        case .classic:  "Classic"
+        case .sage:     "Sage"
+        case .berry:    "Berry"
+        case .midnight: "Midnight"
+        }
+    }
+
+    var accent: Color         { Color(tallyHex: paletteHex.accent) }
+    var background: Color     { Color(tallyHex: paletteHex.background) }
+    var card: Color           { Color(tallyHex: paletteHex.card) }
+    var completed: Color      { Color(tallyHex: paletteHex.completed) }
+    var streak: Color         { Color(tallyHex: paletteHex.streak) }
+    var textPrimary: Color    { Color(tallyHex: paletteHex.textPrimary) }
+    var textSecondary: Color  { Color(tallyHex: paletteHex.textSecondary) }
+    var destructive: Color    { Color(tallyHex: paletteHex.destructive) }
+
+    private struct PaletteHex {
+        var accent: String
+        var background: String
+        var card: String
+        var completed: String
+        var streak: String
+        var textPrimary: String
+        var textSecondary: String
+        var destructive: String
+    }
+
+    private var paletteHex: PaletteHex {
+        switch self {
+        case .classic:
+            return PaletteHex(
+                accent: "1A1A1A",
+                background: "FFFFFF",
+                card: "F5F5F5",
+                completed: "1A1A1A",
+                streak: "1A1A1A",
+                textPrimary: "1A1A1A",
+                textSecondary: "8E8E8E",
+                destructive: "D44638"
+            )
+        case .sage:
+            return PaletteHex(
+                accent: "A8B5A0",
+                background: "FAF9F6",
+                card: "FFFFFF",
+                completed: "A8B5A0",
+                streak: "8B9E82",
+                textPrimary: "1A1A1A",
+                textSecondary: "6B6B6B",
+                destructive: "D44638"
+            )
+        case .berry:
+            return PaletteHex(
+                accent: "C4849A",
+                background: "FFFAF8",
+                card: "FFFFFF",
+                completed: "C4849A",
+                streak: "B07388",
+                textPrimary: "1A1A1A",
+                textSecondary: "6B6B6B",
+                destructive: "D44638"
+            )
+        case .midnight:
+            return PaletteHex(
+                accent: "7B9EB8",
+                background: "F8FAFB",
+                card: "FFFFFF",
+                completed: "7B9EB8",
+                streak: "6889A0",
+                textPrimary: "1A1A1A",
+                textSecondary: "6B6B6B",
+                destructive: "D44638"
+            )
         }
     }
 }
 
-/// In-memory singleton mirroring the user's current theme. Lets the static
-/// `tallyAccent` look up the current color without needing AppState in
-/// scope. `AppState.setThemeColor(_:)` updates this and SwiftUI's observation
-/// of AppState's own `themeColor` property triggers the visible re-render.
-final class ThemeStore: @unchecked Sendable {
-    static let shared = ThemeStore()
+// MARK: - ThemeManager
 
-    private(set) var currentColor: ThemeColor
+/// Observable singleton holding the currently-selected theme. SwiftUI views
+/// that read `Color.tallyAccent` / `Color.tallyCard` / the `\.tallyTheme`
+/// environment value (all of which internally observe `ThemeManager.shared`)
+/// re-render automatically when `current` changes.
+///
+/// Persisted under `UserDefaults` key `selectedTheme`. Default `.classic` so
+/// the app opens monochrome — color is opt-in.
+@Observable
+final class ThemeManager: @unchecked Sendable {
+    static let shared = ThemeManager()
 
-    private init() {
-        let raw = UserDefaults.standard.string(forKey: LocalCacheKey.themeColor)
-            ?? ThemeColor.pink.rawValue
-        self.currentColor = ThemeColor(rawValue: raw) ?? .pink
+    static let storageKey = "selectedTheme"
+    /// Set to true once the user has been through the onboarding theme picker.
+    /// Lets us skip the picker on subsequent launches.
+    static let hasPickedThemeKey = "hasPickedTheme"
+
+    var current: TallyTheme {
+        didSet {
+            UserDefaults.standard.set(current.rawValue, forKey: Self.storageKey)
+        }
     }
 
-    /// Updates the in-memory color and persists the choice. Called by
-    /// AppState when the user picks a theme in settings.
-    func update(_ color: ThemeColor) {
-        currentColor = color
-        UserDefaults.standard.set(color.rawValue, forKey: LocalCacheKey.themeColor)
+    init() {
+        let raw = UserDefaults.standard.string(forKey: Self.storageKey)
+            ?? TallyTheme.classic.rawValue
+        self.current = TallyTheme(rawValue: raw) ?? .classic
+    }
+
+    /// Convenience setter that also records that onboarding has shown the
+    /// picker (so we don't show it again next launch).
+    func pick(_ theme: TallyTheme) {
+        current = theme
+        UserDefaults.standard.set(true, forKey: Self.hasPickedThemeKey)
+    }
+}
+
+// MARK: - Color hex helper
+
+extension Color {
+    /// Decode a 6-digit RGB hex string ("1A1A1A") into a SwiftUI Color.
+    /// Tolerant of a leading "#". Falls back to black on malformed input
+    /// rather than crashing — palette strings are hard-coded so this is
+    /// strictly belt-and-suspenders.
+    init(tallyHex hex: String) {
+        var s = hex
+        if s.hasPrefix("#") { s.removeFirst() }
+        var rgb: UInt64 = 0
+        Scanner(string: s).scanHexInt64(&rgb)
+        self.init(
+            red:   Double((rgb >> 16) & 0xFF) / 255.0,
+            green: Double((rgb >> 8)  & 0xFF) / 255.0,
+            blue:  Double( rgb        & 0xFF) / 255.0
+        )
     }
 }

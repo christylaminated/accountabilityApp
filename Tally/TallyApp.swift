@@ -8,20 +8,23 @@ struct TallyApp: App {
     @UIApplicationDelegateAdaptor(TallyAppDelegate.self) private var appDelegate
 
     @State private var appState = AppState()
+    @State private var themeManager = ThemeManager.shared
 
     var body: some Scene {
         WindowGroup {
             RootView()
                 .environment(appState)
-                // Inject the accent color as a SwiftUI environment value so
-                // every descendant that reads `@Environment(\.tallyAccent)`
-                // re-renders reactively when the theme changes.
-                .environment(\.tallyAccent, appState.accentColor)
-                // App-wide rounded design — softer typographic feel without per-view font work.
-                .fontDesign(.rounded)
-                // Drive root tint from AppState so theme changes propagate to
-                // every tinted SwiftUI control (buttons, segmented pickers, …).
-                .tint(appState.accentColor)
+                // Carry the whole theme through the environment so views
+                // can pattern-match on it (mini-previews, etc.). Most views
+                // should just read `Color.tally*` statics — they observe
+                // `ThemeManager.shared` directly.
+                .environment(\.tallyTheme, themeManager.current)
+                // Back-compat: existing views read `\.tallyAccent`. Keep
+                // it in sync with the current theme.
+                .environment(\.tallyAccent, themeManager.current.accent)
+                // Root tint drives SwiftUI controls (segmented pickers,
+                // toolbar buttons) so theme changes propagate to them too.
+                .tint(themeManager.current.accent)
         }
     }
 }

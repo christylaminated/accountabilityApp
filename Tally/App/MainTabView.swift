@@ -1,8 +1,6 @@
 import SwiftUI
 
 struct MainTabView: View {
-    @Environment(\.tallyAccent) private var tallyAccent
-
     var body: some View {
         TabView {
             CircleDashboardView()
@@ -22,6 +20,10 @@ struct MainTabView: View {
             }
             .tabItem { Label("History", systemImage: "calendar") }
         }
-        .tint(tallyAccent)
+        // Tab icon tint follows the theme accent — selected tabs use it,
+        // unselected get the system "unselectedItemTintColor" (which we
+        // can override later for textSecondary if it doesn't already match
+        // visually). No pill / background — just the color shift.
+        .tint(Color.tallyAccent)
     }
 }

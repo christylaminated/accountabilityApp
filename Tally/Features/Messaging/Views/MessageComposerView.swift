@@ -22,7 +22,7 @@ struct MessageComposerView: View {
                 Image(systemName: "arrow.up")
                     .font(.body.weight(.semibold))
                     .frame(width: 36, height: 36)
-                    .background(disabled ? Color.gray.opacity(0.3) : tallyAccent)
+                    .background(disabled ? Color.tallyTextSecondary.opacity(0.3) : tallyAccent)
                     .foregroundStyle(.white)
                     .clipShape(Circle())
             }

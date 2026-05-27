@@ -87,7 +87,7 @@ struct FriendSearchView: View {
         case .error(let message):
             Text(message)
                 .font(.footnote)
-                .foregroundStyle(.red)
+                .foregroundStyle(Color.tallyDestructive)
                 .padding(.horizontal, 4)
         case .found(let user):
             foundCard(user)
@@ -146,7 +146,7 @@ struct FriendSearchView: View {
             case .failed(let message):
                 Text(message)
                     .font(.footnote)
-                    .foregroundStyle(.red)
+                    .foregroundStyle(Color.tallyDestructive)
             }
             }
         }

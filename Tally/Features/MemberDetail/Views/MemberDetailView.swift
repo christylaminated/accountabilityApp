@@ -234,7 +234,7 @@ struct MemberDetailView: View {
             .font(.body.weight(.medium))
             .padding(14)
             .background(Color.tallyCard)
-            .foregroundStyle(.red)
+            .foregroundStyle(Color.tallyDestructive)
             .clipShape(RoundedRectangle(cornerRadius: 14))
         }
         .buttonStyle(.plain)

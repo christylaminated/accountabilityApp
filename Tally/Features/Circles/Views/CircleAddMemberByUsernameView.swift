@@ -89,7 +89,7 @@ struct CircleAddMemberByUsernameView: View {
         case .error(let message):
             Text(message)
                 .font(.footnote)
-                .foregroundStyle(.red)
+                .foregroundStyle(Color.tallyDestructive)
                 .padding(.horizontal, 4)
         case .found(let user):
             foundCard(user)
@@ -119,7 +119,7 @@ struct CircleAddMemberByUsernameView: View {
                         .font(.system(.subheadline, design: .rounded, weight: .semibold))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
-                        .background(isSelf(user) ? Color.gray.opacity(0.3) : tallyAccent)
+                        .background(isSelf(user) ? Color.tallyTextSecondary.opacity(0.3) : tallyAccent)
                         .foregroundStyle(.white)
                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 }
@@ -140,7 +140,7 @@ struct CircleAddMemberByUsernameView: View {
             case .failed(let message):
                 Text(message)
                     .font(.footnote)
-                    .foregroundStyle(.red)
+                    .foregroundStyle(Color.tallyDestructive)
             }
         }
         .padding(16)

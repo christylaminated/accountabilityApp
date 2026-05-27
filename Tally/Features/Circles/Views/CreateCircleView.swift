@@ -84,7 +84,7 @@ struct CreateCircleView: View {
                     if let topLevelError {
                         Text(topLevelError)
                             .font(.footnote)
-                            .foregroundStyle(.red)
+                            .foregroundStyle(Color.tallyDestructive)
                     }
                     actionButton
                     Spacer().frame(height: 24)
@@ -202,7 +202,7 @@ struct CreateCircleView: View {
                 if let err {
                     Text(err)
                         .font(.caption)
-                        .foregroundStyle(.red)
+                        .foregroundStyle(Color.tallyDestructive)
                         .padding(.leading, 52)
                 }
             }
@@ -251,7 +251,7 @@ struct CreateCircleView: View {
             if let err {
                 Text(err)
                     .font(.caption)
-                    .foregroundStyle(.red)
+                    .foregroundStyle(Color.tallyDestructive)
                     .padding(.leading, 52)
             }
         }
@@ -306,7 +306,7 @@ struct CreateCircleView: View {
                 if let usernameSearchError {
                     Text(usernameSearchError)
                         .font(.caption)
-                        .foregroundStyle(.red)
+                        .foregroundStyle(Color.tallyDestructive)
                         .padding(.horizontal, 4)
                 }
             }
@@ -324,7 +324,7 @@ struct CreateCircleView: View {
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 16)
-            .background(actionButtonEnabled ? tallyAccent : Color.gray.opacity(0.3))
+            .background(actionButtonEnabled ? tallyAccent : Color.tallyTextSecondary.opacity(0.3))
             .foregroundStyle(.white)
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }

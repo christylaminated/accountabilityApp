@@ -32,7 +32,7 @@ struct CircleSetupView: View {
                 if let errorMessage {
                     Text(errorMessage)
                         .font(.system(.footnote, design: .rounded))
-                        .foregroundStyle(.red)
+                        .foregroundStyle(Color.tallyDestructive)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
@@ -97,7 +97,7 @@ struct CircleSetupView: View {
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 16)
-            .background(isValid && !isCreating ? tallyAccent : Color.gray.opacity(0.3))
+            .background(isValid && !isCreating ? tallyAccent : Color.tallyTextSecondary.opacity(0.3))
             .foregroundStyle(.white)
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }

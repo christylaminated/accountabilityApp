@@ -1,9 +1,8 @@
 import SwiftUI
 
 /// Profile + appearance settings. Edit name, username, avatar, and the app's
-/// accent color. Saves name + avatar + username to CloudKit (name/avatar go
-/// in the personal zone so friends see them; username goes in the public DB
-/// so people can find you by it). Theme color is a local preference.
+/// theme. Name/avatar/username save to CloudKit; theme is local-only and
+/// applies the moment a swatch is tapped — no save button needed.
 struct ProfileSettingsView: View {
     @Environment(\.tallyAccent) private var tallyAccent
     @Environment(AppState.self) private var appState
@@ -12,7 +11,6 @@ struct ProfileSettingsView: View {
     @State private var displayName: String = ""
     @State private var avatarSymbol: String = "leaf"
     @State private var username: String = ""
-    @State private var themeColor: ThemeColor = .pink
     @State private var isSaving = false
     @State private var errorMessage: String?
 
@@ -69,16 +67,16 @@ struct ProfileSettingsView: View {
                         .padding(.vertical, 8)
                 }
 
-                Section("App color") {
-                    colorRow
-                        .padding(.vertical, 4)
+                Section("Theme") {
+                    themeSwatchRow
+                        .padding(.vertical, 8)
                 }
 
                 if let errorMessage {
                     Section {
                         Text(errorMessage)
                             .font(.footnote)
-                            .foregroundStyle(.red)
+                            .foregroundStyle(Color.tallyDestructive)
                     }
                 }
             }
@@ -115,17 +113,17 @@ struct ProfileSettingsView: View {
                         .font(.system(size: 18, weight: .medium))
                         .frame(width: 44, height: 44)
                         .foregroundStyle(
-                            avatarSymbol == choice ? themeColor.color : Color.secondary
+                            avatarSymbol == choice ? tallyAccent : Color.secondary
                         )
                         .background(
                             avatarSymbol == choice
-                            ? themeColor.color.opacity(0.18)
+                            ? tallyAccent.opacity(0.18)
                             : Color.clear
                         )
                         .clipShape(Circle())
                         .overlay(
                             Circle().stroke(
-                                avatarSymbol == choice ? themeColor.color : .clear,
+                                avatarSymbol == choice ? tallyAccent : .clear,
                                 lineWidth: 1.5
                             )
                         )
@@ -135,29 +133,51 @@ struct ProfileSettingsView: View {
         }
     }
 
-    private var colorRow: some View {
-        HStack(spacing: 14) {
-            ForEach(ThemeColor.allCases, id: \.self) { choice in
-                Button {
-                    themeColor = choice
-                } label: {
-                    Circle()
-                        .fill(choice.color)
-                        .frame(width: 30, height: 30)
-                        .overlay(
-                            Circle()
-                                .stroke(
-                                    themeColor == choice ? Color.primary : Color.clear,
-                                    lineWidth: 2
-                                )
-                                .padding(-3)
-                        )
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(choice.displayName)
+    /// Four swatches — one per `TallyTheme`. Tap immediately switches the
+    /// whole app (no save needed; theme is local state, not server state).
+    /// The current selection gets a thick accent-colored ring; others stay
+    /// flat. The fill is the theme's accent color so the swatch previews
+    /// what the user will see.
+    private var themeSwatchRow: some View {
+        HStack(spacing: 18) {
+            ForEach(TallyTheme.allCases) { theme in
+                themeSwatch(theme)
+            }
+            Spacer()
+        }
+    }
+
+    private func themeSwatch(_ theme: TallyTheme) -> some View {
+        let isSelected = appState.theme == theme
+        return Button {
+            appState.setTheme(theme)
+        } label: {
+            VStack(spacing: 6) {
+                Circle()
+                    .fill(theme.accent)
+                    .frame(width: 40, height: 40)
+                    .overlay(
+                        Circle()
+                            .stroke(Color.tallyTextPrimary,
+                                    lineWidth: isSelected ? 2.5 : 0)
+                            .padding(-4)
+                    )
+                    .overlay(
+                        Group {
+                            if isSelected {
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundStyle(.white)
+                            }
+                        }
+                    )
+                Text(theme.displayName)
+                    .font(.caption)
+                    .foregroundStyle(isSelected ? Color.tallyTextPrimary : Color.tallyTextSecondary)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .buttonStyle(.plain)
+        .accessibilityLabel(theme.displayName)
     }
 
     // MARK: - Lifecycle
@@ -166,17 +186,14 @@ struct ProfileSettingsView: View {
         displayName = appState.ownCloudProfile?.displayName ?? ""
         avatarSymbol = appState.ownCloudProfile?.avatarSymbol ?? "leaf"
         username = appState.ownCloudProfile?.username ?? ""
-        themeColor = appState.themeColor
+        // Theme isn't loaded here — it's already live via ThemeManager and
+        // the swatch reads appState.theme directly.
     }
 
     private func save() async {
         guard isValid, !isSaving else { return }
         isSaving = true
         errorMessage = nil
-
-        // Theme change is local-only and instant; apply first so the rest of
-        // the app reflects the new color before we dismiss.
-        appState.setThemeColor(themeColor)
 
         do {
             try await appState.updateProfile(

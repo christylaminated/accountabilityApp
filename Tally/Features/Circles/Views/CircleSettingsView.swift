@@ -49,7 +49,7 @@ struct CircleSettingsView: View {
                     if let actionError {
                         Text(actionError)
                             .font(.system(.footnote, design: .rounded))
-                            .foregroundStyle(.red)
+                            .foregroundStyle(Color.tallyDestructive)
                     }
                     Spacer().frame(height: 24)
                 }
@@ -136,7 +136,7 @@ struct CircleSettingsView: View {
                                 .font(.system(.footnote, design: .rounded, weight: .semibold))
                         }
                         .buttonStyle(.plain)
-                        .foregroundStyle(.red)
+                        .foregroundStyle(Color.tallyDestructive)
                     }
                 }
                 .padding(14)
@@ -157,7 +157,7 @@ struct CircleSettingsView: View {
                         .font(.system(.body, design: .rounded, weight: .semibold))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
-                        .background(atCap ? Color.gray.opacity(0.3) : tallyAccent)
+                        .background(atCap ? Color.tallyTextSecondary.opacity(0.3) : tallyAccent)
                         .foregroundStyle(.white)
                         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
@@ -197,7 +197,7 @@ struct CircleSettingsView: View {
                     .padding(.vertical, 12)
             }
             .buttonStyle(.plain)
-            .foregroundStyle(.red)
+            .foregroundStyle(Color.tallyDestructive)
         } else {
             Button(role: .destructive) {
                 confirmLeave = true
@@ -208,7 +208,7 @@ struct CircleSettingsView: View {
                     .padding(.vertical, 12)
             }
             .buttonStyle(.plain)
-            .foregroundStyle(.red)
+            .foregroundStyle(Color.tallyDestructive)
         }
     }
 

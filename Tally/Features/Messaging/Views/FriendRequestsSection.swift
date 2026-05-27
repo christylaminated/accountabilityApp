@@ -45,7 +45,7 @@ struct FriendRequestErrorBanner: View {
         } label: {
             HStack(alignment: .top, spacing: 10) {
                 Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(Color.tallyDestructive)
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Friend-request sync error")
                         .font(.system(.subheadline, design: .rounded, weight: .semibold))
@@ -57,7 +57,7 @@ struct FriendRequestErrorBanner: View {
                 Spacer()
             }
             .padding(12)
-            .background(Color.orange.opacity(0.12))
+            .background(Color.tallyDestructive.opacity(0.10))
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
         .buttonStyle(.plain)
@@ -118,7 +118,7 @@ private struct FriendRequestRow: View {
             if let error {
                 Text(error)
                     .font(.footnote)
-                    .foregroundStyle(.red)
+                    .foregroundStyle(Color.tallyDestructive)
             }
         }
         .padding(14)
@@ -189,7 +189,7 @@ struct GroupInviteErrorBanner: View {
         } label: {
             HStack(alignment: .top, spacing: 10) {
                 Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(Color.tallyDestructive)
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Group-invite sync error")
                         .font(.system(.subheadline, design: .rounded, weight: .semibold))
@@ -201,7 +201,7 @@ struct GroupInviteErrorBanner: View {
                 Spacer()
             }
             .padding(12)
-            .background(Color.orange.opacity(0.12))
+            .background(Color.tallyDestructive.opacity(0.10))
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
         .buttonStyle(.plain)
@@ -272,7 +272,7 @@ private struct GroupInviteRow: View {
             if let error {
                 Text(error)
                     .font(.footnote)
-                    .foregroundStyle(.red)
+                    .foregroundStyle(Color.tallyDestructive)
             }
         }
         .padding(14)

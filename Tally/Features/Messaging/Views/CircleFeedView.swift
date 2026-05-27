@@ -99,7 +99,7 @@ struct CircleFeedView: View {
         } label: {
             HStack(alignment: .top, spacing: 10) {
                 Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(Color.tallyDestructive)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Couldn't send the last message")
                         .font(.system(.subheadline, design: .rounded, weight: .semibold))
@@ -111,7 +111,7 @@ struct CircleFeedView: View {
                 Spacer()
             }
             .padding(12)
-            .background(Color.orange.opacity(0.12))
+            .background(Color.tallyDestructive.opacity(0.10))
         }
         .buttonStyle(.plain)
     }
