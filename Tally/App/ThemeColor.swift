@@ -39,6 +39,13 @@ enum TallyTheme: String, CaseIterable, Codable, Hashable, Identifiable {
     var textPrimary: Color   { Color(tallyAdaptive: palette.textPrimary) }
     var textSecondary: Color { Color(tallyAdaptive: palette.textSecondary) }
     var destructive: Color   { Color(tallyAdaptive: palette.destructive) }
+    /// Foreground color to use ON TOP of an accent-colored surface (button
+    /// fill, message bubble for the current user, heatmap high-completion
+    /// cells). In Classic the accent flips between near-black (light mode)
+    /// and near-white (dark mode), so the on-accent color flips too. The
+    /// colored themes keep this as white in both modes because their accent
+    /// stays a mid-tone in both modes.
+    var onAccent: Color      { Color(tallyAdaptive: palette.onAccent) }
 
     /// Light + dark hex strings for one role.
     struct HexPair {
@@ -55,6 +62,7 @@ enum TallyTheme: String, CaseIterable, Codable, Hashable, Identifiable {
         var textPrimary: HexPair
         var textSecondary: HexPair
         var destructive: HexPair
+        var onAccent: HexPair
     }
 
     /// Destructive renders the same coral-red in every theme, both modes —
@@ -72,7 +80,11 @@ enum TallyTheme: String, CaseIterable, Codable, Hashable, Identifiable {
                 streak:        HexPair(light: "1A1A1A", dark: "F5F5F5"),
                 textPrimary:   HexPair(light: "1A1A1A", dark: "FFFFFF"),
                 textSecondary: HexPair(light: "8E8E8E", dark: "8E8E8E"),
-                destructive:   Self.destructive
+                destructive:   Self.destructive,
+                // Classic is the only theme whose accent flips luminance
+                // between modes, so onAccent flips too: white text on dark
+                // accent (light mode), black text on light accent (dark mode).
+                onAccent:      HexPair(light: "FFFFFF", dark: "1A1A1A")
             )
         case .sage:
             return Palette(
@@ -83,7 +95,8 @@ enum TallyTheme: String, CaseIterable, Codable, Hashable, Identifiable {
                 streak:        HexPair(light: "8B9E82", dark: "B8C5B0"),
                 textPrimary:   HexPair(light: "1A1A1A", dark: "FAF9F6"),
                 textSecondary: HexPair(light: "6B6B6B", dark: "8E8E8E"),
-                destructive:   Self.destructive
+                destructive:   Self.destructive,
+                onAccent:      HexPair(light: "FFFFFF", dark: "FFFFFF")
             )
         case .berry:
             return Palette(
@@ -94,7 +107,8 @@ enum TallyTheme: String, CaseIterable, Codable, Hashable, Identifiable {
                 streak:        HexPair(light: "B07388", dark: "D49AAE"),
                 textPrimary:   HexPair(light: "1A1A1A", dark: "FFFAF8"),
                 textSecondary: HexPair(light: "6B6B6B", dark: "8E8E8E"),
-                destructive:   Self.destructive
+                destructive:   Self.destructive,
+                onAccent:      HexPair(light: "FFFFFF", dark: "FFFFFF")
             )
         case .midnight:
             return Palette(
@@ -105,7 +119,8 @@ enum TallyTheme: String, CaseIterable, Codable, Hashable, Identifiable {
                 streak:        HexPair(light: "6889A0", dark: "9AB8CC"),
                 textPrimary:   HexPair(light: "1A1A1A", dark: "F8FAFB"),
                 textSecondary: HexPair(light: "6B6B6B", dark: "8E8E8E"),
-                destructive:   Self.destructive
+                destructive:   Self.destructive,
+                onAccent:      HexPair(light: "FFFFFF", dark: "FFFFFF")
             )
         }
     }

@@ -61,6 +61,51 @@ final class CircleStore {
         try? await dataRepo.subscribeToChanges(for: circle)
     }
 
+    // MARK: - Read tracking (unread indicator)
+
+    /// Mark this circle as fully read as of now. Called by `CircleFeedView`
+    /// when the chat appears so FriendsView can stop showing the unread
+    /// indicator for it. Persisted so the indicator state survives
+    /// relaunches.
+    func markCircleRead(circleID: UUID) {
+        var dict = Self.loadDict(forKey: LocalCacheKey.circleLastReadAt)
+        dict[circleID.uuidString] = Date.now.timeIntervalSince1970
+        Self.saveDict(dict, forKey: LocalCacheKey.circleLastReadAt)
+    }
+
+    /// True when this circle has a newer message timestamp on record
+    /// than the last time the user opened it. Cheap lookup against
+    /// LocalCache — no CloudKit call.
+    static func hasUnread(circleID: UUID) -> Bool {
+        let readDict = loadDict(forKey: LocalCacheKey.circleLastReadAt)
+        let msgDict = loadDict(forKey: LocalCacheKey.circleLastMessageAt)
+        let lastRead = readDict[circleID.uuidString] ?? 0
+        let lastMsg = msgDict[circleID.uuidString] ?? 0
+        return lastMsg > lastRead
+    }
+
+    /// Record the latest message timestamp observed for a circle. Called
+    /// from `load()` and `refresh()` so other circles' unread state stays
+    /// reasonably current without requiring a separate fetch per circle.
+    private static func recordLatestMessage(circleID: UUID, at timestamp: Date) {
+        var dict = loadDict(forKey: LocalCacheKey.circleLastMessageAt)
+        let key = circleID.uuidString
+        let existing = dict[key] ?? 0
+        let candidate = timestamp.timeIntervalSince1970
+        if candidate > existing {
+            dict[key] = candidate
+            saveDict(dict, forKey: LocalCacheKey.circleLastMessageAt)
+        }
+    }
+
+    private static func loadDict(forKey key: String) -> [String: Double] {
+        LocalCache.load([String: Double].self, forKey: key) ?? [:]
+    }
+
+    private static func saveDict(_ dict: [String: Double], forKey key: String) {
+        LocalCache.save(dict, forKey: key)
+    }
+
     /// Full load — replaces all cached state, except for records whose writes
     /// are still in flight (or have failed and not retried). Those stay so a
     /// just-sent message doesn't blink out of view when the user navigates
@@ -83,6 +128,11 @@ final class CircleStore {
             members = snap.members
             circleMessages = Self.spliceIn(pendingCircleMsgs, into: snap.circleMessages)
             directMessages = Self.spliceIn(pendingDirectMsgs, into: snap.directMessages)
+            // Record the latest observed message timestamp for this
+            // circle so FriendsView's unread indicator has fresh data.
+            if let latest = circleMessages.map(\.createdAt).max() {
+                Self.recordLatestMessage(circleID: circle.id, at: latest)
+            }
         } catch {
             lastError = error.localizedDescription
         }
@@ -122,6 +172,9 @@ final class CircleStore {
         Self.merge(snap.members, deleted: deleted, into: &members)
         Self.merge(snap.circleMessages, deleted: deleted, into: &circleMessages)
         Self.merge(snap.directMessages, deleted: deleted, into: &directMessages)
+        if let id = circle?.id, let latest = circleMessages.map(\.createdAt).max() {
+            Self.recordLatestMessage(circleID: id, at: latest)
+        }
     }
 
     /// Upsert changed records by `recordName`, then drop anything deleted.

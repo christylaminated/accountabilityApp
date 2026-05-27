@@ -160,7 +160,17 @@ private struct DayCell: View {
         Button(action: onTap) {
             Text("\(dayNumber)")
                 .font(.callout.monospacedDigit())
-                .foregroundStyle(isFuture ? Color.secondary.opacity(0.5) : (completionRate > 0.5 ? Color.white : Color.primary))
+                // High-completion cells have a near-solid accent fill,
+                // so use `tallyOnAccent` (which flips luminance in Classic
+                // dark mode) instead of literal `.white`. Otherwise white
+                // text on the dark-mode near-white accent is invisible.
+                .foregroundStyle(
+                    isFuture
+                        ? Color.tallyTextSecondary.opacity(0.5)
+                        : (completionRate > 0.5
+                            ? Color.tallyOnAccent
+                            : Color.tallyTextPrimary)
+                )
                 .frame(maxWidth: .infinity, minHeight: 44)
                 .background(isFuture ? Color.clear : fillColor)
                 .clipShape(RoundedRectangle(cornerRadius: 8))

@@ -65,6 +65,18 @@ enum LocalCacheKey {
     /// against this set so unfriended friends stay gone across launches.
     static let locallyUnfriendedIDs = "Tally.cache.locallyUnfriendedIDs"
 
+    /// Per-Circle "last time the user opened the chat" timestamps.
+    /// Compared against each Circle's latest message timestamp to decide
+    /// whether a row in FriendsView should render in an "unread" style.
+    /// Keyed by Circle.id.uuidString → Double (timeIntervalSince1970).
+    static let circleLastReadAt = "Tally.cache.circleLastReadAt"
+
+    /// Per-Circle "latest message timestamp last observed by this device".
+    /// Updated by CircleStore whenever it loads / refreshes a circle's
+    /// messages. Lets FriendsView render unread state for circles the
+    /// user has already activated at least once.
+    static let circleLastMessageAt = "Tally.cache.circleLastMessageAt"
+
     /// Cache keys cleared on iCloud account switch.
     static let userScoped: [String] = [
         currentUserID, ownProfile, personalStore, hasOnboarded,

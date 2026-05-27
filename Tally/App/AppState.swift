@@ -823,20 +823,29 @@ final class AppState {
                     // clear them now so personalStore.refresh below picks
                     // their zone back into the friend graph.
                     personalStore.clearLocalUnfriend(userID: r.fromUserRecordName)
-                    // Refresh immediately so the friend's data appears in the
-                    // friends list without waiting for the loop to finish.
-                    await personalStore.refresh()
-                    // Only hide the reciprocal once the friend is actually
-                    // visible in our friend graph. CloudKit zone-propagation
-                    // can lag the accept by a few seconds; if we hide
-                    // unconditionally and the zone isn't ready yet, we lose
-                    // the only retry signal we have. Leaving the reciprocal
-                    // un-declined makes the next refresh re-process it.
-                    if personalStore.friends.contains(where: { $0.userID == r.fromUserRecordName }) {
-                        NSLog("[Tally] reciprocal: friend visible — hiding reciprocal")
+                    // CloudKit eventual consistency: the friend's zone
+                    // may not appear in our sharedDB immediately after
+                    // acceptShareMetadata returns successfully — it can
+                    // lag by several seconds. Retry refresh with backoff
+                    // until the friend shows up OR we run out of retries.
+                    var visible = false
+                    for attempt in 0..<5 {
+                        await personalStore.refresh()
+                        if personalStore.friends.contains(where: { $0.userID == r.fromUserRecordName }) {
+                            NSLog("[Tally] reciprocal: friend visible after attempt \(attempt + 1)")
+                            visible = true
+                            break
+                        }
+                        // 0.5s, 1s, 1.5s, 2s — a 5s total window
+                        // before we give up and leave the reciprocal
+                        // around for the next refresh cycle to retry.
+                        let delay = UInt64((attempt + 1) * 500_000_000)
+                        try? await Task.sleep(nanoseconds: delay)
+                    }
+                    if visible {
                         markRequestDeclined(r)
                     } else {
-                        NSLog("[Tally] reciprocal: friend NOT yet visible in personalStore — leaving for retry")
+                        NSLog("[Tally] reciprocal: friend never appeared after 5 retries — leaving record for next refresh")
                     }
                 } catch {
                     NSLog("[Tally] reciprocal: auto-accept failed (will retry next refresh): \(error.localizedDescription)")
@@ -996,9 +1005,28 @@ final class AppState {
             lastGroupInviteError = nil
             NSLog("[Tally] refreshGroupInvites: incoming=\(incoming.count) for userID=\(currentUserID)")
 
+            // Auto-accept DM invites from confirmed friends. A DM is a
+            // low-friction action between two people who already
+            // mutually consented to friending — making them tap Accept
+            // every time someone DMs them is just friction. Group
+            // invites still go to the inbox so the user can decide.
+            let friendIDs = Set(personalStore.friends.map(\.userID))
+            for inv in incoming where inv.circleKind == .dm
+                && friendIDs.contains(inv.fromUserRecordName)
+                && !declinedGroupInviteIDs.contains(inv.id.uuidString) {
+                NSLog("[Tally] refreshGroupInvites: auto-accepting DM from friend=\(inv.fromUserRecordName) circle=\(inv.circleID)")
+                do {
+                    try await acceptGroupInvite(inv)
+                } catch {
+                    NSLog("[Tally] refreshGroupInvites: DM auto-accept failed (will retry): \(error.localizedDescription)")
+                }
+            }
+
             // Surface invites that aren't declined and don't reference a
             // Circle I'm already in. Joined circles always include accepted
             // ones, so once the user accepts, the inbox quietly empties.
+            // Auto-accepted DMs (above) just got declined-locally inside
+            // acceptGroupInvite, so they fall out of this filter too.
             let myCircleIDs = Set(allCircles.map(\.id))
             incomingGroupInvites = incoming.filter { inv in
                 !declinedGroupInviteIDs.contains(inv.id.uuidString)

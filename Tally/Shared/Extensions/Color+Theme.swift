@@ -40,6 +40,14 @@ extension Color {
         ThemeManager.shared.current.destructive
     }
 
+    /// Foreground color to render ON TOP of an accent-colored surface
+    /// (message bubble for current user, accent-filled buttons, heatmap
+    /// high-completion cells). Flips luminance with the accent in Classic
+    /// so the text stays readable in both light and dark mode.
+    static var tallyOnAccent: Color {
+        ThemeManager.shared.current.onAccent
+    }
+
     /// Color applied to a completed item (checkbox fill, completed-state
     /// tint). Distinct from accent so themes can vary (e.g., classic uses
     /// the same near-black for both, sage uses sage green).

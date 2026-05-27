@@ -410,6 +410,10 @@ private struct DMRow: View {
         peerID.flatMap { appState.personalStore.friend(id: $0) }
     }
 
+    private var isUnread: Bool {
+        CircleStore.hasUnread(circleID: circle.id)
+    }
+
     var body: some View {
         HStack(spacing: 12) {
             AvatarView(
@@ -419,13 +423,18 @@ private struct DMRow: View {
             )
             VStack(alignment: .leading, spacing: 2) {
                 Text(peer?.displayName ?? circle.name)
-                    .font(.body.weight(.semibold))
+                    .font(.body.weight(isUnread ? .bold : .semibold))
                     .foregroundStyle(.primary)
-                Text("Direct message")
+                Text(isUnread ? "New message" : "Direct message")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(isUnread ? tallyAccent : .secondary)
             }
             Spacer()
+            if isUnread {
+                Circle()
+                    .fill(tallyAccent)
+                    .frame(width: 8, height: 8)
+            }
             Image(systemName: "chevron.right")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.tertiary)
@@ -441,6 +450,10 @@ private struct GroupRow: View {
     @Environment(AppState.self) private var appState
     let group: TallyCircle
 
+    private var isUnread: Bool {
+        CircleStore.hasUnread(circleID: group.id)
+    }
+
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: "bubble.left.and.bubble.right.fill")
@@ -451,15 +464,20 @@ private struct GroupRow: View {
                 .clipShape(Circle())
             VStack(alignment: .leading, spacing: 2) {
                 Text(group.name)
-                    .font(.body.weight(.semibold))
+                    .font(.body.weight(isUnread ? .bold : .semibold))
                     .foregroundStyle(.primary)
-                Text(group.id == appState.activeCircle?.id
-                     ? "Active group"
-                     : "Group chat")
+                Text(isUnread
+                     ? "New message"
+                     : (group.id == appState.activeCircle?.id ? "Active group" : "Group chat"))
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(isUnread ? tallyAccent : .secondary)
             }
             Spacer()
+            if isUnread {
+                Circle()
+                    .fill(tallyAccent)
+                    .frame(width: 8, height: 8)
+            }
             Image(systemName: "chevron.right")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.tertiary)
@@ -480,6 +498,14 @@ struct GroupChatHost: View {
 
     var body: some View {
         CircleFeedView()
-            .task { await appState.activateCircle(circle) }
+            .task {
+                await appState.activateCircle(circle)
+                // Clear the unread indicator for this circle the moment
+                // the user opens it. CircleStore already updated the
+                // "latest message" timestamp during activate; marking
+                // read AFTER that ensures lastReadAt >= lastMessageAt
+                // so hasUnread returns false on next render.
+                appState.circleStore.markCircleRead(circleID: circle.id)
+            }
     }
 }

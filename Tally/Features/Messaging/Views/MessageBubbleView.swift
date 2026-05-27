@@ -31,7 +31,11 @@ struct MessageBubbleView: View {
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
                     .background(isMe ? tallyAccent : Color.tallyCard)
-                    .foregroundStyle(isMe ? .white : .primary)
+                    // `tallyOnAccent` (not literal .white) so the text
+                    // contrasts with the bubble in both light AND dark mode
+                    // — Classic's accent flips to near-white in dark mode,
+                    // which made white-on-white invisible.
+                    .foregroundStyle(isMe ? Color.tallyOnAccent : Color.tallyTextPrimary)
                     .clipShape(RoundedRectangle(cornerRadius: 16))
                 Text(timestamp, format: .dateTime.hour().minute())
                     .font(.caption2)
