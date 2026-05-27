@@ -330,7 +330,7 @@ struct CircleDashboardView: View {
     private var goalsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .firstTextBaseline) {
-                Text("Goals".uppercased())
+                Text("To do today".uppercased())
                     .font(.system(size: 13, weight: .semibold))
                     .tracking(0.8)
                     .foregroundStyle(Color.tallyTextSecondary)
@@ -355,7 +355,7 @@ struct CircleDashboardView: View {
                         Image(systemName: "plus.circle")
                             .font(.system(size: 14))
                             .foregroundStyle(Color.tallyTextSecondary)
-                        Text("Add a goal for today")
+                        Text("Add a to-do for today")
                             .font(.system(size: 14).italic())
                             .foregroundStyle(Color.tallyTextSecondary)
                         Spacer()
