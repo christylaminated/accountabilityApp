@@ -253,6 +253,24 @@ final class PersonalStore {
         friends.first { $0.userID == userID }
     }
 
+    /// Drop a friend (and all their cached habits / goals / completions) from
+    /// in-memory state without waiting for a CloudKit refresh to catch up.
+    /// Called from `AppState.unfriend` so the user sees the friend disappear
+    /// the moment the CloudKit unfriend succeeds, and `FriendSearchView`'s
+    /// "already friends" check returns false right away if they want to
+    /// re-add the same person later in the same session.
+    func dropFriendLocally(userID: String) {
+        friends.removeAll { $0.userID == userID }
+        habits.removeAll { $0.userID == userID }
+        completions.removeAll { $0.userID == userID }
+        goals.removeAll { $0.userID == userID }
+        let zoneIDs = friendTokens.keys.filter { $0.ownerName == userID }
+        for zoneID in zoneIDs {
+            friendTokens.removeValue(forKey: zoneID)
+        }
+        saveCache()
+    }
+
     /// Upsert changed records by `recordName`, then drop anything deleted from
     /// the same zone (matched by `ownerUserID`).
     private static func merge<T: ZoneRecord>(

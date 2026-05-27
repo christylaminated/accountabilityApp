@@ -672,6 +672,11 @@ final class AppState {
         // Surface this error rather than swallowing it: when it fails the
         // user observes "they still appear in my list" with no explanation.
         try await personalRepository.leaveFriendShare(ownerRecordName: friend.userID)
+        // Drop them from in-memory state immediately so the UI updates without
+        // waiting for the CloudKit refresh. Important for re-friending in the
+        // same session: FriendSearchView's `isAlreadyFriend` check would
+        // otherwise stay true until the refresh below completes.
+        personalStore.dropFriendLocally(userID: friend.userID)
         await personalStore.refresh()
         // Also refresh requests in case any pending/outgoing involving this
         // user need to clear out now that they're no longer a friend.
