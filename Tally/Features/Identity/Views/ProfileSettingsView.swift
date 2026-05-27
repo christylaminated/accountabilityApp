@@ -263,12 +263,44 @@ struct ProfileSettingsView: View {
     /// flat. The fill is the theme's accent color so the swatch previews
     /// what the user will see.
     private var themeSwatchRow: some View {
-        HStack(spacing: 18) {
-            ForEach(TallyTheme.allCases) { theme in
-                themeSwatch(theme)
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 18) {
+                ForEach(TallyTheme.allCases) { theme in
+                    themeSwatch(theme)
+                }
+                Spacer()
             }
-            Spacer()
+            // When the custom theme is active, show the system
+            // ColorPicker so the user can change their accent without
+            // re-selecting the swatch.
+            if appState.theme == .custom {
+                ColorPicker(
+                    "Custom accent",
+                    selection: Binding(
+                        get: { Color(tallyHex: ThemeManager.shared.customAccentHex) },
+                        set: { ThemeManager.shared.customAccentHex = ProfileSettingsView.hex(from: $0) ?? ThemeManager.defaultCustomAccentHex }
+                    ),
+                    supportsOpacity: false
+                )
+                .font(.subheadline)
+            }
         }
+    }
+
+    /// Convert a SwiftUI Color back to a 6-digit RGB hex string. Returns
+    /// nil only on platforms without UIKit (i.e., never on iOS).
+    fileprivate static func hex(from color: Color) -> String? {
+        #if canImport(UIKit)
+        let ui = UIColor(color)
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        guard ui.getRed(&r, green: &g, blue: &b, alpha: &a) else { return nil }
+        let ri = Int(round(max(0, min(1, r)) * 255))
+        let gi = Int(round(max(0, min(1, g)) * 255))
+        let bi = Int(round(max(0, min(1, b)) * 255))
+        return String(format: "%02X%02X%02X", ri, gi, bi)
+        #else
+        return nil
+        #endif
     }
 
     private func themeSwatch(_ theme: TallyTheme) -> some View {

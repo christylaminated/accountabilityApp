@@ -19,6 +19,11 @@ enum TallyTheme: String, CaseIterable, Codable, Hashable, Identifiable {
     case sage
     case berry
     case midnight
+    /// Single-accent custom palette. The accent color comes from
+    /// `ThemeManager.shared.customAccentHex`; the rest of the palette
+    /// (background, card, text, etc.) is derived to keep light/dark
+    /// contrast safe regardless of which accent the user picked.
+    case custom
 
     var id: String { rawValue }
 
@@ -28,24 +33,99 @@ enum TallyTheme: String, CaseIterable, Codable, Hashable, Identifiable {
         case .sage:     "Sage"
         case .berry:    "Berry"
         case .midnight: "Midnight"
+        case .custom:   "Custom"
         }
     }
 
-    var accent: Color        { Color(tallyAdaptive: palette.accent) }
-    var background: Color    { Color(tallyAdaptive: palette.background) }
-    var card: Color          { Color(tallyAdaptive: palette.card) }
-    var completed: Color     { Color(tallyAdaptive: palette.completed) }
-    var streak: Color        { Color(tallyAdaptive: palette.streak) }
-    var textPrimary: Color   { Color(tallyAdaptive: palette.textPrimary) }
-    var textSecondary: Color { Color(tallyAdaptive: palette.textSecondary) }
-    var destructive: Color   { Color(tallyAdaptive: palette.destructive) }
+    var accent: Color {
+        if self == .custom {
+            return Color(tallyHex: ThemeManager.shared.customAccentHex)
+        }
+        return Color(tallyAdaptive: palette.accent)
+    }
+    var background: Color {
+        if self == .custom { return TallyTheme.customBackground }
+        return Color(tallyAdaptive: palette.background)
+    }
+    var card: Color {
+        if self == .custom { return TallyTheme.customCard }
+        return Color(tallyAdaptive: palette.card)
+    }
+    var completed: Color {
+        if self == .custom {
+            return Color(tallyHex: ThemeManager.shared.customAccentHex)
+        }
+        return Color(tallyAdaptive: palette.completed)
+    }
+    var streak: Color {
+        if self == .custom {
+            return Color(tallyHex: ThemeManager.shared.customAccentHex)
+        }
+        return Color(tallyAdaptive: palette.streak)
+    }
+    var textPrimary: Color {
+        if self == .custom { return TallyTheme.customTextPrimary }
+        return Color(tallyAdaptive: palette.textPrimary)
+    }
+    var textSecondary: Color {
+        if self == .custom { return TallyTheme.customTextSecondary }
+        return Color(tallyAdaptive: palette.textSecondary)
+    }
+    var destructive: Color {
+        if self == .custom {
+            return Color(tallyAdaptive: Self.destructive)
+        }
+        return Color(tallyAdaptive: palette.destructive)
+    }
     /// Foreground color to use ON TOP of an accent-colored surface (button
     /// fill, message bubble for the current user, heatmap high-completion
     /// cells). In Classic the accent flips between near-black (light mode)
     /// and near-white (dark mode), so the on-accent color flips too. The
     /// colored themes keep this as white in both modes because their accent
-    /// stays a mid-tone in both modes.
-    var onAccent: Color      { Color(tallyAdaptive: palette.onAccent) }
+    /// stays a mid-tone in both modes. Custom themes check the accent's
+    /// luminance to pick a contrasting text color.
+    var onAccent: Color {
+        if self == .custom {
+            let isLightAccent = TallyTheme.relativeLuminance(
+                hex: ThemeManager.shared.customAccentHex
+            ) > 0.5
+            return isLightAccent
+                ? Color(tallyHex: "1A1A1A")
+                : Color(tallyHex: "FFFFFF")
+        }
+        return Color(tallyAdaptive: palette.onAccent)
+    }
+
+    // MARK: - Custom palette derivations (neutral light/dark surfaces)
+
+    /// Custom-theme backgrounds and text reuse neutral hex values that
+    /// stay readable regardless of the user's accent pick. Only the
+    /// accent itself comes from `customAccentHex`.
+    private static let customBackground = Color(
+        tallyAdaptive: HexPair(light: "FFFFFF", dark: "0F0F0F")
+    )
+    private static let customCard = Color(
+        tallyAdaptive: HexPair(light: "F5F5F5", dark: "1C1C1E")
+    )
+    private static let customTextPrimary = Color(
+        tallyAdaptive: HexPair(light: "1A1A1A", dark: "FFFFFF")
+    )
+    private static let customTextSecondary = Color(
+        tallyAdaptive: HexPair(light: "8E8E8E", dark: "8E8E8E")
+    )
+
+    /// Approximation of WCAG relative luminance. Used to decide whether
+    /// text on a user-picked accent should be light or dark.
+    static func relativeLuminance(hex: String) -> Double {
+        var s = hex
+        if s.hasPrefix("#") { s.removeFirst() }
+        var rgb: UInt64 = 0
+        Scanner(string: s).scanHexInt64(&rgb)
+        let r = Double((rgb >> 16) & 0xFF) / 255.0
+        let g = Double((rgb >> 8)  & 0xFF) / 255.0
+        let b = Double( rgb        & 0xFF) / 255.0
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b
+    }
 
     /// Light + dark hex strings for one role.
     struct HexPair {
@@ -122,6 +202,22 @@ enum TallyTheme: String, CaseIterable, Codable, Hashable, Identifiable {
                 destructive:   Self.destructive,
                 onAccent:      HexPair(light: "FFFFFF", dark: "FFFFFF")
             )
+        case .custom:
+            // Never reached at runtime — every color accessor
+            // short-circuits before consulting `palette` when
+            // self == .custom. Exists only so the switch is
+            // exhaustive. Returns Classic's palette as a stand-in.
+            return Palette(
+                accent:        HexPair(light: "1A1A1A", dark: "F5F5F5"),
+                background:    HexPair(light: "FFFFFF", dark: "000000"),
+                card:          HexPair(light: "F5F5F5", dark: "1C1C1E"),
+                completed:     HexPair(light: "1A1A1A", dark: "F5F5F5"),
+                streak:        HexPair(light: "1A1A1A", dark: "F5F5F5"),
+                textPrimary:   HexPair(light: "1A1A1A", dark: "FFFFFF"),
+                textSecondary: HexPair(light: "8E8E8E", dark: "8E8E8E"),
+                destructive:   Self.destructive,
+                onAccent:      HexPair(light: "FFFFFF", dark: "1A1A1A")
+            )
         }
     }
 }
@@ -140,9 +236,14 @@ final class ThemeManager: @unchecked Sendable {
     static let shared = ThemeManager()
 
     static let storageKey = "selectedTheme"
+    static let customAccentKey = "customAccentHex"
     /// Set to true once the user has been through the onboarding theme picker.
     /// Lets us skip the picker on subsequent launches.
     static let hasPickedThemeKey = "hasPickedTheme"
+
+    /// Default accent for the custom theme until the user has picked one.
+    /// Picked to be friendly in both light and dark mode.
+    static let defaultCustomAccentHex = "9F7AEA" // muted violet
 
     var current: TallyTheme {
         didSet {
@@ -150,10 +251,21 @@ final class ThemeManager: @unchecked Sendable {
         }
     }
 
+    /// Hex string for the user-picked accent when `current == .custom`.
+    /// Falls back to `defaultCustomAccentHex` if never set. Persisted to
+    /// UserDefaults so the choice survives across launches.
+    var customAccentHex: String {
+        didSet {
+            UserDefaults.standard.set(customAccentHex, forKey: Self.customAccentKey)
+        }
+    }
+
     init() {
         let raw = UserDefaults.standard.string(forKey: Self.storageKey)
             ?? TallyTheme.classic.rawValue
         self.current = TallyTheme(rawValue: raw) ?? .classic
+        self.customAccentHex = UserDefaults.standard.string(forKey: Self.customAccentKey)
+            ?? Self.defaultCustomAccentHex
     }
 
     /// Convenience setter that also records that onboarding has shown the

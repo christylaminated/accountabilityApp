@@ -386,8 +386,40 @@ final class AppState {
             if let next = activeCircle {
                 await circleStore.activate(next, currentUserID: currentUserID)
             }
+            // Server-side: zone deletion cascade-removed all records
+            // inside (root, members, messages, summaries, the CKShare).
+            // Local-side and side-channel cleanup:
+            //   - LocalCache entries (lastReadAt / lastMessageAt) keyed
+            //     by this circle's UUID become dead weight; remove them.
+            //   - Any outgoing GroupInvite records in the public DB
+            //     pointing at this circle become orphaned. Delete them
+            //     so they don't continue to surface in recipients' inboxes
+            //     or get re-processed in the cleanup pass.
+            Self.removeCachedCircleEntries(circleID: circle.id)
+            do {
+                let outgoing = try await groupInviteRepository.outgoing(for: currentUserID)
+                for inv in outgoing where inv.circleID == circle.id {
+                    try? await groupInviteRepository.delete(inv)
+                }
+            } catch {
+                NSLog("[Tally] deleteCircle: outgoing-invite cleanup failed (non-fatal): \(error.localizedDescription)")
+            }
         } catch {
             circleActionError = error.localizedDescription
+        }
+    }
+
+    /// Strip persisted per-circle bookkeeping (unread state, last-message
+    /// timestamp) for a circle that no longer exists. Called after a
+    /// successful delete or leave so the next launch doesn't render an
+    /// unread dot for a phantom row.
+    private static func removeCachedCircleEntries(circleID: UUID) {
+        let key = circleID.uuidString
+        for cacheKey in [LocalCacheKey.circleLastReadAt, LocalCacheKey.circleLastMessageAt] {
+            var dict = LocalCache.load([String: Double].self, forKey: cacheKey) ?? [:]
+            if dict.removeValue(forKey: key) != nil {
+                LocalCache.save(dict, forKey: cacheKey)
+            }
         }
     }
 
@@ -396,6 +428,10 @@ final class AppState {
     func leaveCircle(_ circle: TallyCircle) async {
         do {
             try await circleRepository.leaveCircle(circle)
+            // Clean the same local caches as deleteCircle — once we've
+            // left, the circle is gone from our view and the bookkeeping
+            // is dead weight.
+            Self.removeCachedCircleEntries(circleID: circle.id)
             await loadCircles()
             if let next = activeCircle {
                 await circleStore.activate(next, currentUserID: currentUserID)

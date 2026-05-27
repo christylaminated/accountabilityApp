@@ -204,7 +204,45 @@ struct ThemePickerOnboardingView: View {
                 }
             }
             .padding(.horizontal, 20)
+
+            // Show a color picker right where the user can see the
+            // preview update live when they pick Custom. Hidden when
+            // any other preset is selected.
+            if selected == .custom {
+                ColorPicker(
+                    "Choose accent color",
+                    selection: Binding(
+                        get: { Color(tallyHex: ThemeManager.shared.customAccentHex) },
+                        set: {
+                            if let hex = onboardingHex(from: $0) {
+                                ThemeManager.shared.customAccentHex = hex
+                            }
+                        }
+                    ),
+                    supportsOpacity: false
+                )
+                .font(.subheadline)
+                .padding(.horizontal, 20)
+                .padding(.top, 12)
+            }
         }
+    }
+
+    /// Convert a SwiftUI Color to a 6-digit hex string. Mirrors the
+    /// helper used in ProfileSettingsView; duplicated here to avoid
+    /// cross-file dependencies during onboarding.
+    private func onboardingHex(from color: Color) -> String? {
+        #if canImport(UIKit)
+        let ui = UIColor(color)
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        guard ui.getRed(&r, green: &g, blue: &b, alpha: &a) else { return nil }
+        let ri = Int(round(max(0, min(1, r)) * 255))
+        let gi = Int(round(max(0, min(1, g)) * 255))
+        let bi = Int(round(max(0, min(1, b)) * 255))
+        return String(format: "%02X%02X%02X", ri, gi, bi)
+        #else
+        return nil
+        #endif
     }
 
     private var continueButton: some View {
