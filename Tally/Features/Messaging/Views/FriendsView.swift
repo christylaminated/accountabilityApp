@@ -311,15 +311,77 @@ struct FriendsView: View {
 
 private struct FriendRow: View {
     @Environment(\.tallyAccent) private var tallyAccent
+    @Environment(AppState.self) private var appState
     let friend: Friend
+
+    private var habits: [Habit] {
+        appState.personalStore.habits(for: friend.userID)
+    }
+
+    /// Habits the friend has completed today.
+    private var doneToday: Int {
+        habits.filter { appState.personalStore.isCompleted(habit: $0, on: .now) }.count
+    }
+
+    /// "Days in a row they've done every habit." Equivalent to min of
+    /// each habit's current streak — matches the same calculation we use
+    /// for the all-done celebration so the number means the same thing
+    /// everywhere it's surfaced.
+    private var streak: Int {
+        guard !habits.isEmpty else { return 0 }
+        let streaks = habits.map { habit in
+            StreakCalculator.currentStreak(
+                completions: appState.personalStore.completionDates(habit: habit),
+                habitCreatedAt: habit.createdAt
+            )
+        }
+        return streaks.min() ?? 0
+    }
+
+    private var statusText: String {
+        let total = habits.count
+        guard total > 0 else { return "No habits yet" }
+        if doneToday == 0 { return "Not started today" }
+        if doneToday == total { return "All done today ✓" }
+        return "\(doneToday) of \(total) today"
+    }
+
+    private var statusColor: Color {
+        (habits.isEmpty == false && doneToday == habits.count)
+            ? Color.tallyAccent
+            : Color.tallyTextSecondary
+    }
 
     var body: some View {
         HStack(spacing: 12) {
-            AvatarView(symbolName: friend.avatarSymbol, size: 44)
-            Text(friend.displayName)
-                .font(.body.weight(.semibold))
-                .foregroundStyle(.primary)
+            AvatarView(
+                symbolName: friend.avatarSymbol,
+                imageData: friend.avatarImageData,
+                size: 44
+            )
+            .overlay(
+                Circle().stroke(Color.tallyAccent.opacity(0.25), lineWidth: 1)
+            )
+            VStack(alignment: .leading, spacing: 2) {
+                Text(friend.displayName)
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(.primary)
+                Text(statusText)
+                    .font(.system(size: 13))
+                    .foregroundStyle(statusColor)
+            }
             Spacer()
+            if streak > 0 {
+                HStack(spacing: 3) {
+                    Text("\(streak)")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Color.tallyTextPrimary)
+                    Image(systemName: "flame.fill")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Color.tallyAccent)
+                }
+                .padding(.trailing, 4)
+            }
             Image(systemName: "chevron.right")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.tertiary)

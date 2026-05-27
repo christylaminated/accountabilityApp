@@ -30,6 +30,18 @@ struct MemberDetailView: View {
         appState.personalStore.habits(for: memberID)
     }
 
+    /// Today's day-period goals (their "to-do today" list) for the member.
+    /// Surfacing this on the profile lets the user see what their friend
+    /// is working on right now and tap Message to encourage them
+    /// specifically.
+    private var todayGoals: [Goal] {
+        appState.personalStore.goals(
+            for: memberID,
+            period: .day,
+            periodStart: Date.now.startOfDay
+        )
+    }
+
     private var goals: [Goal] {
         appState.personalStore.goals(
             for: memberID,
@@ -51,6 +63,16 @@ struct MemberDetailView: View {
                             } else {
                                 ForEach(habits) { habit in
                                     MemberHabitRow(habit: habit, isEditable: isMe)
+                                }
+                            }
+                        }
+
+                        section(title: "Today's to-dos") {
+                            if todayGoals.isEmpty {
+                                infoCard("Nothing on the list today")
+                            } else {
+                                ForEach(todayGoals) { goal in
+                                    todayGoalRow(goal)
                                 }
                             }
                         }
@@ -171,6 +193,24 @@ struct MemberDetailView: View {
                 .foregroundStyle(.secondary)
             content()
         }
+    }
+
+    /// One row in the friend's "Today's to-dos" section. Read-only: the
+    /// viewer (me) can't toggle someone else's goals, so this just
+    /// renders state with strikethrough on completion.
+    private func todayGoalRow(_ goal: Goal) -> some View {
+        let isDone = goal.completedAt != nil
+        return HStack(spacing: 12) {
+            Image(systemName: isDone ? "checkmark.circle.fill" : "circle")
+                .foregroundStyle(isDone ? tallyAccent : .secondary)
+            Text(goal.title)
+                .strikethrough(isDone, color: .secondary)
+                .foregroundStyle(isDone ? .secondary : .primary)
+            Spacer()
+        }
+        .padding(14)
+        .background(Color.tallyCard)
+        .clipShape(RoundedRectangle(cornerRadius: 14))
     }
 
     private func infoCard(_ text: String) -> some View {
