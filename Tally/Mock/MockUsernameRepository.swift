@@ -23,7 +23,8 @@ final class MockUsernameRepository: UsernameRepository, @unchecked Sendable {
         _ normalized: String,
         previousUsername: String?,
         displayName: String,
-        avatarSymbol: String
+        avatarSymbol: String,
+        avatarImageData: Data?
     ) async throws {
         if let prev = previousUsername, prev != normalized {
             claims.removeValue(forKey: prev)
@@ -35,6 +36,7 @@ final class MockUsernameRepository: UsernameRepository, @unchecked Sendable {
             username: normalized,
             displayName: displayName,
             avatarSymbol: avatarSymbol,
+            avatarImageData: avatarImageData,
             userRecordName: currentUserRecordName
         )
     }

@@ -2,11 +2,16 @@ import CloudKit
 import Foundation
 
 /// One row of the global username directory — found by `UsernameRepository`.
+/// `avatarImageData` is optional JPEG bytes a user uploaded as their photo.
+/// Stored on the public-DB UsernameClaim record so search results can render
+/// the photo even when the searcher isn't already a friend (and therefore
+/// doesn't have sharedDB access to the user's PersonalRoot).
 struct UserSearchResult: Hashable, Identifiable {
     /// The normalized username (lowercase, alphanumeric + underscore).
     var username: String
     var displayName: String
     var avatarSymbol: String
+    var avatarImageData: Data?
     var userRecordName: String
 
     var id: String { username }
@@ -43,12 +48,15 @@ protocol UsernameRepository: Sendable {
 
     /// Claim `normalized` for the current user. Frees `previousUsername` (if
     /// different) before claiming. Throws `UsernameError.alreadyTaken` if
-    /// someone else owns it.
+    /// someone else owns it. `avatarImageData` is optional photo bytes
+    /// stored on the public-DB record so search results can show the photo
+    /// to users who aren't already friends.
     func claim(
         _ normalized: String,
         previousUsername: String?,
         displayName: String,
-        avatarSymbol: String
+        avatarSymbol: String,
+        avatarImageData: Data?
     ) async throws
 
     /// Release the user's username (e.g., if they delete their account). No-op
@@ -100,7 +108,8 @@ struct CloudKitUsernameRepository: UsernameRepository {
         _ normalized: String,
         previousUsername: String?,
         displayName: String,
-        avatarSymbol: String
+        avatarSymbol: String,
+        avatarImageData: Data?
     ) async throws {
         // Release the old claim first (so re-naming "alice" → "alyce" frees
         // "alice" for someone else). Best-effort: ignore any delete failure.
@@ -117,12 +126,14 @@ struct CloudKitUsernameRepository: UsernameRepository {
             }
             existing["displayName"] = displayName
             existing["avatarSymbol"] = avatarSymbol
+            existing["avatarImageData"] = avatarImageData
             _ = try await publicDB.save(existing)
         } catch let error as CKError where error.code == .unknownItem {
             // Unclaimed — claim it fresh.
             let record = CKRecord(recordType: Self.recordType, recordID: recordID)
             record["displayName"] = displayName
             record["avatarSymbol"] = avatarSymbol
+            record["avatarImageData"] = avatarImageData
             _ = try await publicDB.save(record)
         }
     }
@@ -144,6 +155,7 @@ struct CloudKitUsernameRepository: UsernameRepository {
                 username: normalized,
                 displayName: displayName,
                 avatarSymbol: avatarSymbol,
+                avatarImageData: record["avatarImageData"] as? Data,
                 userRecordName: try await resolveCreatorRecordName(creatorID)
             )
         } catch let error as CKError where error.code == .unknownItem {

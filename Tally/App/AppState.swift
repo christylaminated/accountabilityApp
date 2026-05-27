@@ -470,11 +470,24 @@ final class AppState {
         // pointing at an unowned name.
         let previous = ownCloudProfile?.username
         if let normalized {
+            // Resolve which photo bytes to publish on the UsernameClaim:
+            //   - clearAvatarPhoto: force-nil (user removed their photo)
+            //   - avatarImageData != nil: replace with the new photo
+            //   - both nil: keep what's already stored (name-only update)
+            let publishedPhoto: Data?
+            if clearAvatarPhoto {
+                publishedPhoto = nil
+            } else if let avatarImageData {
+                publishedPhoto = avatarImageData
+            } else {
+                publishedPhoto = ownCloudProfile?.avatarImageData
+            }
             try await usernameRepository.claim(
                 normalized,
                 previousUsername: previous,
                 displayName: trimmedName,
-                avatarSymbol: avatarSymbol
+                avatarSymbol: avatarSymbol,
+                avatarImageData: publishedPhoto
             )
         } else if let previous {
             try? await usernameRepository.release(previous)
@@ -515,10 +528,18 @@ final class AppState {
     /// The recipient sees it in their in-app inbox; on Accept their app fetches
     /// our personal share URL and accepts programmatically.
     func sendFriendRequest(to userRecordName: String) async throws {
-        // Re-engagement: if this person was previously unfriended on
-        // this device, clear the local filter so they can re-appear
-        // when their zone comes back into our friend graph.
-        personalStore.clearLocalUnfriend(userID: userRecordName)
+        // NOTE: we deliberately do NOT clear locallyUnfriendedIDs here
+        // anymore. The recipient's zone may still be in our sharedDB
+        // (we don't leave their share on unfriend), so clearing the
+        // filter on send would cause the next personalStore.refresh
+        // to re-add them as a friend BEFORE they've accepted the new
+        // request — which made the UI flip from "Send friend request"
+        // straight to "Already friends" without ever showing "Sent".
+        // The flag now clears in two places: acceptFriendRequest
+        // (when we accept someone we'd previously unfriended) and the
+        // reciprocal auto-accept loop (when our request is accepted
+        // back). That keeps the unfriend filter on until the
+        // bidirectional friendship is genuinely re-established.
 
         guard !currentUserID.isEmpty else {
             throw NSError(
@@ -796,6 +817,12 @@ final class AppState {
                     NSLog("[Tally] reciprocal: fetched metadata")
                     try await acceptShareMetadata(metadata)
                     NSLog("[Tally] reciprocal: acceptShareMetadata ok")
+                    // Re-engagement: a reciprocal from this user means
+                    // we sent them a request and they accepted it back.
+                    // If they were previously in our local-unfriend filter,
+                    // clear them now so personalStore.refresh below picks
+                    // their zone back into the friend graph.
+                    personalStore.clearLocalUnfriend(userID: r.fromUserRecordName)
                     // Refresh immediately so the friend's data appears in the
                     // friends list without waiting for the loop to finish.
                     await personalStore.refresh()

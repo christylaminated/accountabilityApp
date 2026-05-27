@@ -229,7 +229,11 @@ struct CreateCircleView: View {
         let err = inviteErrors[user.userRecordName]
         return VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 12) {
-                AvatarView(symbolName: user.avatarSymbol, size: 40)
+                AvatarView(
+                    symbolName: user.avatarSymbol,
+                    imageData: user.avatarImageData,
+                    size: 40
+                )
                 VStack(alignment: .leading, spacing: 2) {
                     Text(user.displayName)
                         .font(.body.weight(.semibold))

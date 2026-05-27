@@ -97,7 +97,11 @@ struct FriendSearchView: View {
     private func foundCard(_ user: UserSearchResult) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
-                AvatarView(symbolName: user.avatarSymbol, size: 48)
+                AvatarView(
+                    symbolName: user.avatarSymbol,
+                    imageData: user.avatarImageData,
+                    size: 48
+                )
                 VStack(alignment: .leading, spacing: 2) {
                     Text(user.displayName)
                         .font(.body.weight(.semibold))
