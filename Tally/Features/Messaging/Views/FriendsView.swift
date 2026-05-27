@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// The "Friends" tab — replaces the old Chat tab. Lists my friends (with the
-/// "Add a friend" entry point) and my Groups (chat rooms). Tapping a Group
+/// "Find by username" entry point) and my Groups (chat rooms). Tapping a Group
 /// activates that Circle so its chat appears.
 struct FriendsView: View {
     @Environment(\.tallyAccent) private var tallyAccent
@@ -33,7 +33,6 @@ struct FriendsView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    addFriendButton
                     findByUsernameButton
 
                     if let err = appState.lastFriendRequestError {
@@ -236,30 +235,11 @@ struct FriendsView: View {
 
     // MARK: - Subviews
 
-    private var addFriendButton: some View {
-        Button {
-            let repo = appState.personalRepository
-            CloudShareInvitePresenter.present {
-                try await repo.makePersonalShare()
-            }
-        } label: {
-            HStack(spacing: 10) {
-                Image(systemName: "person.crop.circle.badge.plus")
-                    .font(.title3)
-                Text("Add a friend")
-                    .font(.system(.body, design: .rounded, weight: .semibold))
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(.tertiary)
-            }
-            .padding(14)
-            .background(Color.tallyCard)
-            .foregroundStyle(tallyAccent)
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        }
-        .buttonStyle(.plain)
-    }
+    // The old `addFriendButton` (which minted a personal CKShare URL and
+    // opened the iOS share sheet) was removed: CKShare links don't degrade
+    // gracefully when the recipient doesn't have the app, and the
+    // username-search path is reliable. Find-by-username is now the sole
+    // entry point for adding a friend.
 
     private var findByUsernameButton: some View {
         Button {
