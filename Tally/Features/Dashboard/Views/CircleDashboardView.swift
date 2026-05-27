@@ -10,6 +10,11 @@ struct CircleDashboardView: View {
     @State private var showProfileSettings = false
     @State private var showAddTodayGoal = false
     @State private var showFriendSearch = false
+    /// Day the user is currently viewing on the Today tab. Defaults to today
+    /// and changes when they tap a past dot in the streak chain — the rest
+    /// of the page re-scopes to that day (habits + goals are read-only when
+    /// not today).
+    @State private var selectedDay: Date = Date.now.startOfDay
 
     #if DEBUG
     @State private var debugShowSeedConfirm = false
@@ -40,13 +45,21 @@ struct CircleDashboardView: View {
         appState.personalStore.habits(for: appState.currentUserID)
     }
 
-    /// Today's day-period goals for the signed-in user.
+    /// Day-period goals dated to `selectedDay` for the signed-in user. When
+    /// the user is on today (default) this is "today's goals"; when they've
+    /// scrubbed to a past day via the streak chain, it's that day's goals.
     private var todayGoals: [Goal] {
         appState.personalStore.goals(
             for: appState.currentUserID,
             period: .day,
-            periodStart: today
+            periodStart: selectedDay
         )
+    }
+
+    /// True only when the user is viewing today (live state). Toggling
+    /// completion is disabled in past-day views to avoid back-dating.
+    private var isViewingToday: Bool {
+        selectedDay == today
     }
 
     private var friends: [Friend] {
@@ -95,9 +108,7 @@ struct CircleDashboardView: View {
                     headerArea
                     streakSection
                     habitsSection
-                    if !todayGoals.isEmpty {
-                        goalsSection
-                    }
+                    goalsSection
                     if friends.isEmpty {
                         inviteBanner
                     } else {
@@ -202,58 +213,90 @@ struct CircleDashboardView: View {
         }
     }
 
-    /// 7-dot streak chain + streak count below. No card wrapper.
-    /// Past and today dots are tappable — they push a `DayDetailView`
-    /// scoped to that calendar day so the chain feels live, not
-    /// decorative. Future dots stay non-interactive (no data to show).
+    /// 7-dot streak chain + streak count. Tapping a past or today dot
+    /// scrubs `selectedDay` so the rest of the page (habits, goals) shows
+    /// that day's state inline. Stays on the Today tab — no navigation push.
+    /// Future dots stay non-interactive.
     private var streakSection: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 12) {
                 ForEach(streakDays, id: \.self) { day in
-                    if day.startOfDay <= today.startOfDay {
-                        NavigationLink {
-                            DayDetailView(date: day, userID: appState.currentUserID)
-                        } label: {
-                            StreakDot(
-                                day: day,
-                                today: today,
-                                isActive: activeDayKeys.contains(day.startOfDay)
-                            )
+                    Button {
+                        guard day.startOfDay <= today.startOfDay else { return }
+                        withAnimation(.easeInOut(duration: 0.15)) {
+                            selectedDay = day.startOfDay
                         }
-                        .buttonStyle(.plain)
-                    } else {
+                        #if canImport(UIKit)
+                        UISelectionFeedbackGenerator().selectionChanged()
+                        #endif
+                    } label: {
                         StreakDot(
                             day: day,
                             today: today,
-                            isActive: activeDayKeys.contains(day.startOfDay)
+                            isActive: activeDayKeys.contains(day.startOfDay),
+                            isSelected: day.startOfDay == selectedDay
                         )
                     }
+                    .buttonStyle(.plain)
+                    .disabled(day.startOfDay > today.startOfDay)
                 }
                 Spacer(minLength: 0)
             }
-            if currentStreak > 0 {
-                Text("\(currentStreak)-day streak")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(Color.tallyStreak)
-                    .padding(.top, 4)
+            HStack(spacing: 8) {
+                if currentStreak > 0 {
+                    Text("\(currentStreak)-day streak")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(Color.tallyStreak)
+                }
+                if !isViewingToday {
+                    if currentStreak > 0 {
+                        Text("·")
+                            .font(.system(size: 13))
+                            .foregroundStyle(Color.tallyTextSecondary)
+                    }
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.15)) {
+                            selectedDay = today
+                        }
+                    } label: {
+                        Text("Back to today")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(Color.tallyAccent)
+                    }
+                    .buttonStyle(.plain)
+                }
             }
+            .padding(.top, 4)
         }
     }
 
-    /// Habit cards — the hero section.
+    /// Habit cards — the hero section. Header reads "Today" when on today,
+    /// otherwise the scrubbed day's name so users know they're looking at
+    /// historical state.
     private var habitsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            sectionHeader("Today")
+            sectionHeader(habitsSectionTitle)
             if myHabits.isEmpty {
                 emptyHabitsCard
             } else {
                 VStack(spacing: 10) {
                     ForEach(myHabits) { habit in
-                        HabitCard(habit: habit)
+                        HabitCard(
+                            habit: habit,
+                            date: selectedDay,
+                            isEditable: isViewingToday
+                        )
                     }
                 }
             }
         }
+    }
+
+    private var habitsSectionTitle: String {
+        if isViewingToday { return "Today" }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEEE, MMM d"
+        return formatter.string(from: selectedDay)
     }
 
     private var emptyHabitsCard: some View {
@@ -270,10 +313,45 @@ struct CircleDashboardView: View {
 
     private var goalsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            sectionHeader("Goals")
-            VStack(spacing: 10) {
-                ForEach(sortedTodayGoals) { goal in
-                    GoalRow(goal: goal)
+            HStack(alignment: .firstTextBaseline) {
+                Text("Goals".uppercased())
+                    .font(.system(size: 13, weight: .semibold))
+                    .tracking(0.8)
+                    .foregroundStyle(Color.tallyTextSecondary)
+                Spacer()
+                Button {
+                    showAddTodayGoal = true
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Color.tallyTextSecondary)
+                }
+                .buttonStyle(.plain)
+            }
+            Rectangle()
+                .fill(Color.tallyDivider)
+                .frame(height: 1)
+            if sortedTodayGoals.isEmpty {
+                Button {
+                    showAddTodayGoal = true
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: "plus.circle")
+                            .font(.system(size: 14))
+                            .foregroundStyle(Color.tallyTextSecondary)
+                        Text("Add a to-do for today")
+                            .font(.system(size: 14).italic())
+                            .foregroundStyle(Color.tallyTextSecondary)
+                        Spacer()
+                    }
+                    .padding(.vertical, 10)
+                }
+                .buttonStyle(.plain)
+            } else {
+                VStack(spacing: 10) {
+                    ForEach(sortedTodayGoals) { goal in
+                        GoalRow(goal: goal)
+                    }
                 }
             }
         }
@@ -386,11 +464,14 @@ struct CircleDashboardView: View {
 // MARK: - StreakDot
 
 /// One of the 7 circles in the streak chain. Past + active = filled. Today
-/// + not active = outlined and pulsing. Future = ghosted.
+/// + not active = outlined and pulsing. Future = ghosted. When `isSelected`
+/// is true (the user has scrubbed to this day) the dot gets a halo ring
+/// so they can see what they're looking at.
 private struct StreakDot: View {
     let day: Date
     let today: Date
     let isActive: Bool
+    let isSelected: Bool
 
     /// Day-of-week initial below the dot (M, T, W, T, F, S, S).
     private var initial: String {
@@ -428,26 +509,42 @@ private struct StreakDot: View {
                         .frame(width: 20, height: 20)
                 } else { // missed past day
                     Circle()
-                        .stroke(Color.tallyDestructive.opacity(0.3), lineWidth: 1.5)
+                        .stroke(Color.tallyTextSecondary.opacity(0.30), lineWidth: 1.5)
                         .frame(width: 20, height: 20)
                 }
             }
+            // Halo for the scrubbed-to day.
+            .overlay(
+                Group {
+                    if isSelected {
+                        Circle()
+                            .stroke(Color.tallyAccent.opacity(0.5), lineWidth: 1)
+                            .frame(width: 28, height: 28)
+                    }
+                }
+            )
             Text(initial)
-                .font(.system(size: 10))
-                .foregroundStyle(Color.tallyTextSecondary)
+                .font(.system(size: 10, weight: isSelected ? .semibold : .regular))
+                .foregroundStyle(isSelected ? Color.tallyTextPrimary : Color.tallyTextSecondary)
         }
+        .contentShape(Rectangle())
     }
 }
 
 // MARK: - HabitCard
 
-/// Full-width habit card with spring + haptic on toggle.
+/// Full-width habit card with spring + haptic on toggle. Scoped to `date`
+/// so the same card renders historical state when the user scrubs the
+/// streak chain to a past day. Toggling is gated by `isEditable` to
+/// prevent back-dating completions.
 private struct HabitCard: View {
     @Environment(AppState.self) private var appState
     let habit: Habit
+    let date: Date
+    let isEditable: Bool
 
     private var isDone: Bool {
-        appState.personalStore.isCompleted(habit: habit, on: .now)
+        appState.personalStore.isCompleted(habit: habit, on: date)
     }
 
     var body: some View {
@@ -468,8 +565,9 @@ private struct HabitCard: View {
                       : Color.tallyCard)
         )
         .shadow(color: .black.opacity(0.06), radius: 3, x: 0, y: 1)
+        .opacity(isEditable ? 1.0 : 0.85)
         .contentShape(Rectangle())
-        .onTapGesture { toggle() }
+        .onTapGesture { if isEditable { toggle() } }
     }
 
     private var checkbox: some View {
@@ -497,7 +595,7 @@ private struct HabitCard: View {
         let style: UIImpactFeedbackGenerator.FeedbackStyle = willComplete ? .medium : .light
         UIImpactFeedbackGenerator(style: style).impactOccurred()
         #endif
-        _ = appState.personalStore.toggle(habit: habit, on: .now)
+        _ = appState.personalStore.toggle(habit: habit, on: date)
     }
 }
 
