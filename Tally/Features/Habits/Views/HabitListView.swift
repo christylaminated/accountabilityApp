@@ -78,24 +78,48 @@ struct HabitListView: View {
         if habits.isEmpty {
             emptyState
         } else {
-            ScrollView {
-                VStack(spacing: 12) {
-                    if allDone {
-                        HabitCelebrationView(streakCount: celebrationStreak)
-                            .transition(.move(edge: .top).combined(with: .opacity))
-                    }
-                    progressCard
-                    ForEach(habits) { habit in
-                        HabitRowView(habit: habit)
-                    }
-                    Spacer().frame(height: 24)
+            // List (not ScrollView) so habit rows get native trailing
+            // swipe actions for Archive + Delete. Row chrome is stripped
+            // back to nothing (no separators, no list background, no
+            // padded insets) so the page reads exactly like the previous
+            // ScrollView layout.
+            List {
+                if allDone {
+                    HabitCelebrationView(streakCount: celebrationStreak)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 6, trailing: 16))
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 8)
-                // Scoped to allDone so unrelated state changes (sheet
-                // dismissals, habit additions) don't ride the same animation.
-                .animation(.easeInOut(duration: 0.3), value: allDone)
+                progressCard
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 6, trailing: 16))
+
+                ForEach(habits) { habit in
+                    HabitRowView(habit: habit)
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 6, trailing: 16))
+                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                            Button(role: .destructive) {
+                                appState.personalStore.delete(habit: habit)
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                            Button {
+                                appState.personalStore.archive(habit: habit)
+                            } label: {
+                                Label("Archive", systemImage: "archivebox")
+                            }
+                            .tint(Color.tallyTextSecondary)
+                        }
+                }
             }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(Color.tallyCanvas)
+            .animation(.easeInOut(duration: 0.3), value: allDone)
         }
     }
 

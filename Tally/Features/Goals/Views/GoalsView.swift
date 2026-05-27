@@ -38,36 +38,58 @@ struct GoalsView: View {
 
     var body: some View {
         NavigationStack {
-            ZStack {
-                Color.tallyCanvas.ignoresSafeArea()
-                ScrollView {
-                    VStack(spacing: 16) {
-                        periodPicker
-                        periodCard
-                        if isCurrentPeriod && !unfinishedPrevious.isEmpty {
-                            carryOverSection
-                        }
-                        if goals.isEmpty {
-                            EmptyStateView(
-                                icon: "flag",
-                                title: "No goals for \(selectedPeriod.thisLabel)",
-                                message: "Tap + to set your first goal for \(selectedPeriod.thisLabel)."
-                            )
-                            .padding(.top, 24)
-                        } else {
-                            VStack(spacing: 8) {
-                                ForEach(goals) { goal in
-                                    GoalRow(goal: goal)
+            // List (not ScrollView) so goal rows get a native trailing
+            // swipe-to-delete. Row chrome stripped to preserve the
+            // existing visual: no separators, no list background,
+            // matched insets.
+            List {
+                periodPicker
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+
+                periodCard
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 8, trailing: 16))
+
+                if isCurrentPeriod && !unfinishedPrevious.isEmpty {
+                    carryOverSection
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 8, trailing: 16))
+                }
+
+                if goals.isEmpty {
+                    EmptyStateView(
+                        icon: "flag",
+                        title: "No goals for \(selectedPeriod.thisLabel)",
+                        message: "Tap + to set your first goal for \(selectedPeriod.thisLabel)."
+                    )
+                    .padding(.top, 24)
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets())
+                } else {
+                    ForEach(goals) { goal in
+                        GoalRow(goal: goal)
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
+                            .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 8, trailing: 16))
+                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                Button(role: .destructive) {
+                                    appState.personalStore.delete(goal: goal)
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
                                 }
                             }
-                        }
-                        Spacer().frame(height: 24)
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 8)
                 }
-                .refreshable { await appState.refreshCircleData() }
             }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(Color.tallyCanvas)
+            .refreshable { await appState.refreshCircleData() }
             .navigationTitle("Goals")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
