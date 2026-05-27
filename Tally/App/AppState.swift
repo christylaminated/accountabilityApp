@@ -649,12 +649,13 @@ final class AppState {
     /// it fails we still want step 1 to stick.
     func unfriend(_ friend: Friend) async throws {
         let recordID = CKRecord.ID(recordName: friend.userID)
+        // Step 1: revoke their access to my zone. Must succeed — this is the
+        // trust-relevant half.
         try await personalRepository.removeFriendParticipant(userRecordID: recordID)
-        do {
-            try await personalRepository.leaveFriendShare(ownerRecordName: friend.userID)
-        } catch {
-            NSLog("[Tally] unfriend: leaveFriendShare failed: \(error.localizedDescription)")
-        }
+        // Step 2: leave their share so they drop out of MY friends list.
+        // Surface this error rather than swallowing it: when it fails the
+        // user observes "they still appear in my list" with no explanation.
+        try await personalRepository.leaveFriendShare(ownerRecordName: friend.userID)
         await personalStore.refresh()
         // Also refresh requests in case any pending/outgoing involving this
         // user need to clear out now that they're no longer a friend.

@@ -285,18 +285,41 @@ struct CloudKitPersonalRepository: PersonalRepository {
         guard let zone = zones.first(where: {
             $0.zoneID.zoneName == Self.zoneName
                 && $0.zoneID.ownerName == ownerRecordName
-        }) else { return }
+        }) else {
+            NSLog("[Tally] leaveFriendShare: no shared zone for owner=\(ownerRecordName)")
+            return
+        }
 
         let rootID = CKRecord.ID(recordName: Self.rootRecordName, zoneID: zone.zoneID)
         let root = try await client.sharedDB.record(for: rootID)
-        guard let shareRef = root.share else { return }
+        guard let shareRef = root.share else {
+            NSLog("[Tally] leaveFriendShare: root has no share for owner=\(ownerRecordName)")
+            return
+        }
         let fetched = try await client.sharedDB.record(for: shareRef.recordID)
-        guard let share = fetched as? CKShare else { return }
+        guard let share = fetched as? CKShare else {
+            NSLog("[Tally] leaveFriendShare: share record cast failed")
+            return
+        }
 
+        // Find my own participant entry. CloudKit substitutes the sentinel
+        // `__defaultOwner__` for the CURRENT user's userRecordID.recordName
+        // when reading a participant list (same quirk we hit in the
+        // UsernameRepository creator-ID code). So match against either the
+        // sentinel OR my real record name to be robust.
         let myRecordName = try await client.userRecordID().recordName
-        guard let me = share.participants.first(where: {
-            $0.userIdentity.userRecordID?.recordName == myRecordName
-        }) else { return }
+        let participantNames = share.participants.compactMap {
+            $0.userIdentity.userRecordID?.recordName
+        }
+        NSLog("[Tally] leaveFriendShare: my=\(myRecordName) participants=\(participantNames)")
+
+        guard let me = share.participants.first(where: { p in
+            let name = p.userIdentity.userRecordID?.recordName
+            return name == myRecordName || name == CKCurrentUserDefaultName
+        }) else {
+            NSLog("[Tally] leaveFriendShare: couldn't find self in participants — already left?")
+            return
+        }
 
         share.removeParticipant(me)
         _ = try await client.sharedDB.modifyRecords(
@@ -305,6 +328,7 @@ struct CloudKitPersonalRepository: PersonalRepository {
             savePolicy: .allKeys,
             atomically: false
         )
+        NSLog("[Tally] leaveFriendShare: removed self from owner=\(ownerRecordName)'s share")
     }
 
     func friendZones() async throws -> [CKRecordZone] {
