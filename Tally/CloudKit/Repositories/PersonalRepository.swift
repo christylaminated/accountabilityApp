@@ -325,48 +325,63 @@ struct CloudKitPersonalRepository: PersonalRepository {
             return
         }
 
-        // Find my own participant entry. CloudKit substitutes the sentinel
-        // `__defaultOwner__` for the CURRENT user's userRecordID.recordName
-        // when reading a participant list (same quirk we hit in the
-        // UsernameRepository creator-ID code). Match against either the
-        // sentinel OR my real record name.
-        let myRecordName = try await client.userRecordID().recordName
-        let participantNames = share.participants.compactMap {
-            $0.userIdentity.userRecordID?.recordName
-        }
-        NSLog("[Tally] leaveFriendShare: my=\(myRecordName) participants=\(participantNames)")
-
-        guard let me = share.participants.first(where: { p in
-            let name = p.userIdentity.userRecordID?.recordName
-            return name == myRecordName || name == CKCurrentUserDefaultName
-        }) else {
-            NSLog("[Tally] leaveFriendShare: couldn't find self in participants — already left?")
+        // Use CKShare.currentUserParticipant — Apple's blessed accessor
+        // for "the participant entry representing this device's iCloud
+        // user". Replaces our earlier hand-rolled recordName match,
+        // which had to special-case the `__defaultOwner__` sentinel and
+        // wasn't bulletproof against participant-identity edge cases.
+        guard let me = share.currentUserParticipant else {
+            NSLog("[Tally] leaveFriendShare: no currentUserParticipant (already left?) participants=\(share.participants.count)")
             return
         }
 
-        // Defensive: never try to "leave" a share I own. removeParticipant
-        // on the owner participant raises an NSException — that would
-        // crash with no Swift `catch` recourse. If we ever end up here on
-        // a share whose owner is us, it's a state we don't understand;
-        // bail loudly instead of swinging at it.
+        // Defensive precondition checks for share.removeParticipant.
+        // That method raises NSInternalInconsistencyException — an Obj-C
+        // exception Swift `try` can't catch — when its inputs violate any
+        // of these invariants. A real crash log from build 12 shows an
+        // unhandled obj-c exception thrown by CloudKit on the unfriend
+        // path, so each precondition gets its own log + early return.
+
+        // 1. Never call removeParticipant on the share's owner. If we'd
+        //    be removing ourselves AS the owner, we're operating on the
+        //    wrong share entirely.
         guard me.role != .owner else {
             NSLog("[Tally] leaveFriendShare: refusing to remove self as OWNER of share for \(ownerRecordName)")
             return
         }
 
+        // 2. Acceptance status must be `.accepted`. Removing a
+        //    `.pending` / `.removed` / `.unknown` participant is
+        //    documented to be undefined and has raised in the field.
+        guard me.acceptanceStatus == .accepted else {
+            NSLog("[Tally] leaveFriendShare: my acceptanceStatus=\(me.acceptanceStatus.rawValue) — skipping remove")
+            return
+        }
+
+        // 3. Sanity check: the participant we resolved is actually in
+        //    the share's participants array. Should always be true if
+        //    currentUserParticipant returned non-nil, but the share
+        //    record might be in a transient state — guard anyway.
+        guard share.participants.contains(where: { $0 == me }) else {
+            NSLog("[Tally] leaveFriendShare: currentUserParticipant not in participants array — race? bailing")
+            return
+        }
+
+        NSLog("[Tally] leaveFriendShare: about to remove self (role=\(me.role.rawValue), status=\(me.acceptanceStatus.rawValue))")
         share.removeParticipant(me)
         do {
             _ = try await client.sharedDB.modifyRecords(
                 saving: [share],
                 deleting: [],
-                savePolicy: .allKeys,
+                // `.ifServerRecordUnchanged` instead of `.allKeys` so a
+                // concurrent change (e.g., owner modifying the share at
+                // the same time) returns a regular CKError instead of
+                // server-side rejection that could surface oddly.
+                savePolicy: .ifServerRecordUnchanged,
                 atomically: false
             )
             NSLog("[Tally] leaveFriendShare: removed self from owner=\(ownerRecordName)'s share")
         } catch {
-            // Most likely a server-record-changed conflict from stale
-            // share state — surface it but don't crash, the caller can
-            // decide whether to retry.
             NSLog("[Tally] leaveFriendShare: modifyRecords failed — \(error.localizedDescription)")
             throw error
         }
