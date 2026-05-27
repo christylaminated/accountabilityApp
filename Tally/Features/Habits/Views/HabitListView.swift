@@ -64,11 +64,7 @@ struct HabitListView: View {
     @ViewBuilder
     private var content: some View {
         if habits.isEmpty {
-            EmptyStateView(
-                icon: "checkmark.circle",
-                title: "No habits yet",
-                message: "Add your first daily habit to start tracking."
-            )
+            emptyState
         } else {
             ScrollView {
                 VStack(spacing: 12) {
@@ -92,20 +88,55 @@ struct HabitListView: View {
     }
 
     private var progressCard: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Today")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                Text("\(doneToday) of \(habits.count) done")
-                    .font(.title3.weight(.semibold))
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Today")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    Text("\(doneToday) of \(habits.count) done")
+                        .font(.title3.weight(.semibold))
+                }
+                Spacer()
+                ProgressGauge(value: habits.isEmpty ? 0 : Double(doneToday) / Double(habits.count))
             }
-            Spacer()
-            ProgressGauge(value: habits.isEmpty ? 0 : Double(doneToday) / Double(habits.count))
+            // Subtext only when no habit is done yet today. Once any
+            // progress exists the ring carries the message; once all
+            // done the inline celebration takes over.
+            if doneToday == 0 {
+                Text("If you were the person you want to be, what would you do today?")
+                    .font(.system(size: 14))
+                    .foregroundStyle(Color.tallyTextSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .padding(16)
         .background(Color.tallyCard)
         .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+
+    /// Empty state when the user has zero habits. Lives inline (rather
+    /// than reusing the generic EmptyStateView) so the call-to-action
+    /// can route through `showAddSheet` and the copy can be punchy
+    /// without the icon + tagline scaffolding.
+    private var emptyState: some View {
+        VStack(spacing: 24) {
+            Text("If you were the person you want to be, what would you do daily?")
+                .font(.system(size: 20, weight: .medium))
+                .foregroundStyle(Color.tallyTextPrimary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 32)
+            Button {
+                showAddSheet = true
+            } label: {
+                Label("Add your first habit", systemImage: "plus")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(Color.tallyAccent)
+            }
+            .buttonStyle(.plain)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 

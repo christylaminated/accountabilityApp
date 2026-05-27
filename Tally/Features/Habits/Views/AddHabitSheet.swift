@@ -14,7 +14,7 @@ struct AddHabitSheet: View {
         NavigationStack {
             Form {
                 Section("Habit") {
-                    TextField("e.g. Read 30 minutes", text: $title)
+                    TextField("What would your dream self do daily?", text: $title)
                         .autocorrectionDisabled(false)
                 }
                 Section {
