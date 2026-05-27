@@ -127,10 +127,26 @@ struct CircleDashboardView: View {
                     Button {
                         showProfileSettings = true
                     } label: {
-                        Image(systemName: "gearshape")
-                            .font(.body)
-                            .foregroundStyle(Color.tallyTextSecondary)
+                        if let photo = appState.ownCloudProfile?.avatarImageData {
+                            // Once a photo is uploaded it earns the toolbar
+                            // spot — recognizable affordance for "tap me to
+                            // edit my profile". Still opens settings.
+                            AvatarView(
+                                symbolName: appState.ownCloudProfile?.avatarSymbol ?? "leaf",
+                                imageData: photo,
+                                size: 32
+                            )
+                            .overlay(
+                                Circle().stroke(Color.tallyTextSecondary.opacity(0.20),
+                                                lineWidth: 0.5)
+                            )
+                        } else {
+                            Image(systemName: "gearshape")
+                                .font(.body)
+                                .foregroundStyle(Color.tallyTextSecondary)
+                        }
                     }
+                    .accessibilityLabel("Profile")
                 }
             }
             .navigationDestination(for: String.self) { userID in

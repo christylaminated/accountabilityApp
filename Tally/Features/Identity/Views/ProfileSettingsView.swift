@@ -18,6 +18,12 @@ struct ProfileSettingsView: View {
     @State private var avatarPhotoData: Data?
     @State private var clearAvatarPhoto: Bool = false
     @State private var pickedPhotoItem: PhotosPickerItem?
+    /// Driven by every button that should bring up the picker. We can't
+    /// have two `PhotosPicker` views bound to the same selection — when
+    /// the binding updates after a pick, SwiftUI re-evaluates both
+    /// pickers and re-presents the system sheet. One `.photosPicker(...)`
+    /// modifier driven by this flag avoids that loop.
+    @State private var showPhotoPicker = false
     @State private var isSaving = false
     @State private var errorMessage: String?
 
@@ -121,6 +127,15 @@ struct ProfileSettingsView: View {
             .onChange(of: pickedPhotoItem) { _, item in
                 Task { await loadPickedPhoto(item) }
             }
+            // Single picker presentation for the whole screen — driven by
+            // showPhotoPicker. Any button that wants to trigger it just
+            // flips the flag.
+            .photosPicker(
+                isPresented: $showPhotoPicker,
+                selection: $pickedPhotoItem,
+                matching: .images,
+                photoLibrary: .shared()
+            )
         }
     }
 
@@ -128,17 +143,15 @@ struct ProfileSettingsView: View {
 
     private var photoPickerRow: some View {
         VStack(spacing: 12) {
-            ZStack(alignment: .bottomTrailing) {
-                AvatarView(
-                    symbolName: avatarSymbol,
-                    imageData: previewImageData,
-                    size: 96
-                )
-                PhotosPicker(
-                    selection: $pickedPhotoItem,
-                    matching: .images,
-                    photoLibrary: .shared()
-                ) {
+            Button {
+                showPhotoPicker = true
+            } label: {
+                ZStack(alignment: .bottomTrailing) {
+                    AvatarView(
+                        symbolName: avatarSymbol,
+                        imageData: previewImageData,
+                        size: 96
+                    )
                     Image(systemName: "camera.fill")
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(.white)
@@ -147,18 +160,19 @@ struct ProfileSettingsView: View {
                         .clipShape(Circle())
                         .overlay(Circle().stroke(Color.tallyCanvas, lineWidth: 2))
                 }
-                .accessibilityLabel("Choose photo")
             }
+            .buttonStyle(.plain)
+            .accessibilityLabel(previewImageData == nil ? "Add photo" : "Change photo")
+
             HStack(spacing: 14) {
-                PhotosPicker(
-                    selection: $pickedPhotoItem,
-                    matching: .images,
-                    photoLibrary: .shared()
-                ) {
+                Button {
+                    showPhotoPicker = true
+                } label: {
                     Text(previewImageData == nil ? "Add a photo" : "Change photo")
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(tallyAccent)
                 }
+                .buttonStyle(.plain)
                 if previewImageData != nil {
                     Button {
                         avatarPhotoData = nil
