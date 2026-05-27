@@ -1,4 +1,8 @@
 import SwiftUI
+import PhotosUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 /// Profile + appearance settings. Edit name, username, avatar, and the app's
 /// theme. Name/avatar/username save to CloudKit; theme is local-only and
@@ -11,6 +15,9 @@ struct ProfileSettingsView: View {
     @State private var displayName: String = ""
     @State private var avatarSymbol: String = "leaf"
     @State private var username: String = ""
+    @State private var avatarPhotoData: Data?
+    @State private var clearAvatarPhoto: Bool = false
+    @State private var pickedPhotoItem: PhotosPickerItem?
     @State private var isSaving = false
     @State private var errorMessage: String?
 
@@ -40,9 +47,22 @@ struct ProfileSettingsView: View {
         !trimmedName.isEmpty && trimmedName.count <= 50 && usernameValid
     }
 
+    /// What the avatar preview should render. Local picks beat the stored
+    /// photo (live preview while editing), stored photo beats nothing.
+    private var previewImageData: Data? {
+        if clearAvatarPhoto { return nil }
+        return avatarPhotoData ?? appState.ownCloudProfile?.avatarImageData
+    }
+
     var body: some View {
         NavigationStack {
             Form {
+                Section {
+                    photoPickerRow
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .padding(.vertical, 8)
+                }
+
                 Section("Your name") {
                     TextField("Name", text: $displayName)
                         .textInputAutocapitalization(.words)
@@ -62,9 +82,13 @@ struct ProfileSettingsView: View {
                     Text("3–20 characters: letters, numbers, or underscores. Your username is how friends find you to send a request.")
                 }
 
-                Section("Your icon") {
+                Section {
                     symbolGrid
                         .padding(.vertical, 8)
+                } header: {
+                    Text("Fallback icon")
+                } footer: {
+                    Text("Used when you don't have a photo set, or to remove your photo above.")
                 }
 
                 Section("Theme") {
@@ -94,10 +118,94 @@ struct ProfileSettingsView: View {
                 }
             }
             .onAppear { loadFromAppState() }
+            .onChange(of: pickedPhotoItem) { _, item in
+                Task { await loadPickedPhoto(item) }
+            }
         }
     }
 
-    // MARK: - Pickers
+    // MARK: - Avatar photo picker
+
+    private var photoPickerRow: some View {
+        VStack(spacing: 12) {
+            ZStack(alignment: .bottomTrailing) {
+                AvatarView(
+                    symbolName: avatarSymbol,
+                    imageData: previewImageData,
+                    size: 96
+                )
+                PhotosPicker(
+                    selection: $pickedPhotoItem,
+                    matching: .images,
+                    photoLibrary: .shared()
+                ) {
+                    Image(systemName: "camera.fill")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 30, height: 30)
+                        .background(tallyAccent)
+                        .clipShape(Circle())
+                        .overlay(Circle().stroke(Color.tallyCanvas, lineWidth: 2))
+                }
+                .accessibilityLabel("Choose photo")
+            }
+            HStack(spacing: 14) {
+                PhotosPicker(
+                    selection: $pickedPhotoItem,
+                    matching: .images,
+                    photoLibrary: .shared()
+                ) {
+                    Text(previewImageData == nil ? "Add a photo" : "Change photo")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(tallyAccent)
+                }
+                if previewImageData != nil {
+                    Button {
+                        avatarPhotoData = nil
+                        clearAvatarPhoto = true
+                        pickedPhotoItem = nil
+                    } label: {
+                        Text("Remove")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(Color.tallyDestructive)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    /// Pull the picked image off the PhotosPicker, decode and resize to a
+    /// reasonable avatar dimension (256pt square @ JPEG 0.7) so we don't
+    /// ship multi-megabyte camera-roll bitmaps to CloudKit on every save.
+    private func loadPickedPhoto(_ item: PhotosPickerItem?) async {
+        guard let item else { return }
+        do {
+            guard let raw = try await item.loadTransferable(type: Data.self) else { return }
+            #if canImport(UIKit)
+            let resized = resizeJPEG(raw, maxDimension: 256, quality: 0.7)
+            avatarPhotoData = resized
+            clearAvatarPhoto = false
+            #endif
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    #if canImport(UIKit)
+    private func resizeJPEG(_ data: Data, maxDimension: CGFloat, quality: CGFloat) -> Data? {
+        guard let image = UIImage(data: data) else { return nil }
+        let scale = min(maxDimension / image.size.width, maxDimension / image.size.height, 1.0)
+        let newSize = CGSize(width: image.size.width * scale, height: image.size.height * scale)
+        let renderer = UIGraphicsImageRenderer(size: newSize)
+        let resized = renderer.image { _ in
+            image.draw(in: CGRect(origin: .zero, size: newSize))
+        }
+        return resized.jpegData(compressionQuality: quality)
+    }
+    #endif
+
+    // MARK: - Symbol grid
 
     private var symbolGrid: some View {
         let columns = Array(
@@ -132,6 +240,8 @@ struct ProfileSettingsView: View {
             }
         }
     }
+
+    // MARK: - Theme picker
 
     /// Four swatches — one per `TallyTheme`. Tap immediately switches the
     /// whole app (no save needed; theme is local state, not server state).
@@ -186,8 +296,8 @@ struct ProfileSettingsView: View {
         displayName = appState.ownCloudProfile?.displayName ?? ""
         avatarSymbol = appState.ownCloudProfile?.avatarSymbol ?? "leaf"
         username = appState.ownCloudProfile?.username ?? ""
-        // Theme isn't loaded here — it's already live via ThemeManager and
-        // the swatch reads appState.theme directly.
+        avatarPhotoData = nil      // pending pick — distinct from stored
+        clearAvatarPhoto = false
     }
 
     private func save() async {
@@ -199,7 +309,9 @@ struct ProfileSettingsView: View {
             try await appState.updateProfile(
                 displayName: trimmedName,
                 avatarSymbol: avatarSymbol,
-                username: trimmedUsername.isEmpty ? nil : trimmedUsername
+                username: trimmedUsername.isEmpty ? nil : trimmedUsername,
+                avatarImageData: avatarPhotoData,
+                clearAvatarPhoto: clearAvatarPhoto
             )
             dismiss()
         } catch {

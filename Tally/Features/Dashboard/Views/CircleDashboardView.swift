@@ -705,10 +705,14 @@ private struct FriendActivityRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            AvatarView(symbolName: friend.avatarSymbol, size: 32)
-                .overlay(
-                    Circle().stroke(Color.tallyAccent.opacity(0.30), lineWidth: 1)
-                )
+            AvatarView(
+                symbolName: friend.avatarSymbol,
+                imageData: friend.avatarImageData,
+                size: 32
+            )
+            .overlay(
+                Circle().stroke(Color.tallyAccent.opacity(0.30), lineWidth: 1)
+            )
             VStack(alignment: .leading, spacing: 2) {
                 Text(friend.displayName)
                     .font(.system(size: 15, weight: .medium))

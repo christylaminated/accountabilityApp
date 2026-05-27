@@ -124,7 +124,8 @@ final class PersonalStore {
                     nextFriends.append(Friend(
                         userID: userID,
                         displayName: root.displayName.isEmpty ? "Friend" : root.displayName,
-                        avatarSymbol: root.avatarSymbol
+                        avatarSymbol: root.avatarSymbol,
+                        avatarImageData: root.avatarImageData
                     ))
                 } else {
                     nextFriends.append(Friend(userID: userID, displayName: "Friend", avatarSymbol: "leaf"))
@@ -191,7 +192,8 @@ final class PersonalStore {
                         upsertFriend(
                             userID: zone.zoneID.ownerName,
                             displayName: root.displayName.isEmpty ? "Friend" : root.displayName,
-                            avatarSymbol: root.avatarSymbol
+                            avatarSymbol: root.avatarSymbol,
+                            avatarImageData: root.avatarImageData
                         )
                     } else if !friends.contains(where: { $0.userID == zone.zoneID.ownerName }) {
                         friends.append(Friend(
@@ -239,12 +241,25 @@ final class PersonalStore {
     }
 
     /// Insert-or-update a friend row keyed by userID.
-    private func upsertFriend(userID: String, displayName: String, avatarSymbol: String) {
+    private func upsertFriend(
+        userID: String,
+        displayName: String,
+        avatarSymbol: String,
+        avatarImageData: Data? = nil
+    ) {
         if let i = friends.firstIndex(where: { $0.userID == userID }) {
             friends[i].displayName = displayName
             friends[i].avatarSymbol = avatarSymbol
+            if let avatarImageData {
+                friends[i].avatarImageData = avatarImageData
+            }
         } else {
-            friends.append(Friend(userID: userID, displayName: displayName, avatarSymbol: avatarSymbol))
+            friends.append(Friend(
+                userID: userID,
+                displayName: displayName,
+                avatarSymbol: avatarSymbol,
+                avatarImageData: avatarImageData
+            ))
         }
     }
 

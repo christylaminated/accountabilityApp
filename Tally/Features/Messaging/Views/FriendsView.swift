@@ -370,7 +370,11 @@ private struct DMRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            AvatarView(symbolName: peer?.avatarSymbol ?? "person", size: 44)
+            AvatarView(
+                symbolName: peer?.avatarSymbol ?? "person",
+                imageData: peer?.avatarImageData,
+                size: 44
+            )
             VStack(alignment: .leading, spacing: 2) {
                 Text(peer?.displayName ?? circle.name)
                     .font(.body.weight(.semibold))

@@ -13,6 +13,7 @@ final class MockProfileRepository: ProfileRepository, @unchecked Sendable {
     init(profile: UserProfile? = UserProfile(
         displayName: "You",
         avatarSymbol: "leaf",
+        avatarImageData: nil,
         username: nil,
         createdAt: .now
     )) {
@@ -26,11 +27,22 @@ final class MockProfileRepository: ProfileRepository, @unchecked Sendable {
     func saveOwnProfile(
         displayName: String,
         avatarSymbol: String,
+        avatarImageData: Data?,
+        clearAvatarPhoto: Bool,
         username: String?
     ) async throws -> UserProfile {
+        let resolvedPhoto: Data?
+        if clearAvatarPhoto {
+            resolvedPhoto = nil
+        } else if let avatarImageData {
+            resolvedPhoto = avatarImageData
+        } else {
+            resolvedPhoto = stored?.avatarImageData
+        }
         let profile = UserProfile(
             displayName: displayName,
             avatarSymbol: avatarSymbol,
+            avatarImageData: resolvedPhoto,
             username: username,
             createdAt: stored?.createdAt ?? .now
         )

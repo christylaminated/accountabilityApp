@@ -145,7 +145,11 @@ struct MemberDetailView: View {
 
     private func header(_ member: Friend) -> some View {
         HStack(spacing: 16) {
-            AvatarView(symbolName: member.avatarSymbol, size: 72)
+            AvatarView(
+                symbolName: member.avatarSymbol,
+                imageData: member.avatarImageData,
+                size: 72
+            )
             VStack(alignment: .leading, spacing: 4) {
                 Text(member.displayName)
                     .font(.system(.title2, design: .rounded, weight: .semibold))

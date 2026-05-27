@@ -42,9 +42,16 @@ protocol PersonalRepository: Sendable {
     /// Delete records by name from my private zone.
     func deleteOwnPrivate(recordNames: [String]) async throws
 
-    /// Write the user's display name + avatar into PersonalRoot so friends
-    /// can render this user. Idempotent.
-    func updatePersonalRootProfile(displayName: String, avatarSymbol: String) async throws
+    /// Write the user's display name + avatar (symbol + optional photo bytes)
+    /// into PersonalRoot so friends can render this user. Idempotent. Pass
+    /// `clearAvatarPhoto: true` to wipe a previously-set photo; otherwise a
+    /// nil `avatarImageData` preserves whatever's already stored.
+    func updatePersonalRootProfile(
+        displayName: String,
+        avatarSymbol: String,
+        avatarImageData: Data?,
+        clearAvatarPhoto: Bool
+    ) async throws
 
     /// Mint or fetch the CKShare on my personal zone. Required before inviting
     /// anyone as a friend.
@@ -398,15 +405,27 @@ struct CloudKitPersonalRepository: PersonalRepository {
         }
     }
 
-    func updatePersonalRootProfile(displayName: String, avatarSymbol: String) async throws {
+    func updatePersonalRootProfile(
+        displayName: String,
+        avatarSymbol: String,
+        avatarImageData: Data?,
+        clearAvatarPhoto: Bool
+    ) async throws {
         let record = try await client.privateDB.record(for: rootRecordID)
         record["displayName"] = displayName
         record["avatarSymbol"] = avatarSymbol
+        // Three-way merge for the photo, same semantics as ProfileRepository
+        // — keep stored value when caller just wants to update name only.
+        if clearAvatarPhoto {
+            record["avatarImageData"] = nil as Data?
+        } else if let avatarImageData {
+            record["avatarImageData"] = avatarImageData
+        }
         _ = try await client.privateDB.save(record)
     }
 
     private func createRoot(at rootID: CKRecord.ID) async throws {
-        let root = PersonalRoot(displayName: "", avatarSymbol: "leaf", createdAt: .now)
+        let root = PersonalRoot(displayName: "", avatarSymbol: "leaf", avatarImageData: nil, createdAt: .now)
         let record = root.toRecord(recordID: rootID)
         _ = try await client.privateDB.save(record)
     }

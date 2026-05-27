@@ -50,5 +50,10 @@ final class MockPersonalRepository: PersonalRepository, @unchecked Sendable {
         PersonalSnapshot()
     }
 
-    func updatePersonalRootProfile(displayName: String, avatarSymbol: String) async throws {}
+    func updatePersonalRootProfile(
+        displayName: String,
+        avatarSymbol: String,
+        avatarImageData: Data?,
+        clearAvatarPhoto: Bool
+    ) async throws {}
 }

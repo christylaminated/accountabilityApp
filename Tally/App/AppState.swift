@@ -300,10 +300,16 @@ final class AppState {
     /// Called from `ProfileSetupView` on submit. Persists to CloudKit, mirrors
     /// the user's name + avatar into their personal zone's root record so
     /// friends can render them, then routes to habits setup.
-    func saveProfile(displayName: String, avatarSymbol: String) async throws {
+    func saveProfile(
+        displayName: String,
+        avatarSymbol: String,
+        avatarImageData: Data? = nil
+    ) async throws {
         let profile = try await profileRepository.saveOwnProfile(
             displayName: displayName,
             avatarSymbol: avatarSymbol,
+            avatarImageData: avatarImageData,
+            clearAvatarPhoto: false,
             username: nil
         )
         isFirstRunOnboarding = true
@@ -317,7 +323,9 @@ final class AppState {
         try? await personalRepository.ensurePersonalZone()
         try? await personalRepository.updatePersonalRootProfile(
             displayName: displayName,
-            avatarSymbol: avatarSymbol
+            avatarSymbol: avatarSymbol,
+            avatarImageData: avatarImageData,
+            clearAvatarPhoto: false
         )
 
         // Route through the theme picker on a first run if the user hasn't
@@ -444,7 +452,9 @@ final class AppState {
     func updateProfile(
         displayName: String,
         avatarSymbol: String,
-        username: String?
+        username: String?,
+        avatarImageData: Data? = nil,
+        clearAvatarPhoto: Bool = false
     ) async throws {
         let trimmedName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
         let normalized: String? = username.flatMap { usernameRepository.normalize($0) }
@@ -473,14 +483,18 @@ final class AppState {
         let profile = try await profileRepository.saveOwnProfile(
             displayName: trimmedName,
             avatarSymbol: avatarSymbol,
+            avatarImageData: avatarImageData,
+            clearAvatarPhoto: clearAvatarPhoto,
             username: normalized
         )
         persistProfile(profile)
 
-        // Push to PersonalRoot so friends see the new name + avatar.
+        // Push to PersonalRoot so friends see the new name + avatar + photo.
         try? await personalRepository.updatePersonalRootProfile(
             displayName: trimmedName,
-            avatarSymbol: avatarSymbol
+            avatarSymbol: avatarSymbol,
+            avatarImageData: avatarImageData,
+            clearAvatarPhoto: clearAvatarPhoto
         )
     }
 

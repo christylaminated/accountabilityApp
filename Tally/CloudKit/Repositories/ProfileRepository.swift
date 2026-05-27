@@ -11,10 +11,14 @@ protocol ProfileRepository: Sendable {
 
     /// Create or update the signed-in user's profile. Returns the saved record.
     /// `username` is optional — uniqueness is enforced separately by
-    /// `UsernameRepository` against the public DB.
+    /// `UsernameRepository` against the public DB. `avatarImageData` is
+    /// optional JPEG bytes (a user-uploaded photo); pass nil to keep the
+    /// stored avatar (or remove it via `clearAvatarPhoto: true`).
     func saveOwnProfile(
         displayName: String,
         avatarSymbol: String,
+        avatarImageData: Data?,
+        clearAvatarPhoto: Bool,
         username: String?
     ) async throws -> UserProfile
 }
@@ -49,26 +53,44 @@ struct CloudKitProfileRepository: ProfileRepository {
     func saveOwnProfile(
         displayName: String,
         avatarSymbol: String,
+        avatarImageData: Data?,
+        clearAvatarPhoto: Bool,
         username: String?
     ) async throws -> UserProfile {
+        // Update-if-exists, create-if-not. CloudKit doesn't have an "upsert"
+        // so we read first; on `.unknownItem` we build a fresh record.
+        let record: CKRecord
+        var existingPhoto: Data? = nil
+        do {
+            let existing = try await client.privateDB.record(for: ownProfileRecordID)
+            existingPhoto = existing["avatarImageData"] as? Data
+            record = existing
+        } catch let error as CKError where error.code == .unknownItem {
+            record = CKRecord(recordType: UserProfile.recordType, recordID: ownProfileRecordID)
+        }
+
+        // Three-way merge for the photo:
+        //   - clearAvatarPhoto: force-nil (user removed their photo).
+        //   - avatarImageData != nil: replace with the new photo.
+        //   - both nil: keep what's already stored (avoids accidentally
+        //     wiping the photo when the caller only intends to update name).
+        let resolvedPhoto: Data?
+        if clearAvatarPhoto {
+            resolvedPhoto = nil
+        } else if let avatarImageData {
+            resolvedPhoto = avatarImageData
+        } else {
+            resolvedPhoto = existingPhoto
+        }
+
         let profile = UserProfile(
             displayName: displayName,
             avatarSymbol: avatarSymbol,
+            avatarImageData: resolvedPhoto,
             username: username,
-            createdAt: .now
+            createdAt: (record["createdAt"] as? Date) ?? .now
         )
-
-        // Update-if-exists, create-if-not. CloudKit doesn't have an "upsert" so
-        // we read first; on `.unknownItem` we build a fresh record.
-        let record: CKRecord
-        do {
-            let existing = try await client.privateDB.record(for: ownProfileRecordID)
-            profile.populate(existing)
-            record = existing
-        } catch let error as CKError where error.code == .unknownItem {
-            record = profile.toRecord(recordID: ownProfileRecordID)
-        }
-
+        profile.populate(record)
         _ = try await client.privateDB.save(record)
         return profile
     }
