@@ -287,23 +287,39 @@ struct CloudKitPersonalRepository: PersonalRepository {
     func leaveFriendShare(ownerRecordName: String) async throws {
         // The friend's personal zone lives in our sharedDB under their
         // ownerName. Find it; if it's already gone (e.g., they unfriended
-        // us first), the call is a no-op.
+        // us first), the call is a no-op. Each early-return path logs so
+        // partial-state debugging is possible from the console.
+        NSLog("[Tally] leaveFriendShare: start owner=\(ownerRecordName)")
         let zones = try await client.sharedDB.allRecordZones()
         guard let zone = zones.first(where: {
             $0.zoneID.zoneName == Self.zoneName
                 && $0.zoneID.ownerName == ownerRecordName
         }) else {
-            NSLog("[Tally] leaveFriendShare: no shared zone for owner=\(ownerRecordName)")
+            NSLog("[Tally] leaveFriendShare: no shared zone for owner=\(ownerRecordName) (already gone)")
             return
         }
 
         let rootID = CKRecord.ID(recordName: Self.rootRecordName, zoneID: zone.zoneID)
-        let root = try await client.sharedDB.record(for: rootID)
+        let root: CKRecord
+        do {
+            root = try await client.sharedDB.record(for: rootID)
+        } catch let error as CKError where error.code == .unknownItem || error.code == .zoneNotFound {
+            // Zone is being torn down server-side — nothing left to leave.
+            NSLog("[Tally] leaveFriendShare: root missing for owner=\(ownerRecordName) — \(error.code)")
+            return
+        }
+
         guard let shareRef = root.share else {
             NSLog("[Tally] leaveFriendShare: root has no share for owner=\(ownerRecordName)")
             return
         }
-        let fetched = try await client.sharedDB.record(for: shareRef.recordID)
+        let fetched: CKRecord
+        do {
+            fetched = try await client.sharedDB.record(for: shareRef.recordID)
+        } catch let error as CKError where error.code == .unknownItem {
+            NSLog("[Tally] leaveFriendShare: share record missing — \(error.code)")
+            return
+        }
         guard let share = fetched as? CKShare else {
             NSLog("[Tally] leaveFriendShare: share record cast failed")
             return
@@ -312,8 +328,8 @@ struct CloudKitPersonalRepository: PersonalRepository {
         // Find my own participant entry. CloudKit substitutes the sentinel
         // `__defaultOwner__` for the CURRENT user's userRecordID.recordName
         // when reading a participant list (same quirk we hit in the
-        // UsernameRepository creator-ID code). So match against either the
-        // sentinel OR my real record name to be robust.
+        // UsernameRepository creator-ID code). Match against either the
+        // sentinel OR my real record name.
         let myRecordName = try await client.userRecordID().recordName
         let participantNames = share.participants.compactMap {
             $0.userIdentity.userRecordID?.recordName
@@ -328,14 +344,32 @@ struct CloudKitPersonalRepository: PersonalRepository {
             return
         }
 
+        // Defensive: never try to "leave" a share I own. removeParticipant
+        // on the owner participant raises an NSException — that would
+        // crash with no Swift `catch` recourse. If we ever end up here on
+        // a share whose owner is us, it's a state we don't understand;
+        // bail loudly instead of swinging at it.
+        guard me.role != .owner else {
+            NSLog("[Tally] leaveFriendShare: refusing to remove self as OWNER of share for \(ownerRecordName)")
+            return
+        }
+
         share.removeParticipant(me)
-        _ = try await client.sharedDB.modifyRecords(
-            saving: [share],
-            deleting: [],
-            savePolicy: .allKeys,
-            atomically: false
-        )
-        NSLog("[Tally] leaveFriendShare: removed self from owner=\(ownerRecordName)'s share")
+        do {
+            _ = try await client.sharedDB.modifyRecords(
+                saving: [share],
+                deleting: [],
+                savePolicy: .allKeys,
+                atomically: false
+            )
+            NSLog("[Tally] leaveFriendShare: removed self from owner=\(ownerRecordName)'s share")
+        } catch {
+            // Most likely a server-record-changed conflict from stale
+            // share state — surface it but don't crash, the caller can
+            // decide whether to retry.
+            NSLog("[Tally] leaveFriendShare: modifyRecords failed — \(error.localizedDescription)")
+            throw error
+        }
     }
 
     func friendZones() async throws -> [CKRecordZone] {

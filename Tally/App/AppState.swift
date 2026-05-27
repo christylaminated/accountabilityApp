@@ -679,23 +679,51 @@ final class AppState {
     /// it fails we still want step 1 to stick.
     func unfriend(_ friend: Friend) async throws {
         let recordID = CKRecord.ID(recordName: friend.userID)
-        // Step 1: revoke their access to my zone. Must succeed — this is the
-        // trust-relevant half.
+        NSLog("[Tally] unfriend: start friend=\(friend.userID)")
+
+        // Step 1: revoke their access to my zone. Must succeed — this is
+        // the trust-relevant half. If this throws the user sees the
+        // standard "Couldn't unfriend" alert and the friend stays in the
+        // list (correct: we haven't actually unfriended them yet).
         try await personalRepository.removeFriendParticipant(userRecordID: recordID)
+        NSLog("[Tally] unfriend: step 1 ok — removed friend from my share")
+
         // Step 2: leave their share so they drop out of MY friends list.
-        // Surface this error rather than swallowing it: when it fails the
-        // user observes "they still appear in my list" with no explanation.
-        try await personalRepository.leaveFriendShare(ownerRecordName: friend.userID)
-        // Drop them from in-memory state immediately so the UI updates without
-        // waiting for the CloudKit refresh. Important for re-friending in the
-        // same session: FriendSearchView's `isAlreadyFriend` check would
-        // otherwise stay true until the refresh below completes.
+        // Best-effort: failures here mean the friend's zone might linger
+        // in our sharedDB until the next refresh reconciles it, but the
+        // important half (their access to MY data) is already done. We
+        // log the failure and store it as `lastUnfriendCleanupError` so
+        // it can be surfaced without blocking the dismiss.
+        //
+        // Specifically guarding against state where the friend already
+        // half-unfriended us on the old broken build: their share might
+        // be in an unmodifiable intermediate state server-side.
+        do {
+            try await personalRepository.leaveFriendShare(ownerRecordName: friend.userID)
+            NSLog("[Tally] unfriend: step 2 ok — left their share")
+        } catch {
+            NSLog("[Tally] unfriend: step 2 failed (non-fatal) — \(error.localizedDescription)")
+            lastUnfriendCleanupError = error.localizedDescription
+        }
+
+        // Drop them from in-memory state immediately so the UI updates
+        // without waiting for the CloudKit refresh. Important for
+        // re-friending in the same session: FriendSearchView's
+        // `isAlreadyFriend` check would otherwise stay true until the
+        // refresh below completes.
         personalStore.dropFriendLocally(userID: friend.userID)
         await personalStore.refresh()
-        // Also refresh requests in case any pending/outgoing involving this
-        // user need to clear out now that they're no longer a friend.
+        // Also refresh requests in case any pending/outgoing involving
+        // this user need to clear out now that they're no longer a friend.
         await refreshFriendRequests()
+        NSLog("[Tally] unfriend: done")
     }
+
+    /// Surfaced when step 2 of unfriend (leaving the friend's share)
+    /// failed but step 1 succeeded — the trust-relevant half is done,
+    /// the cleanup half wasn't. Read by views that want to flag this to
+    /// the user without blocking the unfriend flow.
+    var lastUnfriendCleanupError: String?
 
     private func markRequestDeclined(_ request: FriendRequest) {
         declinedRequestIDs.insert(request.id.uuidString)
