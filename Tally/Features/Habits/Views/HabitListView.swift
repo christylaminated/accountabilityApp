@@ -17,6 +17,18 @@ struct HabitListView: View {
         !habits.isEmpty && doneToday == habits.count
     }
 
+    /// Subtext shown beneath the progress card's count line. Ratchets
+    /// across three states so the user feels the day move forward.
+    private var progressSubtext: String {
+        if doneToday == 0 {
+            return "If you were the person you want to be, what would you do today?"
+        } else if doneToday < habits.count {
+            return "Do what your dream self would do."
+        } else {
+            return "Your future self will thank you."
+        }
+    }
+
     /// "Days you've completed every habit in a row." Equivalent to the
     /// minimum across each habit's individual current streak — if every
     /// habit has streak ≥ K, every habit was done each of the last K days,
@@ -100,15 +112,15 @@ struct HabitListView: View {
                 Spacer()
                 ProgressGauge(value: habits.isEmpty ? 0 : Double(doneToday) / Double(habits.count))
             }
-            // Subtext only when no habit is done yet today. Once any
-            // progress exists the ring carries the message; once all
-            // done the inline celebration takes over.
-            if doneToday == 0 {
-                Text("If you were the person you want to be, what would you do today?")
-                    .font(.system(size: 14))
-                    .foregroundStyle(Color.tallyTextSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+            // One subtext line per progress state, ratcheting from
+            // aspirational ("if you were the person…") through nudge
+            // ("dream self") to gratitude ("future self will thank
+            // you"). Same type style across all three so the card
+            // doesn't visually shift on each tick.
+            Text(progressSubtext)
+                .font(.system(size: 14))
+                .foregroundStyle(Color.tallyTextSecondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .padding(16)
         .background(Color.tallyCard)
