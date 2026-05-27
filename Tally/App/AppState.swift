@@ -813,6 +813,118 @@ final class AppState {
     /// banner on its next render.
     var lastUnfriendError: String?
 
+    /// Delete the user's account: wipe every CloudKit record + zone we
+    /// own, release the username claim, clear local cache, and reset
+    /// onboarding so the next launch starts at ProfileSetupView.
+    ///
+    /// Each step is best-effort. If one step fails (network, quota,
+    /// permission) we log and keep going — we'd rather end up partially
+    /// cleaned up than half-stuck with no way to recover. After all
+    /// steps the local state is fully reset regardless.
+    ///
+    /// Things we DON'T delete:
+    ///   - Shared zones we're a participant on (friends' personal zones,
+    ///     joined circle zones). Those belong to other users — we can't
+    ///     delete them, and trying to `share.removeParticipant(self)` on
+    ///     iOS 26 has been known to raise NSExceptions Swift can't catch
+    ///     (see the unfriend-crash history). Their apps will drop us
+    ///     naturally when their next refresh fails to find our zone.
+    ///   - Incoming public-DB FriendRequest / GroupInvite records
+    ///     written by other users. Those aren't ours to delete.
+    func deleteAccount() async {
+        NSLog("[Tally] deleteAccount: start userID=\(currentUserID)")
+        let userID = currentUserID
+        let username = ownCloudProfile?.username
+
+        // 1. Public DB — release the global username claim so the name
+        //    is freed up for someone else to claim.
+        if let username, !username.isEmpty {
+            do {
+                try await usernameRepository.release(username)
+                NSLog("[Tally] deleteAccount: released username \(username)")
+            } catch {
+                NSLog("[Tally] deleteAccount: release username failed (non-fatal): \(error.localizedDescription)")
+            }
+        }
+
+        // 2. Public DB — delete outgoing friend requests + group invites.
+        //    These were created by us; the public-DB record-level
+        //    permission lets the creator delete them.
+        if !userID.isEmpty {
+            do {
+                let frs = try await friendRequestRepository.outgoing(for: userID)
+                for r in frs {
+                    try? await friendRequestRepository.delete(r)
+                }
+                NSLog("[Tally] deleteAccount: deleted \(frs.count) outgoing FriendRequests")
+            } catch {
+                NSLog("[Tally] deleteAccount: outgoing FR cleanup failed (non-fatal): \(error.localizedDescription)")
+            }
+            do {
+                let invs = try await groupInviteRepository.outgoing(for: userID)
+                for inv in invs {
+                    try? await groupInviteRepository.delete(inv)
+                }
+                NSLog("[Tally] deleteAccount: deleted \(invs.count) outgoing GroupInvites")
+            } catch {
+                NSLog("[Tally] deleteAccount: outgoing GI cleanup failed (non-fatal): \(error.localizedDescription)")
+            }
+        }
+
+        // 3. Private DB — delete every owned Circle zone. Zone deletion
+        //    cascades to the root, members, messages, and the CKShare in
+        //    one server-side op.
+        do {
+            let zones = try await CKClient.shared.ownedCircleZones()
+            for zone in zones {
+                try? await CKClient.shared.deletePrivateZone(named: zone.zoneID.zoneName)
+            }
+            NSLog("[Tally] deleteAccount: deleted \(zones.count) owned circle zones")
+        } catch {
+            NSLog("[Tally] deleteAccount: circle-zone cleanup failed (non-fatal): \(error.localizedDescription)")
+        }
+
+        // 4. Private DB — delete the personal data zones (shared + private).
+        //    These cascade to habits, completions, goals, and our personal
+        //    CKShare. Friends' sharedDB will lose our zone on their next
+        //    refresh.
+        try? await CKClient.shared.deletePrivateZone(named: CloudKitPersonalRepository.zoneName)
+        try? await CKClient.shared.deletePrivateZone(named: CloudKitPersonalRepository.privateZoneName)
+        NSLog("[Tally] deleteAccount: deleted personal zones")
+
+        // 5. Private DB — delete the singleton UserProfile record in the
+        //    default zone. Not in a custom zone so it doesn't fall under
+        //    the cascading zone deletes above.
+        let profileID = CKRecord.ID(recordName: CloudKitProfileRepository.ownProfileRecordName)
+        _ = try? await CKClient.shared.privateDB.deleteRecord(withID: profileID)
+        NSLog("[Tally] deleteAccount: deleted UserProfile record")
+
+        // 6. Local cleanup — wipe every cached row (themes, declines,
+        //    unfriends, last-read timestamps, hasOnboarded, the profile
+        //    cache itself). Bypass `userScoped` and just nuke everything
+        //    that lives under our cache prefix.
+        LocalCache.clearAll()
+        UserDefaults.standard.removeObject(forKey: ThemeManager.hasPickedThemeKey)
+        // Theme preference is NOT wiped — that's a UI preference, not
+        // account-scoped data. The user keeps their accent choice across
+        // delete + re-signup.
+
+        // 7. Reset in-memory state so the UI immediately reflects "no
+        //    account". Routing back to .needsProfileSetup makes
+        //    RootView present ProfileSetupView again.
+        ownCloudProfile = nil
+        currentUserID = ""
+        ownedCircles = []
+        joinedCircles = []
+        incomingFriendRequests = []
+        incomingGroupInvites = []
+        declinedRequestIDs = []
+        declinedGroupInviteIDs = []
+        isFirstRunOnboarding = true
+        onboardingState = .needsProfileSetup
+        NSLog("[Tally] deleteAccount: done")
+    }
+
     private func markRequestDeclined(_ request: FriendRequest) {
         declinedRequestIDs.insert(request.id.uuidString)
         LocalCache.save(Array(declinedRequestIDs), forKey: LocalCacheKey.declinedFriendRequestIDs)

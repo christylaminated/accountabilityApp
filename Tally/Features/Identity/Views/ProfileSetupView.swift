@@ -58,7 +58,7 @@ struct ProfileSetupView: View {
             Text("Welcome to Tally")
                 .font(.system(.largeTitle, design: .rounded, weight: .bold))
                 .multilineTextAlignment(.center)
-            Text("Pick a name and an icon your partner will see.")
+            Text("Pick a name and an icon your friends will see.")
                 .font(.system(.body, design: .rounded))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)

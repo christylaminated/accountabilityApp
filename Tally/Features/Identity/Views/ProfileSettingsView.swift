@@ -26,6 +26,8 @@ struct ProfileSettingsView: View {
     @State private var showPhotoPicker = false
     @State private var isSaving = false
     @State private var errorMessage: String?
+    @State private var showDeleteConfirm = false
+    @State private var isDeleting = false
 
     /// Same set as `ProfileSetupView` so onboarding and editing match.
     private static let symbolChoices: [String] = [
@@ -109,6 +111,26 @@ struct ProfileSettingsView: View {
                             .foregroundStyle(Color.tallyDestructive)
                     }
                 }
+
+                Section {
+                    Button(role: .destructive) {
+                        showDeleteConfirm = true
+                    } label: {
+                        if isDeleting {
+                            HStack {
+                                ProgressView()
+                                Text("Deleting account…")
+                            }
+                        } else {
+                            Text("Delete account")
+                        }
+                    }
+                    .disabled(isDeleting)
+                } header: {
+                    Text("Danger zone")
+                } footer: {
+                    Text("Permanently wipes your habits, goals, completions, group chats you own, and your username. Friends keep their own data; you'll just disappear from their friend lists when their apps refresh.")
+                }
             }
             .navigationTitle("Profile")
             .navigationBarTitleDisplayMode(.inline)
@@ -126,6 +148,16 @@ struct ProfileSettingsView: View {
             .onAppear { loadFromAppState() }
             .onChange(of: pickedPhotoItem) { _, item in
                 Task { await loadPickedPhoto(item) }
+            }
+            .confirmationDialog(
+                "Delete your Tally account?",
+                isPresented: $showDeleteConfirm,
+                titleVisibility: .visible
+            ) {
+                Button("Delete account", role: .destructive) { performDelete() }
+                Button("Cancel", role: .cancel) { }
+            } message: {
+                Text("This permanently removes your profile, habits, goals, completions, and any group chats you created. It can't be undone.")
             }
             // Single picker presentation for the whole screen — driven by
             // showPhotoPicker. Any button that wants to trigger it just
@@ -363,6 +395,21 @@ struct ProfileSettingsView: View {
         } catch {
             errorMessage = error.localizedDescription
             isSaving = false
+        }
+    }
+
+    /// Runs the destructive account-delete flow. AppState.deleteAccount
+    /// is best-effort across multiple CloudKit operations and never
+    /// throws — it logs failures and proceeds. When it returns the
+    /// in-memory state has already been reset to .needsProfileSetup, so
+    /// dismissing this sheet drops the user straight back to onboarding.
+    private func performDelete() {
+        guard !isDeleting else { return }
+        isDeleting = true
+        Task {
+            await appState.deleteAccount()
+            isDeleting = false
+            dismiss()
         }
     }
 }
