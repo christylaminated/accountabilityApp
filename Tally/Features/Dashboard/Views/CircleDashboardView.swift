@@ -309,7 +309,7 @@ struct CircleDashboardView: View {
     }
 
     private var habitsSectionTitle: String {
-        if isViewingToday { return "Today" }
+        if isViewingToday { return "Daily habits" }
         let formatter = DateFormatter()
         formatter.dateFormat = "EEEE, MMM d"
         return formatter.string(from: selectedDay)
