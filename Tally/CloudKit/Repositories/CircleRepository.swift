@@ -162,11 +162,21 @@ struct CloudKitCircleRepository: CircleRepository {
             parent: CKRecord.Reference(recordID: rootID, action: .none)
         )
 
-        // 4. Save root + owner member. Share is created lazily in makeShare.
-        _ = try await client.privateDB.modifyRecords(
+        // 4. Save root + owner member. `modifyRecords` does NOT throw on
+        //    per-record failures — it returns a per-record results map — so
+        //    we MUST inspect the root's result explicitly. A silently
+        //    dropped root would make every later `makeShare` fail with
+        //    "Record not found" (which is exactly the group-invite error
+        //    the user hit). Throwing here surfaces it at creation time
+        //    instead of leaving a half-created, un-shareable group.
+        let result = try await client.privateDB.modifyRecords(
             saving: [rootRecord, memberRecord],
             deleting: []
         )
+        guard let rootResult = result.saveResults[rootID] else {
+            throw CKClientError.unexpected("Group root wasn't saved — try again.")
+        }
+        _ = try rootResult.get()
 
         return circle
     }
@@ -174,7 +184,26 @@ struct CloudKitCircleRepository: CircleRepository {
     func makeShare(for circle: TallyCircle) async throws -> (CKShare, CKContainer) {
         let (db, zoneID) = try await locate(circle)
         let rootID = CKRecord.ID(recordName: Self.rootRecordName, zoneID: zoneID)
-        let root = try await db.record(for: rootID)
+
+        // Fetch the root with retry. Right after `createCircle`, the root
+        // record can briefly lag before a subsequent fetch sees it
+        // (CloudKit eventual consistency in a freshly-created zone). Without
+        // this, inviting a member immediately after creating the group
+        // fails with "Error fetching record … circleRoot … Record not
+        // found" — the exact error from the user's screenshot.
+        var root: CKRecord?
+        for attempt in 0..<5 {
+            do {
+                root = try await db.record(for: rootID)
+                break
+            } catch let error as CKError where error.code == .unknownItem {
+                NSLog("[Tally] makeShare: circleRoot not visible yet (attempt \(attempt + 1)) — retrying")
+                try? await Task.sleep(nanoseconds: 800_000_000)
+            }
+        }
+        guard let root else {
+            throw CKClientError.unexpected("Couldn't load the group yet — try again in a moment.")
+        }
 
         // Reuse an existing share if the root already has one — but fetch it
         // fresh from the server so we hand `UICloudSharingController` a share

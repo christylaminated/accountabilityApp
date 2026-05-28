@@ -385,42 +385,87 @@ struct CircleDashboardView: View {
 
     private var friendsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            sectionHeader("Your friends")
+            sectionHeader("Leaderboard")
             VStack(spacing: 0) {
-                ForEach(Array(sortedFriends.enumerated()), id: \.element.userID) { idx, friend in
-                    NavigationLink(value: friend.userID) {
-                        FriendActivityRow(friend: friend)
-                    }
-                    .buttonStyle(.plain)
-                    if idx < sortedFriends.count - 1 {
-                        Divider()
-                            .background(Color.tallyDivider)
+                let board = leaderboard
+                ForEach(Array(board.enumerated()), id: \.element.userID) { idx, entry in
+                    leaderboardRow(rank: idx + 1, entry: entry)
+                    if idx < board.count - 1 {
+                        Divider().background(Color.tallyDivider)
                     }
                 }
             }
         }
     }
 
-    /// Most recently active friends first. "Recent" = latest completion
-    /// timestamp across all their habits; friends with no completions
-    /// today fall to the bottom.
-    private var sortedFriends: [Friend] {
-        friends.sorted { a, b in
-            let aLast = latestCompletion(for: a) ?? .distantPast
-            let bLast = latestCompletion(for: b) ?? .distantPast
-            return aLast > bLast
+    /// One leaderboard row. Friends are tappable (→ their profile); the
+    /// current user's own row isn't a navigation link but is highlighted so
+    /// they can see where they stand against their friends.
+    @ViewBuilder
+    private func leaderboardRow(rank: Int, entry: LeaderboardEntry) -> some View {
+        if entry.isCurrentUser {
+            LeaderboardRow(rank: rank, entry: entry)
+                .background(Color.tallyAccent.opacity(0.08))
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        } else {
+            NavigationLink(value: entry.userID) {
+                LeaderboardRow(rank: rank, entry: entry)
+            }
+            .buttonStyle(.plain)
         }
     }
 
-    private func latestCompletion(for friend: Friend) -> Date? {
+    /// Me + every friend, ranked. Sort: longest current streak first (the
+    /// headline "leaderboard score"), then most habits done today, then
+    /// name — so the board rewards consistency while still surfacing who's
+    /// active today.
+    private var leaderboard: [LeaderboardEntry] {
         let store = appState.personalStore
-        var latest: Date?
-        for habit in store.habits(for: friend.userID) {
-            for date in store.completionDates(habit: habit) {
-                if latest == nil || date > latest! { latest = date }
-            }
+
+        func entry(userID: String, name: String, symbol: String, imageData: Data?, isMe: Bool) -> LeaderboardEntry {
+            let userHabits = store.habits(for: userID)
+            let done = userHabits.filter { store.isCompleted(habit: $0, on: .now) }.count
+            let streak = userHabits
+                .map { StreakCalculator.currentStreak(
+                    completions: store.completionDates(habit: $0),
+                    habitCreatedAt: $0.createdAt
+                ) }
+                .max() ?? 0
+            return LeaderboardEntry(
+                userID: userID,
+                displayName: name,
+                avatarSymbol: symbol,
+                avatarImageData: imageData,
+                isCurrentUser: isMe,
+                doneToday: done,
+                totalHabits: userHabits.count,
+                streak: streak
+            )
         }
-        return latest
+
+        var entries: [LeaderboardEntry] = []
+        let me = appState.ownCloudProfile
+        entries.append(entry(
+            userID: appState.currentUserID,
+            name: "You",
+            symbol: me?.avatarSymbol ?? "leaf",
+            imageData: me?.avatarImageData,
+            isMe: true
+        ))
+        for f in friends {
+            entries.append(entry(
+                userID: f.userID,
+                name: f.displayName,
+                symbol: f.avatarSymbol,
+                imageData: f.avatarImageData,
+                isMe: false
+            ))
+        }
+        return entries.sorted { a, b in
+            if a.streak != b.streak { return a.streak > b.streak }
+            if a.doneToday != b.doneToday { return a.doneToday > b.doneToday }
+            return a.displayName.localizedCaseInsensitiveCompare(b.displayName) == .orderedAscending
+        }
     }
 
     private var inviteBanner: some View {
@@ -663,90 +708,77 @@ private struct GoalRow: View {
     }
 }
 
-// MARK: - FriendActivityRow
+// MARK: - Leaderboard
 
-private struct FriendActivityRow: View {
-    @Environment(AppState.self) private var appState
-    let friend: Friend
+/// A single ranked person (the current user OR a friend) on the dashboard
+/// leaderboard. Pre-computed in `CircleDashboardView.leaderboard` so the row
+/// view stays dumb and the sort logic lives in one place.
+struct LeaderboardEntry: Identifiable {
+    let userID: String
+    let displayName: String
+    let avatarSymbol: String
+    let avatarImageData: Data?
+    let isCurrentUser: Bool
+    let doneToday: Int
+    let totalHabits: Int
+    let streak: Int
 
-    private var habits: [Habit] {
-        appState.personalStore.habits(for: friend.userID)
-    }
+    var id: String { userID }
+}
 
-    private var doneToday: Int {
-        habits.filter { appState.personalStore.isCompleted(habit: $0, on: .now) }.count
-    }
+private struct LeaderboardRow: View {
+    let rank: Int
+    let entry: LeaderboardEntry
 
     private var statusText: String {
-        let total = habits.count
-        guard total > 0 else { return "No habits yet" }
-        if doneToday == 0 { return "Not started today" }
-        if doneToday == total { return "All done today ✓" }
-        return "\(doneToday) of \(total) today"
+        guard entry.totalHabits > 0 else { return "No habits yet" }
+        if entry.doneToday == 0 { return "Not started today" }
+        if entry.doneToday == entry.totalHabits { return "All done today ✓" }
+        return "\(entry.doneToday) of \(entry.totalHabits) today"
     }
 
     private var statusColor: Color {
-        (habits.isEmpty == false && doneToday == habits.count)
+        (entry.totalHabits > 0 && entry.doneToday == entry.totalHabits)
             ? Color.tallyAccent
             : Color.tallyTextSecondary
     }
 
-    /// Latest completion timestamp today, formatted as relative ("2h ago").
-    private var relativeRecentLabel: String? {
-        let dayStart = Date.now.startOfDay
-        let store = appState.personalStore
-        var latest: Date?
-        for habit in habits {
-            for date in store.completionDates(habit: habit) where date >= dayStart {
-                if latest == nil || date > latest! { latest = date }
-            }
+    /// Gold / silver / bronze tint for the top three; muted otherwise.
+    private var rankColor: Color {
+        switch rank {
+        case 1:  return Color(red: 0.85, green: 0.65, blue: 0.13) // gold
+        case 2:  return Color(red: 0.62, green: 0.62, blue: 0.66) // silver
+        case 3:  return Color(red: 0.72, green: 0.45, blue: 0.20) // bronze
+        default: return Color.tallyTextSecondary
         }
-        guard let latest else { return nil }
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .abbreviated
-        return formatter.localizedString(for: latest, relativeTo: .now)
-    }
-
-    private var streakCount: Int {
-        var max = 0
-        for habit in habits {
-            let s = StreakCalculator.currentStreak(
-                completions: appState.personalStore.completionDates(habit: habit),
-                habitCreatedAt: habit.createdAt
-            )
-            if s > max { max = s }
-        }
-        return max
     }
 
     var body: some View {
         HStack(spacing: 12) {
+            Text("\(rank)")
+                .font(.system(size: 14, weight: .bold, design: .rounded))
+                .foregroundStyle(rankColor)
+                .frame(width: 22)
+
             AvatarView(
-                symbolName: friend.avatarSymbol,
-                imageData: friend.avatarImageData,
+                symbolName: entry.avatarSymbol,
+                imageData: entry.avatarImageData,
                 size: 32
             )
-            .overlay(
-                Circle().stroke(Color.tallyAccent.opacity(0.30), lineWidth: 1)
-            )
+            .overlay(Circle().stroke(Color.tallyAccent.opacity(0.30), lineWidth: 1))
+
             VStack(alignment: .leading, spacing: 2) {
-                Text(friend.displayName)
-                    .font(.system(size: 15, weight: .medium))
+                Text(entry.displayName)
+                    .font(.system(size: 15, weight: entry.isCurrentUser ? .semibold : .medium))
                     .foregroundStyle(Color.tallyTextPrimary)
-                HStack(spacing: 4) {
-                    Text(statusText)
-                        .foregroundStyle(statusColor)
-                    if let recent = relativeRecentLabel {
-                        Text("· \(recent)")
-                            .foregroundStyle(Color.tallyTextSecondary)
-                    }
-                }
-                .font(.system(size: 13))
+                Text(statusText)
+                    .font(.system(size: 13))
+                    .foregroundStyle(statusColor)
             }
             Spacer()
-            if streakCount > 0 {
+            if entry.streak > 0 {
                 HStack(spacing: 3) {
-                    Text("\(streakCount)")
+                    Text("\(entry.streak)")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(Color.tallyTextPrimary)
                     Image(systemName: "flame.fill")
@@ -756,6 +788,7 @@ private struct FriendActivityRow: View {
             }
         }
         .padding(.vertical, 12)
+        .padding(.horizontal, entry.isCurrentUser ? 8 : 0)
     }
 }
 

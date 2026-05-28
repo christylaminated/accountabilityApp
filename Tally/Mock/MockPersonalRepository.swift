@@ -35,8 +35,9 @@ final class MockPersonalRepository: PersonalRepository, @unchecked Sendable {
         friends.append(userRecordID)
     }
 
-    func removeFriendParticipant(userRecordID: CKRecord.ID) async throws {
+    func removeFriendParticipant(userRecordID: CKRecord.ID) async throws -> RevokeOutcome {
         friends.removeAll { $0 == userRecordID }
+        return .revoked
     }
 
     func leaveFriendShare(ownerRecordName: String) async throws {

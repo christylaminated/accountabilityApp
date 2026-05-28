@@ -70,6 +70,12 @@ extension TallyCircle: CKRecordConvertible {
     func populate(_ record: CKRecord) {
         record["id"] = id.uuidString
         record["name"] = name
+        // NOTE: `emoji` is NOT in the production CloudKit schema. This write
+        // is safe ONLY while `emoji` is nil (a nil subscript writes no key,
+        // so CloudKit never validates it). Add the `emoji` field to the
+        // `Circle` record type in production before shipping any circle-emoji
+        // UI, or this save will be rejected with "Cannot create or modify
+        // field 'emoji'".
         record["emoji"] = emoji
         record["ownerID"] = ownerID
         record["createdAt"] = createdAt

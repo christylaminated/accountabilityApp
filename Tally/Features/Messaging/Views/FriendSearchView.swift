@@ -120,6 +120,20 @@ struct FriendSearchView: View {
                     .padding(.vertical, 12)
                     .background(tallyAccent.opacity(0.12))
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            } else if hasOutgoingPending(user) {
+                // Persistent "you already sent it" state — survives sheet
+                // dismissal / re-search, so the user doesn't keep retrying
+                // while the reciprocal-out is still propagating. The
+                // duplicate-send pattern silently broke things before
+                // because the recipient's inbox correctly filters out
+                // requests from already-friends.
+                Label("Request pending — waiting for them to accept", systemImage: "hourglass")
+                    .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                    .foregroundStyle(Color.tallyTextSecondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(Color.tallyTextSecondary.opacity(0.12))
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             } else {
             switch sendStatus {
             case .idle:
@@ -161,6 +175,16 @@ struct FriendSearchView: View {
 
     private func isAlreadyFriend(_ user: UserSearchResult) -> Bool {
         appState.personalStore.friends.contains { $0.userID == user.userRecordName }
+    }
+
+    /// True when we've already sent a friend request to this user that
+    /// hasn't been completed yet (target not yet in our friends list).
+    /// Driven by `AppState.outgoingRequestTargetIDs`, which is refreshed
+    /// every 6s by the poll task AND optimistically updated the instant
+    /// `sendFriendRequest` succeeds, so this state is stable across
+    /// sheet dismissals and view re-mounts.
+    private func hasOutgoingPending(_ user: UserSearchResult) -> Bool {
+        appState.outgoingRequestTargetIDs.contains(user.userRecordName)
     }
 
     private func isSelf(_ user: UserSearchResult) -> Bool {

@@ -148,3 +148,58 @@ struct CloudKitGroupInviteRepository: GroupInviteRepository {
         }
     }
 }
+
+// MARK: - Unfriend notification repository
+
+/// Backed by CloudKit's public database. Same pattern as FriendRequest +
+/// GroupInvite inboxes: sender writes a notification, recipient polls via
+/// a Queryable index on `toUserRecordName`. See model doc for schema
+/// setup steps.
+protocol UnfriendNotificationRepository: Sendable {
+    func send(_ notification: UnfriendNotification) async throws
+    func incoming(for userRecordName: String) async throws -> [UnfriendNotification]
+    func outgoing(for userRecordName: String) async throws -> [UnfriendNotification]
+    func delete(_ notification: UnfriendNotification) async throws
+}
+
+struct CloudKitUnfriendNotificationRepository: UnfriendNotificationRepository {
+    let client: CKClient
+
+    init(client: CKClient = .shared) {
+        self.client = client
+    }
+
+    private var publicDB: CKDatabase { client.container.publicCloudDatabase }
+
+    func send(_ notification: UnfriendNotification) async throws {
+        let recordID = CKRecord.ID(recordName: notification.id.uuidString)
+        let record = CKRecord(recordType: UnfriendNotification.recordType, recordID: recordID)
+        notification.populate(record)
+        _ = try await publicDB.save(record)
+    }
+
+    func incoming(for userRecordName: String) async throws -> [UnfriendNotification] {
+        let predicate = NSPredicate(format: "toUserRecordName == %@", userRecordName)
+        return try await query(predicate: predicate)
+    }
+
+    func outgoing(for userRecordName: String) async throws -> [UnfriendNotification] {
+        let predicate = NSPredicate(format: "fromUserRecordName == %@", userRecordName)
+        return try await query(predicate: predicate)
+    }
+
+    func delete(_ notification: UnfriendNotification) async throws {
+        let recordID = CKRecord.ID(recordName: notification.id.uuidString)
+        _ = try await publicDB.deleteRecord(withID: recordID)
+    }
+
+    private func query(predicate: NSPredicate) async throws -> [UnfriendNotification] {
+        let query = CKQuery(recordType: UnfriendNotification.recordType, predicate: predicate)
+        query.sortDescriptors = [NSSortDescriptor(key: "sentAt", ascending: false)]
+        let (matchResults, _) = try await publicDB.records(matching: query)
+        return matchResults.compactMap { _, result -> UnfriendNotification? in
+            guard case .success(let record) = result else { return nil }
+            return UnfriendNotification(record: record)
+        }
+    }
+}

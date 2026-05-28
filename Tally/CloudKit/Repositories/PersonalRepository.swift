@@ -14,6 +14,34 @@ struct PersonalSnapshot {
     var isIncremental = false
 }
 
+/// Result of attempting to revoke a friend's access to my personal share.
+/// Lets the caller distinguish "they definitely have no access" (the unfriend
+/// can finish cleanly) from "I couldn't revoke and their access may persist"
+/// (the caller should flag it). Without this, `removeFriendParticipant`'s
+/// defensive early-returns all looked identical to success, so a corrupt
+/// state silently left a friend with retained access while the app reported
+/// the unfriend as complete.
+enum RevokeOutcome: CustomStringConvertible {
+    /// `removeParticipant` ran and the share saved — access is gone.
+    case revoked
+    /// They weren't a live participant to begin with (no share, not on it,
+    /// or already `.removed`): nothing to revoke, they have no access. Safe
+    /// for the unfriend to finish.
+    case alreadyAbsent
+    /// A guard prevented removal in a state where access MAY still remain
+    /// (e.g. a corrupt owner-role participant, an unknown acceptance status).
+    /// The associated reason is human-readable for surfacing to the user.
+    case refused(String)
+
+    var description: String {
+        switch self {
+        case .revoked:            return "revoked"
+        case .alreadyAbsent:      return "alreadyAbsent"
+        case .refused(let r):     return "refused(\(r))"
+        }
+    }
+}
+
 /// Manages the signed-in user's personal CloudKit zone — the one holding their
 /// shared habits + goals — *and* fetches each friend's personal zone from the
 /// shared DB. The friend graph is the participant list of my personal CKShare.
@@ -62,7 +90,11 @@ protocol PersonalRepository: Sendable {
     func addFriendParticipant(userRecordID: CKRecord.ID) async throws
 
     /// Remove a friend from my personal share (unfriend, on my side).
-    func removeFriendParticipant(userRecordID: CKRecord.ID) async throws
+    /// Returns a `RevokeOutcome` so the caller can tell a real revocation /
+    /// already-absent (both safe) from a refusal where access may persist.
+    /// Still `throws` on an actual CloudKit write failure (network) — that's
+    /// distinct from a refusal and should abort the unfriend for retry.
+    func removeFriendParticipant(userRecordID: CKRecord.ID) async throws -> RevokeOutcome
 
     /// Leave a friend's personal share (the symmetric half of unfriending —
     /// removes me from their share so their zone drops out of my sharedDB).
@@ -263,29 +295,33 @@ struct CloudKitPersonalRepository: PersonalRepository {
         )
     }
 
-    func removeFriendParticipant(userRecordID: CKRecord.ID) async throws {
+    func removeFriendParticipant(userRecordID: CKRecord.ID) async throws -> RevokeOutcome {
         NSLog("[Tally] removeFriendParticipant: start friend=\(userRecordID.recordName)")
         let root: CKRecord
         do {
             root = try await client.privateDB.record(for: rootRecordID)
         } catch let error as CKError where error.code == .unknownItem {
-            NSLog("[Tally] removeFriendParticipant: no own root yet — nothing to revoke")
-            return
+            // No personal root → no share exists → they can't be a
+            // participant → they have no access. Safe.
+            NSLog("[Tally] removeFriendParticipant: no own root — nothing to revoke")
+            return .alreadyAbsent
         }
         guard let shareRef = root.share else {
-            NSLog("[Tally] removeFriendParticipant: no share on my root yet — nothing to revoke")
-            return
+            NSLog("[Tally] removeFriendParticipant: no share on my root — nothing to revoke")
+            return .alreadyAbsent
         }
         let fetched: CKRecord
         do {
             fetched = try await client.privateDB.record(for: shareRef.recordID)
         } catch let error as CKError where error.code == .unknownItem {
             NSLog("[Tally] removeFriendParticipant: share record missing — nothing to revoke")
-            return
+            return .alreadyAbsent
         }
         guard let share = fetched as? CKShare else {
+            // Unexpected: the share ref points at a non-share record. We
+            // can't revoke and can't reason about access → refuse.
             NSLog("[Tally] removeFriendParticipant: share record cast failed")
-            return
+            return .refused("Share record couldn't be read as a CKShare.")
         }
 
         // Compare by recordName rather than full CKRecord.ID — userRecordIDs
@@ -293,54 +329,59 @@ struct CloudKitPersonalRepository: PersonalRepository {
         guard let participant = share.participants.first(where: {
             $0.userIdentity.userRecordID?.recordName == userRecordID.recordName
         }) else {
-            NSLog("[Tally] removeFriendParticipant: friend not a participant — already revoked?")
-            return
+            // Not on the share → no access. Safe (e.g. re-unfriending
+            // someone already removed).
+            NSLog("[Tally] removeFriendParticipant: not a participant — already absent")
+            return .alreadyAbsent
         }
 
-        // Same precondition guards leaveFriendShare uses. The crash log
-        // (build 16) showed an uncatchable NSException raised by
-        // CKShare.removeParticipant from this exact call site — preconditions
-        // weren't checked on this path. Each guard targets a documented
-        // case where removeParticipant raises NSInternalInconsistencyException.
+        // Defensive guards (the build-16 crash log showed CKShare.removeParticipant
+        // raising an uncatchable NSException from this call site in certain
+        // states). Each guard now maps to a RevokeOutcome so the caller knows
+        // whether access is genuinely gone or merely couldn't be revoked.
 
-        // 1. Never call removeParticipant on the share's owner. The friend
-        //    can't be the owner of OUR share, so this should always pass,
-        //    but state corruption from earlier broken-build runs could
-        //    trip it.
+        // Owner-role participant: should be impossible (a friend can't own MY
+        // share) → corrupt state. We cannot safely remove, and access may
+        // remain → REFUSED so the caller can flag it.
         guard participant.role != .owner else {
-            NSLog("[Tally] removeFriendParticipant: refusing to remove the share OWNER")
-            return
+            NSLog("[Tally] removeFriendParticipant: friend appears as OWNER — refusing")
+            return .refused("Friend appears as the owner of my share (corrupt state); access may remain.")
         }
 
-        // 2. Only remove participants in `.accepted` or `.pending` state.
-        //    `.removed` participants raise on re-remove; `.unknown` is
-        //    undefined territory.
-        guard participant.acceptanceStatus == .accepted
-                || participant.acceptanceStatus == .pending else {
-            NSLog("[Tally] removeFriendParticipant: status=\(participant.acceptanceStatus.rawValue) — skipping remove")
-            return
+        // Acceptance status:
+        //   .accepted / .pending → live participant, proceed to remove.
+        //   .removed             → already gone → alreadyAbsent (safe).
+        //   .unknown / future    → can't confirm access state → refused.
+        switch participant.acceptanceStatus {
+        case .accepted, .pending:
+            break
+        case .removed:
+            NSLog("[Tally] removeFriendParticipant: status=removed — already absent")
+            return .alreadyAbsent
+        default:
+            NSLog("[Tally] removeFriendParticipant: status=\(participant.acceptanceStatus.rawValue) — refusing")
+            return .refused("Participant acceptance status is \(participant.acceptanceStatus.rawValue); can't confirm revocation.")
         }
 
-        // 3. Sanity: participant is still actually in share.participants.
+        // Sanity: participant still in the array (CKShare.Participant equality
+        // is finicky). If it vanished mid-op we didn't revoke → refuse.
         guard share.participants.contains(where: { $0 == participant }) else {
-            NSLog("[Tally] removeFriendParticipant: participant not in array — race? skipping")
-            return
+            NSLog("[Tally] removeFriendParticipant: participant vanished from array — refusing")
+            return .refused("Participant vanished from the share mid-operation (race).")
         }
 
         NSLog("[Tally] removeFriendParticipant: removing (role=\(participant.role.rawValue), status=\(participant.acceptanceStatus.rawValue))")
         share.removeParticipant(participant)
-        do {
-            _ = try await client.privateDB.modifyRecords(
-                saving: [share],
-                deleting: [],
-                savePolicy: .ifServerRecordUnchanged,
-                atomically: false
-            )
-            NSLog("[Tally] removeFriendParticipant: revoked friend's access")
-        } catch {
-            NSLog("[Tally] removeFriendParticipant: modifyRecords failed — \(error.localizedDescription)")
-            throw error
-        }
+        // A throw here is a real CloudKit write failure (network) — distinct
+        // from a refusal. It propagates so the caller aborts + the user retries.
+        _ = try await client.privateDB.modifyRecords(
+            saving: [share],
+            deleting: [],
+            savePolicy: .ifServerRecordUnchanged,
+            atomically: false
+        )
+        NSLog("[Tally] removeFriendParticipant: revoked friend's access")
+        return .revoked
     }
 
     func leaveFriendShare(ownerRecordName: String) async throws {

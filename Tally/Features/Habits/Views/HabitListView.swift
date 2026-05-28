@@ -4,6 +4,7 @@ struct HabitListView: View {
     @Environment(\.tallyAccent) private var tallyAccent
     @Environment(AppState.self) private var appState
     @State private var showAddSheet = false
+    @State private var editingHabit: Habit?
 
     private var habits: [Habit] {
         appState.personalStore.habits(for: appState.currentUserID)
@@ -60,6 +61,9 @@ struct HabitListView: View {
                 .sheet(isPresented: $showAddSheet) {
                     AddHabitSheet()
                 }
+                .sheet(item: $editingHabit) { habit in
+                    AddHabitSheet(editing: habit)
+                }
                 // Haptic only on the false→true transition, not on every
                 // re-render. Unchecking the final habit silently retracts
                 // the celebration — no haptic on the reverse direction.
@@ -113,6 +117,14 @@ struct HabitListView: View {
                                 Label("Archive", systemImage: "archivebox")
                             }
                             .tint(Color.tallyTextSecondary)
+                        }
+                        .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                            Button {
+                                editingHabit = habit
+                            } label: {
+                                Label("Edit", systemImage: "pencil")
+                            }
+                            .tint(tallyAccent)
                         }
                 }
             }

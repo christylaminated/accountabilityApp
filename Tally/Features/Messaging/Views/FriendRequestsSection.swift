@@ -176,6 +176,39 @@ struct GroupInvitesSection: View {
     }
 }
 
+/// Surfaces a partial unfriend: we removed the friend on our side and told
+/// their device, but couldn't confirm their server-side access to our data
+/// was revoked (a `RevokeOutcome.refused` — e.g. a corrupt owner-role
+/// participant). Tap to dismiss. Set by `AppState.unfriend`.
+struct UnfriendCleanupBanner: View {
+    @Environment(AppState.self) private var appState
+    let message: String
+
+    var body: some View {
+        Button {
+            appState.lastUnfriendCleanupError = nil
+        } label: {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(Color.tallyDestructive)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Unfriend didn't fully complete")
+                        .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                    Text(message)
+                        .font(.system(.footnote, design: .rounded))
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.leading)
+                }
+                Spacer()
+            }
+            .padding(12)
+            .background(Color.tallyDestructive.opacity(0.10))
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
 /// Surfaces CloudKit errors from `refreshGroupInvites` — typically the
 /// "field not marked queryable" error you get if the GroupInvite schema
 /// isn't fully deployed to Production. Tap to dismiss.

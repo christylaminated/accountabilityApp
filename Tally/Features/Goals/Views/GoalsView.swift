@@ -12,6 +12,7 @@ struct GoalsView: View {
     /// Reset to 0 whenever `selectedPeriod` changes so a switch lands you on now.
     @State private var periodOffset: Int = 0
     @State private var showAddSheet = false
+    @State private var editingGoal: Goal?
 
     /// Start of the period currently being viewed.
     private var periodStart: Date {
@@ -83,6 +84,14 @@ struct GoalsView: View {
                                     Label("Delete", systemImage: "trash")
                                 }
                             }
+                            .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                                Button {
+                                    editingGoal = goal
+                                } label: {
+                                    Label("Edit", systemImage: "pencil")
+                                }
+                                .tint(tallyAccent)
+                            }
                     }
                 }
             }
@@ -102,6 +111,13 @@ struct GoalsView: View {
             }
             .sheet(isPresented: $showAddSheet) {
                 AddGoalSheet(period: selectedPeriod, periodStart: periodStart)
+            }
+            .sheet(item: $editingGoal) { goal in
+                AddGoalSheet(
+                    period: goal.period,
+                    periodStart: goal.periodStartDate,
+                    editing: goal
+                )
             }
             .onChange(of: selectedPeriod) { _, _ in
                 periodOffset = 0

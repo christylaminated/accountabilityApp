@@ -63,3 +63,34 @@ final class MockGroupInviteRepository: GroupInviteRepository, @unchecked Sendabl
         invites.removeAll { $0.id == invite.id }
     }
 }
+
+/// In-memory UnfriendNotificationRepository for SwiftUI Previews and tests.
+@Observable
+final class MockUnfriendNotificationRepository: UnfriendNotificationRepository, @unchecked Sendable {
+    var notifications: [UnfriendNotification]
+
+    init(notifications: [UnfriendNotification] = []) {
+        self.notifications = notifications
+    }
+
+    func send(_ notification: UnfriendNotification) async throws {
+        notifications.removeAll { $0.id == notification.id }
+        notifications.append(notification)
+    }
+
+    func incoming(for userRecordName: String) async throws -> [UnfriendNotification] {
+        notifications
+            .filter { $0.toUserRecordName == userRecordName }
+            .sorted { $0.sentAt > $1.sentAt }
+    }
+
+    func outgoing(for userRecordName: String) async throws -> [UnfriendNotification] {
+        notifications
+            .filter { $0.fromUserRecordName == userRecordName }
+            .sorted { $0.sentAt > $1.sentAt }
+    }
+
+    func delete(_ notification: UnfriendNotification) async throws {
+        notifications.removeAll { $0.id == notification.id }
+    }
+}

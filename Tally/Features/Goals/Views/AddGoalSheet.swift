@@ -6,12 +6,23 @@ struct AddGoalSheet: View {
 
     let period: GoalPeriod
     let periodStart: Date
+    /// When non-nil, the sheet edits this goal's title instead of creating one.
+    let editing: Goal?
 
-    @State private var title: String = ""
+    @State private var title: String
+
+    init(period: GoalPeriod, periodStart: Date, editing: Goal? = nil) {
+        self.period = period
+        self.periodStart = periodStart
+        self.editing = editing
+        _title = State(initialValue: editing?.title ?? "")
+    }
 
     private var trimmed: String {
         title.trimmingCharacters(in: .whitespaces)
     }
+
+    private var isEditing: Bool { editing != nil }
 
     var body: some View {
         NavigationStack {
@@ -21,21 +32,25 @@ struct AddGoalSheet: View {
                         .lineLimit(1...3)
                 }
             }
-            .navigationTitle("New \(period.displayName.lowercased()) goal")
+            .navigationTitle(isEditing ? "Edit goal" : "New \(period.displayName.lowercased()) goal")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Add") {
+                    Button(isEditing ? "Save" : "Add") {
                         guard !trimmed.isEmpty else { return }
-                        appState.personalStore.addGoal(
-                            title: trimmed,
-                            for: appState.currentUserID,
-                            period: period,
-                            periodStart: periodStart
-                        )
+                        if let editing {
+                            appState.personalStore.updateGoal(editing, title: trimmed)
+                        } else {
+                            appState.personalStore.addGoal(
+                                title: trimmed,
+                                for: appState.currentUserID,
+                                period: period,
+                                periodStart: periodStart
+                            )
+                        }
                         dismiss()
                     }
                     .disabled(trimmed.isEmpty)

@@ -41,7 +41,7 @@ struct HabitsSetupView: View {
             Text("What do you want to track?")
                 .font(.system(.largeTitle, design: .rounded, weight: .bold))
                 .multilineTextAlignment(.center)
-            Text("Add a few daily habits to start. You can edit, archive, or add more anytime.")
+            Text("If you were the person you want to be, what would you do daily? You can edit or add more anytime.")
                 .font(.system(.body, design: .rounded))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)

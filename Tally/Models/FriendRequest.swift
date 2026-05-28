@@ -154,3 +154,56 @@ extension GroupInvite: CKRecordConvertible {
         record["sentAt"] = sentAt
     }
 }
+
+// MARK: - Unfriend notification
+
+/// Public-DB notification telling the other side "I just unfriended you."
+///
+/// Why this exists: the original unfriend design only mutated the unfriender's
+/// own CKShare (revoking the friend's read access) and marked them in a local
+/// hide-list. That left the OTHER person's app showing the unfriender as a
+/// friend indefinitely — their `personalStore.refresh` doesn't auto-detect
+/// the share revocation, and `share.removeParticipant` on someone else's
+/// share crashes on iOS 26 (NSException), so the standard "leave the
+/// friend's share" path isn't safe. We work around it by writing this
+/// public-DB record on unfriend; the other side's poll picks it up and
+/// adds the unfriender to ITS OWN locally-hidden-friends list, mirroring
+/// the unfriend symmetrically.
+///
+/// CloudKit Dashboard schema setup (one-time, dev → prod):
+///   - Record Type: `UnfriendNotification`
+///   - Fields: `id` (String), `fromUserRecordName` (String, Queryable),
+///     `toUserRecordName` (String, Queryable + Sortable),
+///     `sentAt` (Date/Time, Sortable)
+///   - Then Deploy Schema to Production for TestFlight builds.
+struct UnfriendNotification: Identifiable, Hashable {
+    let id: UUID
+    var fromUserRecordName: String
+    var toUserRecordName: String
+    var sentAt: Date
+}
+
+extension UnfriendNotification: CKRecordConvertible {
+    static let recordType = "UnfriendNotification"
+
+    init?(record: CKRecord) {
+        guard
+            let idString = record["id"] as? String,
+            let id = UUID(uuidString: idString),
+            let fromUserRecordName = record["fromUserRecordName"] as? String,
+            let toUserRecordName = record["toUserRecordName"] as? String,
+            let sentAt = record["sentAt"] as? Date
+        else { return nil }
+        self.id = id
+        self.fromUserRecordName = fromUserRecordName
+        self.toUserRecordName = toUserRecordName
+        self.sentAt = sentAt
+    }
+
+    func populate(_ record: CKRecord) {
+        record["id"] = id.uuidString
+        record["fromUserRecordName"] = fromUserRecordName
+        record["toUserRecordName"] = toUserRecordName
+        record["sentAt"] = sentAt
+    }
+}

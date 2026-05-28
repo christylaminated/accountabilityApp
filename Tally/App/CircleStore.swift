@@ -45,6 +45,22 @@ final class CircleStore {
 
     // MARK: - Lifecycle
 
+    /// Nuke every piece of in-memory state. Used by `AppState.deleteAccount`
+    /// so the dashboard doesn't keep painting the previous account's
+    /// circle members, messages, or pending optimistic sends between the
+    /// CloudKit deletes and the re-onboarding flow.
+    func reset() {
+        circle = nil
+        currentUserID = ""
+        members = []
+        circleMessages = []
+        directMessages = []
+        token = nil
+        pendingSaves = []
+        isLoading = false
+        lastError = nil
+    }
+
     /// Point the store at a Circle and load its contents. Clears cached state
     /// when switching to a different Circle.
     func activate(_ circle: TallyCircle, currentUserID: String) async {

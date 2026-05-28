@@ -28,8 +28,12 @@ struct RootView: View {
                 }
 
             case .needsProfileSetup:
-                ProfileSetupView { name, symbol in
-                    try await appState.saveProfile(displayName: name, avatarSymbol: symbol)
+                ProfileSetupView { name, username, symbol in
+                    try await appState.saveProfile(
+                        displayName: name,
+                        username: username,
+                        avatarSymbol: symbol
+                    )
                 }
                 .transition(.opacity)
 
@@ -40,7 +44,9 @@ struct RootView: View {
                 .transition(.opacity)
 
             case .needsThemePick:
-                ThemePickerOnboardingView { chosen in
+                ThemePickerOnboardingView(
+                    displayName: appState.ownCloudProfile?.displayName ?? ""
+                ) { chosen in
                     appState.finishThemePick(chosen)
                 }
                 .transition(.opacity)

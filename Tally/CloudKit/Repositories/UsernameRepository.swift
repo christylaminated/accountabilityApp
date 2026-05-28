@@ -36,6 +36,19 @@ enum UsernameError: LocalizedError {
 ///
 /// Lookups are by direct fetch (`db.record(for:)`) so no Queryable index is
 /// needed in the CloudKit Dashboard.
+///
+/// CloudKit Dashboard schema setup (one-time, then Deploy Schema → Production):
+///   - Record Type: `UsernameClaim`
+///   - Fields:
+///       • `displayName`     (String)
+///       • `avatarSymbol`    (String)
+///       • `avatarImageData` (Bytes)        ← **REQUIRED for friend-search avatars**
+///   - The Bytes field stores the user's uploaded JPEG so search results
+///     can render the photo even when the searcher isn't already a friend.
+///   - **If the `avatarImageData` field is missing from Production schema,**
+///     **writes silently succeed but the bytes are dropped** — the photo
+///     never propagates and friend-search cards show the SF Symbol fallback.
+///     This is the most common cause of "photo doesn't show up to friends."
 protocol UsernameRepository: Sendable {
     /// Normalize and validate a raw username input.
     /// Returns nil if the input doesn't satisfy the rules
@@ -118,6 +131,8 @@ struct CloudKitUsernameRepository: UsernameRepository {
         }
 
         let recordID = CKRecord.ID(recordName: normalized)
+        let inSize = avatarImageData?.count ?? 0
+        NSLog("[Tally] usernameRepository.claim: \(normalized) avatarImageData=\(inSize) bytes")
         do {
             let existing = try await publicDB.record(for: recordID)
             // Someone has this name — has to be me to update it.
@@ -127,14 +142,51 @@ struct CloudKitUsernameRepository: UsernameRepository {
             existing["displayName"] = displayName
             existing["avatarSymbol"] = avatarSymbol
             existing["avatarImageData"] = avatarImageData
-            _ = try await publicDB.save(existing)
+            let saved = try await publicDB.save(existing)
+            verifyAvatarPersisted(
+                saved,
+                expectedBytes: inSize,
+                normalized: normalized,
+                path: "update-existing"
+            )
         } catch let error as CKError where error.code == .unknownItem {
             // Unclaimed — claim it fresh.
             let record = CKRecord(recordType: Self.recordType, recordID: recordID)
             record["displayName"] = displayName
             record["avatarSymbol"] = avatarSymbol
             record["avatarImageData"] = avatarImageData
-            _ = try await publicDB.save(record)
+            let saved = try await publicDB.save(record)
+            verifyAvatarPersisted(
+                saved,
+                expectedBytes: inSize,
+                normalized: normalized,
+                path: "create-fresh"
+            )
+        }
+    }
+
+    /// Re-read the saved record's `avatarImageData` field and warn loudly
+    /// in the console if it's missing despite us having passed bytes. The
+    /// near-certain cause is the field not being defined on the
+    /// `UsernameClaim` record type in CloudKit Dashboard → Production
+    /// (which silently drops the field on save). Without this check the
+    /// failure is invisible: the save call returns success, no error is
+    /// thrown, but the photo never propagates.
+    private func verifyAvatarPersisted(
+        _ saved: CKRecord,
+        expectedBytes: Int,
+        normalized: String,
+        path: String
+    ) {
+        guard expectedBytes > 0 else {
+            NSLog("[Tally] usernameRepository.claim(\(path)): \(normalized) no photo to save (expected=0)")
+            return
+        }
+        let savedBytes = (saved["avatarImageData"] as? Data)?.count ?? 0
+        if savedBytes == 0 {
+            NSLog("[Tally] ⚠️ usernameRepository.claim(\(path)): \(normalized) wrote \(expectedBytes) bytes but read back 0 — CloudKit Dashboard is likely missing the `avatarImageData` Bytes field on UsernameClaim record type. Add the field and deploy schema to production.")
+        } else {
+            NSLog("[Tally] usernameRepository.claim(\(path)): \(normalized) persisted \(savedBytes) bytes")
         }
     }
 
@@ -151,11 +203,13 @@ struct CloudKitUsernameRepository: UsernameRepository {
                 let avatarSymbol = record["avatarSymbol"] as? String,
                 let creatorID = record.creatorUserRecordID
             else { return nil }
+            let avatarBytes = record["avatarImageData"] as? Data
+            NSLog("[Tally] usernameRepository.lookup: \(normalized) avatarImageData=\(avatarBytes?.count ?? 0) bytes")
             return UserSearchResult(
                 username: normalized,
                 displayName: displayName,
                 avatarSymbol: avatarSymbol,
-                avatarImageData: record["avatarImageData"] as? Data,
+                avatarImageData: avatarBytes,
                 userRecordName: try await resolveCreatorRecordName(creatorID)
             )
         } catch let error as CKError where error.code == .unknownItem {

@@ -26,6 +26,7 @@ struct ProfileSettingsView: View {
     @State private var showPhotoPicker = false
     @State private var isSaving = false
     @State private var errorMessage: String?
+    @State private var showQuotaSheet = false
     @State private var showDeleteConfirm = false
     @State private var isDeleting = false
 
@@ -168,6 +169,11 @@ struct ProfileSettingsView: View {
                 matching: .images,
                 photoLibrary: .shared()
             )
+            .sheet(isPresented: $showQuotaSheet) {
+                ICloudStorageFullSheet(onRetry: {
+                    Task { await save() }
+                })
+            }
         }
     }
 
@@ -393,7 +399,11 @@ struct ProfileSettingsView: View {
             )
             dismiss()
         } catch {
-            errorMessage = error.localizedDescription
+            if ICloudErrorDetection.isQuotaExceeded(error) {
+                showQuotaSheet = true
+            } else {
+                errorMessage = error.localizedDescription
+            }
             isSaving = false
         }
     }

@@ -41,6 +41,9 @@ struct FriendsView: View {
                     if let err = appState.lastGroupInviteError {
                         GroupInviteErrorBanner(message: err)
                     }
+                    if let err = appState.lastUnfriendCleanupError {
+                        UnfriendCleanupBanner(message: err)
+                    }
                     if !appState.incomingFriendRequests.isEmpty {
                         FriendRequestsSection()
                     }

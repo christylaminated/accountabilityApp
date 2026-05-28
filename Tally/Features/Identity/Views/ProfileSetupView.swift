@@ -1,17 +1,22 @@
 import SwiftUI
 import CloudKit
 
-/// First-launch profile setup. Takes a display name + an SF Symbol avatar and
-/// hands the pair to a parent-supplied async closure (typically `AppState.saveProfile`).
+/// First-launch profile setup. Takes a display name, a unique username, and
+/// an SF Symbol avatar; hands the trio to a parent-supplied async closure
+/// (typically `AppState.saveProfile`). Username is captured here — not in
+/// post-onboarding settings — so the friend-request flow works the moment
+/// the user reaches the main app.
 struct ProfileSetupView: View {
     @Environment(\.tallyAccent) private var tallyAccent
-    /// Invoked with `(displayName, avatarSymbol)`. Throws so failures surface here.
-    let onSubmit: (String, String) async throws -> Void
+    /// Invoked with `(displayName, username, avatarSymbol)`. Throws so failures surface here.
+    let onSubmit: (String, String, String) async throws -> Void
 
     @State private var displayName: String = ""
+    @State private var username: String = ""
     @State private var avatarSymbol: String = "leaf"
     @State private var isSubmitting = false
     @State private var errorMessage: String?
+    @State private var showQuotaSheet = false
 
     /// Curated, Lucide-feeling SF Symbol options. Intentionally generic — not
     /// activity-specific — so they fit any user.
@@ -25,8 +30,25 @@ struct ProfileSetupView: View {
         displayName.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    private var trimmedUsername: String {
+        username.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Username is valid when it satisfies the same normalization rules used
+    /// in ProfileSettingsView (3–20 chars, letters / digits / underscore).
+    /// Required at onboarding so the user lands in the main app already
+    /// reachable via friend search.
+    private var isUsernameValid: Bool {
+        !trimmedUsername.isEmpty
+            && trimmedUsername.count >= 3
+            && trimmedUsername.count <= 20
+            && trimmedUsername.allSatisfy { c in
+                c.isLetter || c.isNumber || c == "_"
+            }
+    }
+
     private var isValid: Bool {
-        !trimmedName.isEmpty && trimmedName.count <= 50
+        !trimmedName.isEmpty && trimmedName.count <= 50 && isUsernameValid
     }
 
     var body: some View {
@@ -34,6 +56,7 @@ struct ProfileSetupView: View {
             VStack(spacing: 28) {
                 header
                 nameField
+                usernameField
                 symbolPicker
 
                 if let errorMessage {
@@ -51,6 +74,9 @@ struct ProfileSetupView: View {
         }
         .background(Color.tallyCanvas)
         .scrollDismissesKeyboard(.interactively)
+        .sheet(isPresented: $showQuotaSheet) {
+            ICloudStorageFullSheet(onRetry: submit)
+        }
     }
 
     private var header: some View {
@@ -58,7 +84,7 @@ struct ProfileSetupView: View {
             Text("Welcome to Tally")
                 .font(.system(.largeTitle, design: .rounded, weight: .bold))
                 .multilineTextAlignment(.center)
-            Text("Pick a name and an icon your friends will see.")
+            Text("Pick a name, a username, and an icon your friends will see.")
                 .font(.system(.body, design: .rounded))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -76,6 +102,29 @@ struct ProfileSetupView: View {
                 .padding(14)
                 .background(Color.tallyCard)
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        }
+    }
+
+    private var usernameField: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Username")
+                .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                .foregroundStyle(.secondary)
+            HStack(spacing: 4) {
+                Text("@")
+                    .font(.system(.body, design: .rounded))
+                    .foregroundStyle(.secondary)
+                TextField("e.g. christy", text: $username)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled(true)
+                    .keyboardType(.asciiCapable)
+            }
+            .padding(14)
+            .background(Color.tallyCard)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            Text("3–20 characters: letters, numbers, or underscores. This is how friends find you.")
+                .font(.system(.caption, design: .rounded))
+                .foregroundStyle(.secondary)
         }
     }
 
@@ -148,9 +197,15 @@ struct ProfileSetupView: View {
         errorMessage = nil
         Task {
             do {
-                try await onSubmit(trimmedName, avatarSymbol)
+                try await onSubmit(trimmedName, trimmedUsername, avatarSymbol)
             } catch {
-                errorMessage = ProfileSetupView.friendlyMessage(for: error)
+                if ICloudErrorDetection.isQuotaExceeded(error) {
+                    // Show the dedicated explainer instead of inline text —
+                    // the inline string was too dense for users to act on.
+                    showQuotaSheet = true
+                } else {
+                    errorMessage = ProfileSetupView.friendlyMessage(for: error)
+                }
                 isSubmitting = false
             }
         }
@@ -250,6 +305,9 @@ struct ProfileSetupView: View {
 /// monochrome default). Calls `onPicked(_:)` on Continue, which is wired to
 /// `AppState.finishThemePick` so the choice persists and we advance.
 struct ThemePickerOnboardingView: View {
+    /// Real display name so the preview cards greet "Good evening, Ada."
+    /// instead of a hard-coded "Christy." Falls back to "you" when missing.
+    let displayName: String
     let onPicked: (TallyTheme) -> Void
 
     @State private var selected: TallyTheme = ThemeManager.shared.current
@@ -284,7 +342,8 @@ struct ThemePickerOnboardingView: View {
                 ForEach(TallyTheme.allCases) { theme in
                     ThemePreviewCard(
                         theme: theme,
-                        isSelected: selected == theme
+                        isSelected: selected == theme,
+                        displayName: displayName
                     ) {
                         selected = theme
                     }
@@ -358,16 +417,25 @@ struct ThemePickerOnboardingView: View {
 private struct ThemePreviewCard: View {
     let theme: TallyTheme
     let isSelected: Bool
+    let displayName: String
     let onSelect: () -> Void
+
+    /// Strip whitespace and fall back when the user hasn't entered a name.
+    /// Period at the end mirrors the dashboard's serif greeting.
+    private var previewName: String {
+        let trimmed = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? "you." : "\(trimmed)."
+    }
 
     var body: some View {
         Button(action: onSelect) {
             VStack(alignment: .leading, spacing: 10) {
-                // Greeting line
+                // Greeting line — matches the real Today-tab greeting so the
+                // preview is an accurate first impression of the theme.
                 Text("Good evening,")
                     .font(.system(size: 9))
                     .foregroundStyle(theme.textSecondary)
-                Text("Christy.")
+                Text(previewName)
                     .font(.system(size: 14, design: .serif).bold())
                     .foregroundStyle(theme.textPrimary)
                 // 7-dot streak chain

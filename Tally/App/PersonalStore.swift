@@ -225,17 +225,30 @@ final class PersonalStore {
                     }
                 } catch let error as CKError where error.code == .changeTokenExpired {
                     // Reset just this zone's token and do a full refetch for it.
-                    friendTokens.removeValue(forKey: zone.zoneID)
-                    let snap = try await repository.friendSnapshot(zoneID: zone.zoneID, since: nil)
-                    friendTokens[zone.zoneID] = snap.token
-                    // Replace this friend's data wholesale
-                    let userID = zone.zoneID.ownerName
-                    habits.removeAll { $0.userID == userID }
-                    completions.removeAll { $0.userID == userID }
-                    goals.removeAll { $0.userID == userID }
-                    habits.append(contentsOf: snap.habits)
-                    completions.append(contentsOf: snap.completions)
-                    goals.append(contentsOf: snap.goals)
+                    // Wrapped in do/catch too — a refetch that itself fails
+                    // shouldn't abort sibling zones.
+                    do {
+                        friendTokens.removeValue(forKey: zone.zoneID)
+                        let snap = try await repository.friendSnapshot(zoneID: zone.zoneID, since: nil)
+                        friendTokens[zone.zoneID] = snap.token
+                        let userID = zone.zoneID.ownerName
+                        habits.removeAll { $0.userID == userID }
+                        completions.removeAll { $0.userID == userID }
+                        goals.removeAll { $0.userID == userID }
+                        habits.append(contentsOf: snap.habits)
+                        completions.append(contentsOf: snap.completions)
+                        goals.append(contentsOf: snap.goals)
+                    } catch {
+                        NSLog("[Tally] PersonalStore.refresh: zone=\(zone.zoneID.zoneName)/\(zone.zoneID.ownerName) refetch after token-expire failed: \(error.localizedDescription)")
+                    }
+                } catch {
+                    // Per-zone defensive catch: previously ANY other error
+                    // from friendSnapshot would propagate out of this for-loop
+                    // and abort the WHOLE refresh, so a freshly-accepted
+                    // reciprocal share that wasn't yet readable (eventual
+                    // consistency) would prevent every OTHER friend's data
+                    // from refreshing too. Now we log and continue.
+                    NSLog("[Tally] PersonalStore.refresh: zone=\(zone.zoneID.zoneName)/\(zone.zoneID.ownerName) snapshot failed: \(error.localizedDescription) — continuing with other zones")
                 }
             }
         } catch let error as CKError where error.code == .changeTokenExpired {
@@ -305,6 +318,49 @@ final class PersonalStore {
         locallyUnfriendedIDs.insert(userID)
         LocalCache.save(Array(locallyUnfriendedIDs), forKey: LocalCacheKey.locallyUnfriendedIDs)
         saveCache()
+    }
+
+    /// Nuke every piece of in-memory state. Used by `AppState.deleteAccount`
+    /// so the dashboard doesn't keep painting the previous account's
+    /// habits, completions, goals, friends, or change tokens between the
+    /// CloudKit deletes and the re-onboarding flow. Persisted caches are
+    /// wiped separately by `LocalCache.clearAll`; this only owns the
+    /// `@Observable` arrays that SwiftUI is reading.
+    ///
+    /// Important: `locallyUnfriendedIDs` is re-read from LocalCache rather
+    /// than emptied. `deleteAccount` augments the persisted hide-list with
+    /// every current friend's userID BEFORE calling reset, so on a same-
+    /// iCloud re-signup `refresh()` filters those friends' shared zones
+    /// out of the friend graph. If we emptied the in-memory copy here,
+    /// the post-delete refresh would see no filter and old friends would
+    /// reappear — the exact bug the user reported.
+    func reset() {
+        currentUserID = ""
+        ownToken = nil
+        ownPrivateToken = nil
+        friendTokens = [:]
+        habits = []
+        completions = []
+        goals = []
+        friends = []
+        lastError = nil
+        locallyUnfriendedIDs = Set(
+            LocalCache.load([String].self, forKey: LocalCacheKey.locallyUnfriendedIDs) ?? []
+        )
+    }
+
+    /// Drop the change token for any zones owned by `userID`. Used by the
+    /// reciprocal-accept flow: after the sender's app accepts the friend's
+    /// share metadata, the friend's zone may take a few seconds to fully
+    /// replicate into our sharedDB. Forcing a token-less full fetch on the
+    /// next refresh guarantees we read everything from scratch (including
+    /// the PersonalRoot record) rather than asking CloudKit for "changes
+    /// since <stale-token>" against a zone whose data hasn't propagated yet.
+    func resetFriendZoneToken(ownerName: String) {
+        let zoneIDs = friendTokens.keys.filter { $0.ownerName == ownerName }
+        for zoneID in zoneIDs {
+            friendTokens.removeValue(forKey: zoneID)
+        }
     }
 
     /// Clear the locally-unfriended flag for `userID`. Called when the
@@ -406,6 +462,31 @@ final class PersonalStore {
         saveCache()
     }
 
+    /// Edit a habit's title and/or privacy. A privacy change moves the
+    /// habit record AND its completions between the shared and private
+    /// zones (private records never ride a CKShare), so we delete from the
+    /// old zone and re-save to the new one. A title-only change just
+    /// re-saves in place.
+    func updateHabit(_ habit: Habit, title: String, privacy: HabitPrivacy) {
+        guard let i = habits.firstIndex(where: { $0.id == habit.id }) else { return }
+        let oldPrivacy = habits[i].privacy
+        habits[i].title = title
+        habits[i].privacy = privacy
+        let updated = habits[i]
+
+        if oldPrivacy != privacy {
+            let related = completions.filter { $0.habitID == habit.id }
+            persistDelete(
+                [habit.recordName] + related.map { $0.recordName },
+                privacy: oldPrivacy
+            )
+            persistSave([updated] + related, privacy: privacy)
+        } else {
+            persistSave([updated], privacy: privacy)
+        }
+        saveCache()
+    }
+
     func archive(habit: Habit) {
         guard let i = habits.firstIndex(where: { $0.id == habit.id }) else { return }
         habits[i].archivedAt = .now
@@ -464,6 +545,16 @@ final class PersonalStore {
         )
         goals.append(goal)
         persistSave([goal])
+        saveCache()
+    }
+
+    /// Edit a goal's title in place. Period + periodStart are fixed once
+    /// created (changing them would move the goal to a different bucket,
+    /// which is better expressed as delete + re-add).
+    func updateGoal(_ goal: Goal, title: String) {
+        guard let i = goals.firstIndex(where: { $0.id == goal.id }) else { return }
+        goals[i].title = title
+        persistSave([goals[i]])
         saveCache()
     }
 

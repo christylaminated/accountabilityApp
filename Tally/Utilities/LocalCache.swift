@@ -65,6 +65,30 @@ enum LocalCacheKey {
     /// against this set so unfriended friends stay gone across launches.
     static let locallyUnfriendedIDs = "Tally.cache.locallyUnfriendedIDs"
 
+    /// User record names of senders whose original friend request we
+    /// accepted (we joined their share) but whose RECIPROCAL share-out
+    /// failed mid-flow (addFriendParticipant, makePersonalShare, or
+    /// send-reciprocal threw). Retried from the polling task so the
+    /// bidirectional graph eventually completes — without this a partial
+    /// failure on the recipient side leaves the sender's friend list
+    /// permanently empty for that friend.
+    static let pendingReciprocalSenders = "Tally.cache.pendingReciprocalSenders"
+
+    /// Record IDs of UnfriendNotifications we've already processed (added
+    /// the unfriender to our locallyUnfriendedIDs). Persisted so we don't
+    /// re-process the same notification on every poll tick. Reset on
+    /// account delete + iCloud account switch.
+    static let processedUnfriendNotificationIDs = "Tally.cache.processedUnfriendNotificationIDs"
+
+    /// Target userIDs whose outbound UnfriendNotification write failed and
+    /// is queued for retry. Same shape/lifecycle as pendingReciprocalSenders.
+    static let pendingUnfriendTargets = "Tally.cache.pendingUnfriendTargets"
+
+    /// "circleID|userID" composite keys for group/DM invite writes that
+    /// failed and are queued for retry. Same shape/lifecycle as
+    /// pendingReciprocalSenders.
+    static let pendingGroupInvites = "Tally.cache.pendingGroupInvites"
+
     /// Per-Circle "last time the user opened the chat" timestamps.
     /// Compared against each Circle's latest message timestamp to decide
     /// whether a row in FriendsView should render in an "unread" style.
@@ -81,6 +105,8 @@ enum LocalCacheKey {
     static let userScoped: [String] = [
         currentUserID, ownProfile, personalStore, hasOnboarded,
         declinedFriendRequestIDs, declinedGroupInviteIDs,
-        locallyUnfriendedIDs
+        locallyUnfriendedIDs, pendingReciprocalSenders,
+        processedUnfriendNotificationIDs, pendingUnfriendTargets,
+        pendingGroupInvites
     ]
 }

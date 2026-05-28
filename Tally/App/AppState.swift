@@ -58,6 +58,7 @@ final class AppState {
     let usernameRepository: any UsernameRepository
     let friendRequestRepository: any FriendRequestRepository
     let groupInviteRepository: any GroupInviteRepository
+    let unfriendNotificationRepository: any UnfriendNotificationRepository
     let shareCoordinator: ShareCoordinator
 
     /// Live data for the active Circle — members + chat. Habits and goals
@@ -77,6 +78,14 @@ final class AppState {
 
     var ownedCircles: [TallyCircle] = []
     var joinedCircles: [TallyCircle] = []
+
+    /// Circles created in this session that the server's `allRecordZones()`
+    /// listing may not have surfaced yet (eventual consistency right after
+    /// zone creation). `loadCircles` keeps these in `ownedCircles` until the
+    /// server result includes them, so a freshly-created group/DM doesn't
+    /// vanish from the Messages/Groups list between create and the server
+    /// catching up.
+    private var recentlyCreatedCircleIDs: Set<UUID> = []
     var isAcceptingShare = false
     var circleActionError: String?
     /// Latest CloudKit error from the share / invite flow. Set when the system
@@ -92,6 +101,15 @@ final class AppState {
     /// before it's published, so the UI only ever shows fresh ones the user
     /// needs to act on.
     var incomingFriendRequests: [FriendRequest] = []
+
+    /// User record names of people I've sent a friend request to that hasn't
+    /// completed yet (target isn't in my friends list). Powers the "Request
+    /// pending" UI state in `FriendSearchView` so the user doesn't keep
+    /// hammering Send while the reciprocal-out is still propagating —
+    /// that pattern previously created duplicate public-DB request records
+    /// that the recipient's app correctly filters out (already-a-friend),
+    /// making the sender think nothing was happening.
+    var outgoingRequestTargetIDs: Set<String> = []
 
     /// Local-only set of declined request IDs. Since recipients can't delete
     /// records they didn't create, decline = hide in our UI. Persisted via
@@ -131,6 +149,49 @@ final class AppState {
     /// nonisolated `deinit` can do cleanup when AppState deallocates.
     private let observerHolder = NotificationObserverHolder()
 
+    /// Long-lived poll that periodically calls `refreshFriendRequests`. CloudKit
+    /// silent push for public-DB record changes is unreliable on TestFlight, so
+    /// without this an accepted reciprocal only surfaces when the sender
+    /// backgrounds and re-foregrounds the app. The poll keeps the sender's
+    /// friend list within ~6s of live while they sit on the screen waiting.
+    private var friendRequestPollTask: Task<Void, Never>?
+
+    /// Re-entrancy guard so the periodic poll and a manual refresh (e.g. from
+    /// pull-to-refresh or post-send) can't both auto-accept the same
+    /// reciprocal record at the same time.
+    private var isRefreshingFriendRequests = false
+
+    /// Sender record names whose ORIGINAL friend request we accepted (we
+    /// successfully joined their share — they already see us) but whose
+    /// reciprocal-out step partially failed. Persisted so a relaunch
+    /// doesn't lose them. Retried on every poll tick until each one
+    /// succeeds — this is the fix for the recurring "they see me but I
+    /// don't see them" symptom.
+    private var pendingReciprocalSenders: Set<String> = []
+
+    /// UnfriendNotification record IDs we've already applied locally.
+    /// Persisted so the poll task doesn't keep re-applying the same
+    /// hide-list mutation every 6s (idempotent in practice, but we still
+    /// want to skip the work).
+    private var processedUnfriendNotificationIDs: Set<String> = []
+
+    /// Target userIDs whose `UnfriendNotification` write failed and needs
+    /// retry. Exact mirror of `pendingReciprocalSenders`: a `Set<String>`
+    /// persisted as `[String]`, retried every poll tick + on launch, each
+    /// entry dequeued only on a confirmed successful write. Without this,
+    /// a single failed notification send would leave the other person
+    /// seeing me (and retaining access) forever.
+    private var pendingUnfriendTargets: Set<String> = []
+
+    /// Group/DM invites whose `GroupInvite` write failed and needs retry.
+    /// Same `Set<String>` / `[String]` shape as `pendingReciprocalSenders`,
+    /// but each entry is a composite `"circleID|userID"` key because an
+    /// invite needs both the circle and the recipient. At flush, the
+    /// circle is resolved from `allCircles` by id. Dequeued only on a
+    /// confirmed successful invite write. Without this, a dropped DM/group
+    /// invite never reaches the recipient and has no recovery.
+    private var pendingGroupInvites: Set<String> = []
+
     init(
         profileRepository: any ProfileRepository = CloudKitProfileRepository(),
         circleRepository: any CircleRepository = CloudKitCircleRepository(),
@@ -138,6 +199,7 @@ final class AppState {
         usernameRepository: any UsernameRepository = CloudKitUsernameRepository(),
         friendRequestRepository: any FriendRequestRepository = CloudKitFriendRequestRepository(),
         groupInviteRepository: any GroupInviteRepository = CloudKitGroupInviteRepository(),
+        unfriendNotificationRepository: any UnfriendNotificationRepository = CloudKitUnfriendNotificationRepository(),
         shareCoordinator: ShareCoordinator = ShareCoordinator(),
         circleStore: CircleStore? = nil,
         personalStore: PersonalStore? = nil
@@ -148,6 +210,7 @@ final class AppState {
         self.usernameRepository = usernameRepository
         self.friendRequestRepository = friendRequestRepository
         self.groupInviteRepository = groupInviteRepository
+        self.unfriendNotificationRepository = unfriendNotificationRepository
         self.shareCoordinator = shareCoordinator
         self.circleStore = circleStore ?? CircleStore()
         self.personalStore = personalStore ?? PersonalStore(repository: personalRepository)
@@ -156,6 +219,18 @@ final class AppState {
         )
         self.declinedGroupInviteIDs = Set(
             LocalCache.load([String].self, forKey: LocalCacheKey.declinedGroupInviteIDs) ?? []
+        )
+        self.pendingReciprocalSenders = Set(
+            LocalCache.load([String].self, forKey: LocalCacheKey.pendingReciprocalSenders) ?? []
+        )
+        self.processedUnfriendNotificationIDs = Set(
+            LocalCache.load([String].self, forKey: LocalCacheKey.processedUnfriendNotificationIDs) ?? []
+        )
+        self.pendingUnfriendTargets = Set(
+            LocalCache.load([String].self, forKey: LocalCacheKey.pendingUnfriendTargets) ?? []
+        )
+        self.pendingGroupInvites = Set(
+            LocalCache.load([String].self, forKey: LocalCacheKey.pendingGroupInvites) ?? []
         )
 
         // Skip the "Checking iCloud…" spinner on launch for returning users.
@@ -174,6 +249,57 @@ final class AppState {
 
         registerAccountChangeObserver()
         Task { await self.refreshAccountState() }
+        startFriendRequestPolling()
+    }
+
+    /// Begin (or no-op if already running) the periodic friend-request poll.
+    /// The task loops forever and is only cancelled if `stopFriendRequestPolling`
+    /// is called explicitly — iOS suspends the Task naturally when the app
+    /// backgrounds and resumes it on foreground, so we don't gate scenePhase.
+    func startFriendRequestPolling() {
+        guard friendRequestPollTask == nil else { return }
+        friendRequestPollTask = Task { @MainActor [weak self] in
+            // 6s cadence balances "feels live" against polling cost. Each
+            // tick is one public-DB query for FriendRequest records keyed
+            // on toUserRecordName == me, plus a follow-up outgoing query
+            // only if reciprocals were found.
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 6_000_000_000)
+                if Task.isCancelled { return }
+                guard let self else { return }
+                // Skip when not signed-in or still onboarding — no point
+                // hitting CloudKit before currentUserID is populated.
+                guard !self.currentUserID.isEmpty,
+                      self.onboardingState == .ready else { continue }
+                await self.refreshFriendRequests()
+                // Drain the half-completed-accept queue. Each entry is a
+                // sender we acknowledged but never successfully sent our
+                // own share URL back to — without this, "they see me but
+                // I don't see them" is permanent.
+                await self.retryPendingReciprocals()
+                // Apply any new unfriend notifications targeted at us so
+                // a friend who unfriended us disappears from our friends
+                // list within the next 6s, even though their share is
+                // still technically in our sharedDB.
+                await self.processUnfriendNotifications()
+                // Retry any unfriend notifications WE failed to send, so a
+                // dropped write still reaches the other person's device.
+                await self.retryPendingUnfriendNotifications()
+                // Pick up incoming group/DM invites on the same cadence.
+                // Without this, a DM or group invite only surfaced on
+                // launch / scene-foreground — so the peer wouldn't see a
+                // new DM "on their tally" until they backgrounded the app.
+                await self.refreshGroupInvites()
+                // Retry any group/DM invite WE failed to send, so a dropped
+                // invite write still reaches the recipient.
+                await self.retryPendingGroupInvites()
+            }
+        }
+    }
+
+    func stopFriendRequestPolling() {
+        friendRequestPollTask?.cancel()
+        friendRequestPollTask = nil
     }
 
     // MARK: - Account status
@@ -255,6 +381,9 @@ final class AppState {
                     await loadCircles()
                     await refreshFriendRequests()
                     await refreshGroupInvites()
+                    await processUnfriendNotifications()
+                    await retryPendingUnfriendNotifications()
+                    await retryPendingGroupInvites()
                     await enterMainAppOrCircleSetup()
                 } else {
                     onboardingState = .needsProfileSetup
@@ -297,20 +426,48 @@ final class AppState {
 
     // MARK: - Onboarding transitions
 
-    /// Called from `ProfileSetupView` on submit. Persists to CloudKit, mirrors
-    /// the user's name + avatar into their personal zone's root record so
-    /// friends can render them, then routes to habits setup.
+    /// Called from `ProfileSetupView` on submit. Claims the username in the
+    /// public DB (throws if taken or malformed), persists the profile to
+    /// CloudKit, mirrors the user's name + avatar into their personal zone's
+    /// root record so friends can render them, then routes to habits setup.
     func saveProfile(
         displayName: String,
+        username: String,
         avatarSymbol: String,
         avatarImageData: Data? = nil
     ) async throws {
+        // After a same-session `deleteAccount`, `currentUserID` was reset
+        // to "" and the next launch's `refreshAccountState` hasn't run
+        // yet — but the user is signed into the same iCloud account, so
+        // we can re-fetch their userRecordID right here. Without this,
+        // they'd reach `.ready` with an empty `currentUserID` and the
+        // first friend-request send would throw "Not signed into
+        // iCloud." even though they obviously ARE.
+        if currentUserID.isEmpty {
+            currentUserID = try await CKClient.shared.userRecordID().recordName
+            LocalCache.save(currentUserID, forKey: LocalCacheKey.currentUserID)
+        }
+
+        // Normalize + claim BEFORE saving the profile so a name conflict
+        // doesn't strand the user with a profile pointing at an unowned
+        // username. Mirrors updateProfile's order of operations.
+        guard let normalized = usernameRepository.normalize(username) else {
+            throw UsernameError.invalid
+        }
+        try await usernameRepository.claim(
+            normalized,
+            previousUsername: nil,
+            displayName: displayName,
+            avatarSymbol: avatarSymbol,
+            avatarImageData: avatarImageData
+        )
+
         let profile = try await profileRepository.saveOwnProfile(
             displayName: displayName,
             avatarSymbol: avatarSymbol,
             avatarImageData: avatarImageData,
             clearAvatarPhoto: false,
-            username: nil
+            username: normalized
         )
         isFirstRunOnboarding = true
 
@@ -631,6 +788,10 @@ final class AppState {
             isReciprocal: false
         )
         try await friendRequestRepository.send(request)
+        // Optimistically mark this target as having a pending outgoing
+        // request so the search UI immediately switches from "Send" to
+        // "Request pending" without waiting for the next 6s refresh.
+        outgoingRequestTargetIDs.insert(userRecordName)
         // Refresh immediately so a self-send (or any quick verification) shows
         // up in the inbox without requiring a manual pull-to-refresh.
         await refreshFriendRequests()
@@ -673,44 +834,95 @@ final class AppState {
         let container = CKClient.shared.container
         let metadata = try await container.shareMetadata(for: shareURL)
         try await acceptShareMetadata(metadata)
-
-        let senderRecordID = CKRecord.ID(recordName: request.fromUserRecordName)
         NSLog("[Tally] acceptFriendRequest: accepted share for sender=\(request.fromUserRecordName)")
 
-        // Add the sender as a participant on OUR share so they can read
-        // our data. This is what unlocks the bidirectional friend graph —
-        // without it the sender never gains access to my zone even after
-        // they accept our reciprocal share URL. Throws because if this
-        // step fails the friend genuinely can't see us afterwards.
-        try await personalRepository.addFriendParticipant(userRecordID: senderRecordID)
-        NSLog("[Tally] acceptFriendRequest: added sender as participant on my share")
+        // Hide the inbox row immediately — the sender's side is unblocked
+        // (we're a participant on their share, so they already see us in
+        // their friend list). What's left is to ship OUR share URL back
+        // to them so they can see us too. Decoupling that into a retryable
+        // step means a flaky network or transient CloudKit error on the
+        // reciprocal-out steps doesn't permanently strand the sender.
+        markRequestDeclined(request)
 
-        // Mint/fetch my share and write the reciprocal FriendRequest so
-        // the sender's app can pick up MY share URL and auto-accept it.
-        // Both steps throw on failure so the user sees a "Couldn't
-        // complete friend request" alert — previously these failed
-        // silently into NSLog, which is exactly why the user reported
-        // "they see me but I don't see them" with no error indication.
+        // Track this sender as needing reciprocal-out completion. The
+        // pending set is consulted by the poll task and re-attempted
+        // every 6s until each completes. Persisted so a relaunch
+        // mid-flow doesn't lose the queue.
+        pendingReciprocalSenders.insert(request.fromUserRecordName)
+        persistPendingReciprocalSenders()
+
+        // First-try attempt happens immediately — the poller backfills
+        // retries if this throws.
+        do {
+            try await sendReciprocalShareBack(to: request.fromUserRecordName)
+            pendingReciprocalSenders.remove(request.fromUserRecordName)
+            persistPendingReciprocalSenders()
+        } catch {
+            NSLog("[Tally] acceptFriendRequest: reciprocal-out failed (queued for retry): \(error.localizedDescription)")
+            lastFriendRequestError = "Friend added on your end. Still completing the connection — keep the app open a moment longer."
+            // Don't re-throw: we want the inbox UI to clear, and the
+            // pending-retry queue + poll loop will finish the job.
+        }
+
+        await personalStore.refresh()
+        await refreshFriendRequests()
+        NSLog("[Tally] acceptFriendRequest: done")
+    }
+
+    /// The post-acceptShareMetadata reciprocal-out steps, factored out so
+    /// they can be retried idempotently from the poll task without
+    /// re-running the share-metadata accept (which can't be retried
+    /// safely after the first call). addFriendParticipant early-returns
+    /// if the sender is already a participant, makePersonalShare returns
+    /// the cached share if one exists, and friendRequestRepository.send
+    /// just writes a new public-DB record — all idempotent or
+    /// idempotent-enough that running this twice does no harm beyond a
+    /// slightly redundant write.
+    private func sendReciprocalShareBack(to senderRecordName: String) async throws {
         guard let profile = ownCloudProfile else {
             throw NSError(
-                domain: "AppState.acceptFriendRequest",
+                domain: "AppState.sendReciprocalShareBack",
                 code: 2,
                 userInfo: [NSLocalizedDescriptionKey: "Set up your profile before accepting friend requests."]
             )
         }
-        let (myShare, _) = try await personalRepository.makePersonalShare()
-        NSLog("[Tally] acceptFriendRequest: makePersonalShare returned share recordName=\(myShare.recordID.recordName) url=\(myShare.url?.absoluteString ?? "nil")")
 
-        // The share URL is what the sender's app fetches metadata from
-        // when auto-accepting the reciprocal. If it's nil the reciprocal
-        // is useless — retry a couple of times with a short delay because
+        let senderRecordID = CKRecord.ID(recordName: senderRecordName)
+        // BEST-EFFORT, intentionally. `addFriendParticipant` uses
+        // `CKFetchShareParticipantsOperation` which requires the sender
+        // to be CloudKit-discoverable to us. Discoverability is granted
+        // automatically once we accept their share (acceptShareMetadata
+        // ran upstream), but the propagation lags — sometimes 30+s — and
+        // until then the lookup throws `.permissionFailure`. Propagating
+        // that throw used to abort the entire reciprocal-out flow on
+        // every retry, indefinitely, which is the recurring "they accept
+        // me but I never see them" bug the user has reported for weeks.
+        //
+        // Why we can swallow it: our personal share has
+        // `publicPermission = .readOnly`, meaning ANY URL-bearer becomes
+        // a participant when they accept the URL. The named-participant
+        // slot is just a hint to CloudKit; the URL is what actually
+        // grants access. So even if we never pre-add the sender, they
+        // join via the URL once their app's acceptShareMetadata runs on
+        // the reciprocal we're about to send.
+        do {
+            try await personalRepository.addFriendParticipant(userRecordID: senderRecordID)
+            NSLog("[Tally] sendReciprocalShareBack: added sender as participant on my share")
+        } catch {
+            NSLog("[Tally] sendReciprocalShareBack: addFriendParticipant failed — non-fatal, share has publicPermission=.readOnly so the sender will join via the URL: \(error.localizedDescription)")
+        }
+
+        let (myShare, _) = try await personalRepository.makePersonalShare()
+        NSLog("[Tally] sendReciprocalShareBack: makePersonalShare share=\(myShare.recordID.recordName) url=\(myShare.url?.absoluteString ?? "nil")")
+
         // CloudKit can take a beat to populate `.url` on freshly-saved
-        // shares (this is the most likely silent failure mode that
-        // matches the user's symptom).
+        // shares. Refetch the share a few times to give it room to
+        // settle. If it's still nil after the window, throw so the
+        // pending-retry queue picks it up next tick.
         var resolvedShare = myShare
         var urlRetries = 0
         while resolvedShare.url == nil && urlRetries < 4 {
-            NSLog("[Tally] acceptFriendRequest: share URL not yet populated, retry \(urlRetries + 1)")
+            NSLog("[Tally] sendReciprocalShareBack: share URL not yet populated, retry \(urlRetries + 1)")
             try await Task.sleep(nanoseconds: 500_000_000)
             let refreshed = try await CKClient.shared.privateDB.record(for: resolvedShare.recordID)
             if let s = refreshed as? CKShare {
@@ -720,17 +932,16 @@ final class AppState {
         }
         guard let myShareURL = resolvedShare.url else {
             throw NSError(
-                domain: "AppState.acceptFriendRequest",
+                domain: "AppState.sendReciprocalShareBack",
                 code: 3,
-                userInfo: [NSLocalizedDescriptionKey: "Couldn't get a share URL from CloudKit — try accepting again."]
+                userInfo: [NSLocalizedDescriptionKey: "Couldn't get a share URL from CloudKit — will retry."]
             )
         }
-        NSLog("[Tally] acceptFriendRequest: resolved share URL after \(urlRetries) retries")
 
         let reciprocal = FriendRequest(
             id: UUID(),
             fromUserRecordName: currentUserID,
-            toUserRecordName: request.fromUserRecordName,
+            toUserRecordName: senderRecordName,
             shareURL: myShareURL.absoluteString,
             fromDisplayName: profile.displayName,
             fromUsername: profile.username ?? "",
@@ -739,16 +950,96 @@ final class AppState {
             isReciprocal: true
         )
         try await friendRequestRepository.send(reciprocal)
-        NSLog("[Tally] acceptFriendRequest: reciprocal sent id=\(reciprocal.id)")
+        NSLog("[Tally] sendReciprocalShareBack: reciprocal sent id=\(reciprocal.id)")
+    }
 
-        // The recipient can't delete the sender's original request (public-DB
-        // security blocks non-creator writes). The sender's cleanup pass will
-        // remove it when they detect us as a friend. Hide it locally so the
-        // inbox UI reflects the action immediately.
-        markRequestDeclined(request)
-        await personalStore.refresh()
-        await refreshFriendRequests()
-        NSLog("[Tally] acceptFriendRequest: done")
+    /// Walk the pending-reciprocal queue and retry each. Invoked from the
+    /// poll task on every tick. Each successful retry removes the entry
+    /// from the queue; failures stay queued for the next tick.
+    private func retryPendingReciprocals() async {
+        guard !pendingReciprocalSenders.isEmpty else { return }
+        // Snapshot the set since the iteration body mutates it.
+        let toRetry = pendingReciprocalSenders
+        for senderRecordName in toRetry {
+            do {
+                try await sendReciprocalShareBack(to: senderRecordName)
+                pendingReciprocalSenders.remove(senderRecordName)
+                persistPendingReciprocalSenders()
+                NSLog("[Tally] retryPendingReciprocals: completed for \(senderRecordName)")
+            } catch {
+                NSLog("[Tally] retryPendingReciprocals: still failing for \(senderRecordName): \(error.localizedDescription)")
+            }
+        }
+    }
+
+    private func persistPendingReciprocalSenders() {
+        LocalCache.save(Array(pendingReciprocalSenders), forKey: LocalCacheKey.pendingReciprocalSenders)
+    }
+
+    /// Poll the public DB for `UnfriendNotification` records addressed to
+    /// us. For each one we haven't already processed, add the unfriender
+    /// to our locallyUnfriendedIDs (via `dropFriendLocally`) so they
+    /// vanish from our friends list. This is the "B receives notification
+    /// that A unfriended them" half of the symmetric unfriend flow.
+    ///
+    /// We can't delete the record from public DB (only the creator can),
+    /// so we track processed IDs in a local set so we don't keep
+    /// re-applying the same hide every 6s. The sender's outgoing-cleanup
+    /// pass eventually deletes the record.
+    func processUnfriendNotifications() async {
+        guard !currentUserID.isEmpty else { return }
+        do {
+            let incoming = try await unfriendNotificationRepository.incoming(for: currentUserID)
+            for notif in incoming {
+                let idStr = notif.id.uuidString
+                if processedUnfriendNotificationIDs.contains(idStr) { continue }
+                NSLog("[Tally] processUnfriendNotifications: applying unfriend from=\(notif.fromUserRecordName) id=\(idStr)")
+                // `dropFriendLocally` adds to locallyUnfriendedIDs, removes
+                // their cached habits/goals/completions, and saves to
+                // LocalCache. Idempotent if they were already in the set.
+                personalStore.dropFriendLocally(userID: notif.fromUserRecordName)
+
+                // ALSO revoke their access to OUR data. The unfriender
+                // already cut our access to theirs (their `unfriend` call
+                // removed us from their share); we mirror it by removing
+                // them from OUR share. Without this, the person who got
+                // unfriended would retain latent read access to the
+                // unfriender's zone — they'd be hidden in the UI but could
+                // still technically sync the data. Safe to call: this
+                // operates on OUR OWN share (we're the owner), not the
+                // other person's share, so it doesn't hit the iOS 26
+                // removeParticipant crash. Best-effort.
+                do {
+                    let outcome = try await personalRepository.removeFriendParticipant(
+                        userRecordID: CKRecord.ID(recordName: notif.fromUserRecordName)
+                    )
+                    NSLog("[Tally] processUnfriendNotifications: revoke outcome=\(outcome) for \(notif.fromUserRecordName)")
+                } catch {
+                    NSLog("[Tally] processUnfriendNotifications: revoke failed (non-fatal): \(error.localizedDescription)")
+                }
+                processedUnfriendNotificationIDs.insert(idStr)
+            }
+            LocalCache.save(
+                Array(processedUnfriendNotificationIDs),
+                forKey: LocalCacheKey.processedUnfriendNotificationIDs
+            )
+
+            // Outgoing cleanup: delete any UnfriendNotifications we sent
+            // that are older than 7 days. The recipient's app polls
+            // every 6s when foregrounded; 7 days is a generous window
+            // covering "phone off all week," after which the record is
+            // safe to drop. We're the creator so we have delete rights.
+            let outgoing = try await unfriendNotificationRepository.outgoing(for: currentUserID)
+            let weekAgo = Date.now.addingTimeInterval(-7 * 24 * 60 * 60)
+            for r in outgoing where r.sentAt < weekAgo {
+                try? await unfriendNotificationRepository.delete(r)
+            }
+
+            // Refresh so the UI immediately reflects any new unfriends.
+            await personalStore.refresh()
+        } catch {
+            NSLog("[Tally] processUnfriendNotifications: failed: \(error.localizedDescription)")
+        }
     }
 
     /// Hide the request locally. We can't delete the underlying record (only
@@ -774,14 +1065,29 @@ final class AppState {
         let recordID = CKRecord.ID(recordName: friend.userID)
         NSLog("[Tally] unfriend: start friend=\(friend.userID)")
 
-        // Step 1: revoke their access to my zone. Must succeed — this is
-        // the trust-relevant half. If this throws the user sees the
-        // standard "Couldn't unfriend" alert and the friend stays in the
-        // list (correct: we haven't actually unfriended them yet).
-        // Their next refresh will drop our zone from their sharedDB so
-        // we disappear from their friend list automatically.
-        try await personalRepository.removeFriendParticipant(userRecordID: recordID)
-        NSLog("[Tally] unfriend: step 1 ok — removed friend from my share")
+        // Clear any stale flag from a previous unfriend attempt.
+        lastUnfriendCleanupError = nil
+
+        // Step 1: revoke their access to my zone — the trust-relevant half.
+        // A THROW here is a real CloudKit write failure (network): the
+        // standard "Couldn't unfriend" alert shows and the friend stays in
+        // the list (correct — nothing happened, retry). A returned outcome
+        // means no write error, but we must distinguish the cases:
+        //   .revoked / .alreadyAbsent → they have no access → finish cleanly.
+        //   .refused(reason)          → couldn't revoke, access MAY remain.
+        //     Per product decision we PROCEED + FLAG rather than abort: a
+        //     corrupt state (e.g. owner-role participant) never self-heals,
+        //     so aborting would make this friend permanently un-unfriendable.
+        //     We still drop them locally + notify their device, but set
+        //     `lastUnfriendCleanupError` so the unrevoked access is visible.
+        let revoke = try await personalRepository.removeFriendParticipant(userRecordID: recordID)
+        switch revoke {
+        case .revoked, .alreadyAbsent:
+            NSLog("[Tally] unfriend: step 1 ok (\(revoke)) — friend has no access to my data")
+        case .refused(let reason):
+            NSLog("[Tally] unfriend: step 1 REFUSED — \(reason)")
+            lastUnfriendCleanupError = "Removed them from your side, but couldn't confirm their access to your data was revoked — they may still see your data. (\(reason)) Try unfriending again."
+        }
 
         // Step 2 used to be `leaveFriendShare` (calling
         // CKShare.removeParticipant on the friend's share via
@@ -795,9 +1101,70 @@ final class AppState {
         // against that set so the friend stays gone across launches
         // even though their zone technically remains in our sharedDB.
         personalStore.dropFriendLocally(userID: friend.userID)
+
+        // Step 3: tell THEIR app about the unfriend. Without this, their
+        // PersonalStore.refresh would still see us in their friends list
+        // indefinitely (we revoked their data access in step 1, but the
+        // zone reference stays in their sharedDB and they have no signal
+        // to drop us). Their app polls UnfriendNotifications via the
+        // same 6s loop that polls FriendRequests; when this one arrives
+        // they add us to THEIR locallyUnfriendedIDs and we vanish from
+        // their friend list — symmetric to the local-filter unfriend we
+        // just did.
+        //
+        // Enqueue the target BEFORE attempting the send (mirrors how
+        // acceptFriendRequest enqueues into pendingReciprocalSenders before
+        // sendReciprocalShareBack). The entry is removed only on a confirmed
+        // successful write; if the send throws, it stays queued and the 6s
+        // poll + launch flush retry it until it lands. This closes the gap
+        // where a single failed notification left the other person seeing
+        // us (and retaining access) forever.
+        pendingUnfriendTargets.insert(friend.userID)
+        persistPendingUnfriendTargets()
+        await flushUnfriendNotification(to: friend.userID)
+
         await personalStore.refresh()
         await refreshFriendRequests()
-        NSLog("[Tally] unfriend: done (local-filter mode)")
+        NSLog("[Tally] unfriend: done")
+    }
+
+    /// Attempt to send a single UnfriendNotification; dequeue on success.
+    /// Shared by `unfriend` (first try) and `retryPendingUnfriendNotifications`
+    /// (poll retries) — same role `sendReciprocalShareBack` plays for the
+    /// reciprocal queue.
+    private func flushUnfriendNotification(to targetUserID: String) async {
+        guard !currentUserID.isEmpty else { return }
+        do {
+            let notification = UnfriendNotification(
+                id: UUID(),
+                fromUserRecordName: currentUserID,
+                toUserRecordName: targetUserID,
+                sentAt: .now
+            )
+            try await unfriendNotificationRepository.send(notification)
+            pendingUnfriendTargets.remove(targetUserID)
+            persistPendingUnfriendTargets()
+            NSLog("[Tally] unfriend: UnfriendNotification sent to=\(targetUserID) id=\(notification.id)")
+        } catch {
+            NSLog("[Tally] unfriend: UnfriendNotification send failed (queued for retry): \(error.localizedDescription)")
+        }
+    }
+
+    /// Flush the unfriend-notification retry queue. Called every poll tick
+    /// and on launch. Each entry is dequeued inside `flushUnfriendNotification`
+    /// only on a confirmed successful write.
+    private func retryPendingUnfriendNotifications() async {
+        guard !pendingUnfriendTargets.isEmpty else { return }
+        // Snapshot before iterating — flushUnfriendNotification mutates the
+        // set on success (same approach as retryPendingReciprocals).
+        let toRetry = pendingUnfriendTargets
+        for targetUserID in toRetry {
+            await flushUnfriendNotification(to: targetUserID)
+        }
+    }
+
+    private func persistPendingUnfriendTargets() {
+        LocalCache.save(Array(pendingUnfriendTargets), forKey: LocalCacheKey.pendingUnfriendTargets)
     }
 
     /// Surfaced when step 2 of unfriend (leaving the friend's share)
@@ -869,6 +1236,15 @@ final class AppState {
             } catch {
                 NSLog("[Tally] deleteAccount: outgoing GI cleanup failed (non-fatal): \(error.localizedDescription)")
             }
+            do {
+                let notifs = try await unfriendNotificationRepository.outgoing(for: userID)
+                for notif in notifs {
+                    try? await unfriendNotificationRepository.delete(notif)
+                }
+                NSLog("[Tally] deleteAccount: deleted \(notifs.count) outgoing UnfriendNotifications")
+            } catch {
+                NSLog("[Tally] deleteAccount: outgoing UN cleanup failed (non-fatal): \(error.localizedDescription)")
+            }
         }
 
         // 3. Private DB — delete every owned Circle zone. Zone deletion
@@ -899,27 +1275,73 @@ final class AppState {
         _ = try? await CKClient.shared.privateDB.deleteRecord(withID: profileID)
         NSLog("[Tally] deleteAccount: deleted UserProfile record")
 
-        // 6. Local cleanup — wipe every cached row (themes, declines,
-        //    unfriends, last-read timestamps, hasOnboarded, the profile
-        //    cache itself). Bypass `userScoped` and just nuke everything
-        //    that lives under our cache prefix.
-        LocalCache.clearAll()
-        UserDefaults.standard.removeObject(forKey: ThemeManager.hasPickedThemeKey)
-        // Theme preference is NOT wiped — that's a UI preference, not
-        // account-scoped data. The user keeps their accent choice across
-        // delete + re-signup.
+        // 6. Snapshot the post-resignup hide-lists BEFORE clearAll.
+        //    `deleteAccount` is most often "delete then immediately
+        //    re-onboard with the same iCloud account" — same iCloud means
+        //    same `userRecordID`, so old incoming FriendRequests / old
+        //    GroupInvites the user can't delete (not the creator) and old
+        //    friends' shared zones in sharedDB will all re-appear unless
+        //    we explicitly remember to hide them. Public-DB records we
+        //    DID create were deleted in steps 2; this handles everything
+        //    else.
+        let allDeclinedRequests = declinedRequestIDs
+            .union(incomingFriendRequests.map { $0.id.uuidString })
+        let allDeclinedInvites = declinedGroupInviteIDs
+            .union(incomingGroupInvites.map { $0.id.uuidString })
+        let allLocallyUnfriended = Set(personalStore.friends.map { $0.userID })
+        NSLog("[Tally] deleteAccount: snapshot hide-lists requests=\(allDeclinedRequests.count) invites=\(allDeclinedInvites.count) friends=\(allLocallyUnfriended.count)")
 
-        // 7. Reset in-memory state so the UI immediately reflects "no
-        //    account". Routing back to .needsProfileSetup makes
-        //    RootView present ProfileSetupView again.
+        // 7. Local cleanup — wipe every cached row, then re-save just the
+        //    cross-account hide-lists from the snapshot above so a same-
+        //    iCloud re-signup starts clean (no ghost friends, no ghost
+        //    pending requests).
+        LocalCache.clearAll()
+        LocalCache.save(Array(allDeclinedRequests),
+                        forKey: LocalCacheKey.declinedFriendRequestIDs)
+        LocalCache.save(Array(allDeclinedInvites),
+                        forKey: LocalCacheKey.declinedGroupInviteIDs)
+        LocalCache.save(Array(allLocallyUnfriended),
+                        forKey: LocalCacheKey.locallyUnfriendedIDs)
+
+        // 8. Theme — wipe the user's color preference too. Previous
+        //    behavior kept it as "UI preference"; user feedback was that
+        //    a delete-account should mean delete-everything. Set in-memory
+        //    to defaults (so the running app instantly reverts to Classic),
+        //    THEN remove the persisted keys (the didSet on ThemeManager
+        //    re-wrote them when we set above, so the removeObject is the
+        //    actual erase).
+        ThemeManager.shared.current = .classic
+        ThemeManager.shared.customAccentHex = ThemeManager.defaultCustomAccentHex
+        UserDefaults.standard.removeObject(forKey: ThemeManager.storageKey)
+        UserDefaults.standard.removeObject(forKey: ThemeManager.customAccentKey)
+        UserDefaults.standard.removeObject(forKey: ThemeManager.hasPickedThemeKey)
+        theme = .classic
+
+        // 9. In-memory store wipe — habits, completions, goals, friends,
+        //    change tokens, circle members, messages, optimistic-send
+        //    queues. `@Observable` so the UI re-renders blank immediately.
+        personalStore.reset()
+        circleStore.reset()
+
+        // 10. Reset every AppState field so the UI is fully clean and
+        //     RootView lands on ProfileSetupView for a fresh onboarding.
         ownCloudProfile = nil
         currentUserID = ""
         ownedCircles = []
         joinedCircles = []
+        recentlyCreatedCircleIDs = []
         incomingFriendRequests = []
         incomingGroupInvites = []
         declinedRequestIDs = []
         declinedGroupInviteIDs = []
+        outgoingRequestTargetIDs = []
+        pendingReciprocalSenders = []
+        processedUnfriendNotificationIDs = []
+        pendingUnfriendTargets = []
+        pendingGroupInvites = []
+        lastCloudShareError = nil
+        lastFriendRequestError = nil
+        lastGroupInviteError = nil
         isFirstRunOnboarding = true
         onboardingState = .needsProfileSetup
         NSLog("[Tally] deleteAccount: done")
@@ -938,6 +1360,13 @@ final class AppState {
     /// deleted from the public DB so it doesn't pile up forever.
     func refreshFriendRequests() async {
         guard !currentUserID.isEmpty else { return }
+        // Re-entrancy guard: prevent the 6s poll and a same-instant manual
+        // refresh from both racing the auto-accept loop on the same
+        // reciprocal record. Without this, two concurrent passes can each
+        // try to acceptShareMetadata on the same URL.
+        guard !isRefreshingFriendRequests else { return }
+        isRefreshingFriendRequests = true
+        defer { isRefreshingFriendRequests = false }
         do {
             let incoming = try await friendRequestRepository.incoming(for: currentUserID)
             // Clear any stale error message from a previous failed refresh.
@@ -971,32 +1400,42 @@ final class AppState {
                     // clear them now so personalStore.refresh below picks
                     // their zone back into the friend graph.
                     personalStore.clearLocalUnfriend(userID: r.fromUserRecordName)
-                    // CloudKit eventual consistency: the friend's zone
-                    // may not appear in our sharedDB immediately after
-                    // acceptShareMetadata returns successfully — it can
-                    // lag by several seconds. Retry refresh with backoff
-                    // until the friend shows up OR we run out of retries.
+                    // Force a full re-fetch of this friend's zone on the
+                    // next refresh. Without this, if we'd previously
+                    // accepted-then-lost this share, a stale change token
+                    // could cause us to ask CloudKit for "changes since X"
+                    // and miss the initial PersonalRoot record we need to
+                    // turn the zone into a Friend row.
+                    personalStore.resetFriendZoneToken(ownerName: r.fromUserRecordName)
+                    // CloudKit eventual consistency: the friend's zone may
+                    // not appear in our sharedDB immediately after
+                    // acceptShareMetadata returns. We've seen real-world
+                    // gaps north of 15s. Retry every 3s for ~30s before
+                    // giving up and leaving the reciprocal record around
+                    // for the next 6s poll to retry.
                     var visible = false
-                    for attempt in 0..<5 {
+                    for attempt in 0..<10 {
                         await personalStore.refresh()
                         if personalStore.friends.contains(where: { $0.userID == r.fromUserRecordName }) {
                             NSLog("[Tally] reciprocal: friend visible after attempt \(attempt + 1)")
                             visible = true
                             break
                         }
-                        // 0.5s, 1s, 1.5s, 2s — a 5s total window
-                        // before we give up and leave the reciprocal
-                        // around for the next refresh cycle to retry.
-                        let delay = UInt64((attempt + 1) * 500_000_000)
-                        try? await Task.sleep(nanoseconds: delay)
+                        try? await Task.sleep(nanoseconds: 3_000_000_000)
                     }
                     if visible {
                         markRequestDeclined(r)
                     } else {
-                        NSLog("[Tally] reciprocal: friend never appeared after 5 retries — leaving record for next refresh")
+                        NSLog("[Tally] reciprocal: friend never appeared after 10 retries — leaving record for next refresh")
+                        // Surface to UI so the user sees the app is trying
+                        // (and trying again). Previously this was silent —
+                        // user just saw "no friend in list" with no signal.
+                        lastFriendRequestError = "Connecting to your new friend… If this persists, try restarting the app."
                     }
                 } catch {
                     NSLog("[Tally] reciprocal: auto-accept failed (will retry next refresh): \(error.localizedDescription)")
+                    // Surface to UI so a persistent failure isn't invisible.
+                    lastFriendRequestError = "Couldn't complete friend connection: \(error.localizedDescription)"
                 }
             }
 
@@ -1014,6 +1453,16 @@ final class AppState {
             for r in outgoing where friendIDs.contains(r.toUserRecordName) {
                 try? await friendRequestRepository.delete(r)
             }
+            // Publish remaining outgoing-pending targets so FriendSearchView
+            // can show "Request pending" instead of "Send" for people I've
+            // already messaged. Filter to only NON-reciprocal records I
+            // created — reciprocals are an internal mechanic, not a
+            // user-visible "request."
+            outgoingRequestTargetIDs = Set(
+                outgoing
+                    .filter { !$0.isReciprocal && !friendIDs.contains($0.toUserRecordName) }
+                    .map(\.toUserRecordName)
+            )
             // Refresh friends so an accepted reciprocal shows up in the list.
             await personalStore.refresh()
         } catch {
@@ -1063,6 +1512,17 @@ final class AppState {
             )
         }
 
+        // Enqueue BEFORE the fallible work (makeShare / send), mirroring how
+        // acceptFriendRequest enqueues into pendingReciprocalSenders. Removed
+        // only on a confirmed successful invite write below; if anything
+        // throws in between, the entry stays queued and the 6s poll + launch
+        // flush retry it. Centralizing here means all callers (DM via
+        // openOrCreateDM, the group fan-out in CreateCircleView, and
+        // addMemberToCircle) get retry coverage without changing the views.
+        let inviteKey = Self.groupInviteKey(circleID: circle.id, userID: userRecordName)
+        pendingGroupInvites.insert(inviteKey)
+        persistPendingGroupInvites()
+
         // Mint/fetch the share so we have a URL for the invite.
         let (share, _) = try await circleRepository.makeShare(for: circle)
         guard let shareURL = share.url else {
@@ -1096,14 +1556,64 @@ final class AppState {
             sentAt: .now
         )
         try await groupInviteRepository.send(invite)
+        // Confirmed write — dequeue.
+        pendingGroupInvites.remove(inviteKey)
+        persistPendingGroupInvites()
         // Refresh in case we want to surface our own outgoing in the future,
         // or to surface a clear error banner if the schema isn't ready.
         await refreshGroupInvites()
     }
 
-    /// Recipient accepts a group invite: fetch share metadata, accept the
-    /// share so the Circle's zone appears in our sharedDB, then write our
-    /// CircleMember row so the owner sees us in the members list.
+    /// Composite retry-queue key for a group/DM invite. `|` can't appear in
+    /// a UUID or a CloudKit user record name, so it's a safe separator.
+    private static func groupInviteKey(circleID: UUID, userID: String) -> String {
+        "\(circleID.uuidString)|\(userID)"
+    }
+
+    private func persistPendingGroupInvites() {
+        LocalCache.save(Array(pendingGroupInvites), forKey: LocalCacheKey.pendingGroupInvites)
+    }
+
+    /// Flush the group/DM-invite retry queue. Called every poll tick + on
+    /// launch. Each key is `"circleID|userID"`; the circle is resolved from
+    /// `allCircles`. `sendGroupInvite` itself dequeues on success — so a
+    /// still-failing invite simply stays for the next tick. Entries whose
+    /// circle no longer exists (deleted) or whose key is malformed are
+    /// dropped so the queue can't grow unbounded.
+    private func retryPendingGroupInvites() async {
+        guard !pendingGroupInvites.isEmpty else { return }
+        // Snapshot before iterating — sendGroupInvite mutates the set on
+        // success (same approach as retryPendingReciprocals).
+        let toRetry = pendingGroupInvites
+        for key in toRetry {
+            let parts = key.split(separator: "|", maxSplits: 1).map(String.init)
+            guard parts.count == 2, let circleID = UUID(uuidString: parts[0]) else {
+                pendingGroupInvites.remove(key)
+                persistPendingGroupInvites()
+                continue
+            }
+            let userID = parts[1]
+            guard let circle = allCircles.first(where: { $0.id == circleID }) else {
+                // Circle not currently in allCircles. Could be a genuine
+                // delete OR just a transient empty list (loadCircles failed
+                // this cycle). We do NOT drop here — dropping on a transient
+                // miss would silently lose a valid pending invite. Skip and
+                // leave it queued; it retries next tick once allCircles is
+                // populated. (Mirrors pendingReciprocalSenders, which only
+                // ever removes on success.)
+                NSLog("[Tally] retryPendingGroupInvites: circle \(circleID) not loaded — skipping this tick")
+                continue
+            }
+            // sendGroupInvite re-enqueues (no-op, already present) and
+            // dequeues on success.
+            try? await sendGroupInvite(to: userID, circle: circle)
+        }
+    }
+
+    /// Recipient accepts a group invite. Order matters: the share-accept is
+    /// the load-bearing step (it makes us a participant), so the circle must
+    /// surface the instant that succeeds — the member-record write is
+    /// secondary and must never block the circle from appearing.
     func acceptGroupInvite(_ invite: GroupInvite) async throws {
         guard let shareURL = URL(string: invite.shareURL) else {
             throw NSError(
@@ -1114,19 +1624,47 @@ final class AppState {
         }
         let container = CKClient.shared.container
         let metadata = try await container.shareMetadata(for: shareURL)
+
+        // 1. JOIN. Once this succeeds we're a participant on the circle zone.
+        //    A throw here leaves the invite un-declined so it retries — we
+        //    haven't actually joined, so re-surfacing it is correct.
         try await acceptShareMetadata(metadata)
 
-        let profile = ownCloudProfile
-        try await circleRepository.recordOwnMembership(
-            circleID: invite.circleID,
-            displayName: profile?.displayName ?? "Me",
-            avatarSymbol: profile?.avatarSymbol ?? "leaf"
-        )
-
-        // Hide locally (we didn't create the record, so we can't delete it).
-        // The owner's cleanup pass removes it once they see us as a member.
+        // 2. Confirmed join — hide the invite from the inbox now (we can't
+        //    delete the record; the owner's cleanup pass removes it once
+        //    they see us as a member). Marking declined is gated on the
+        //    JOIN succeeding, nothing later.
         markGroupInviteDeclined(invite)
+
+        // 3. Surface the circle immediately. Previously `recordOwnMembership`
+        //    ran BEFORE this and threw "Joined Circle zone not found" on
+        //    post-join eventual consistency, skipping `loadCircles` entirely
+        //    — so a freshly-joined DM/group wouldn't appear until a later
+        //    poll. Now the circle shows the moment we're a participant.
         await loadCircles()
+
+        // 4. Write our member row so the OWNER sees us in their member list.
+        //    Best-effort: it commonly fails on the first try right after
+        //    joining (the zone isn't yet listed in sharedDB), so we retry a
+        //    few times — but it NEVER throws out of this function and NEVER
+        //    blocks the circle from appearing. If it ultimately fails, we
+        //    still have the circle + can message; only the owner's member
+        //    list is briefly incomplete.
+        let profile = ownCloudProfile
+        for attempt in 0..<3 {
+            do {
+                try await circleRepository.recordOwnMembership(
+                    circleID: invite.circleID,
+                    displayName: profile?.displayName ?? "Me",
+                    avatarSymbol: profile?.avatarSymbol ?? "leaf"
+                )
+                break
+            } catch {
+                NSLog("[Tally] acceptGroupInvite: recordOwnMembership attempt \(attempt + 1) failed (non-fatal): \(error.localizedDescription)")
+                try? await Task.sleep(nanoseconds: 1_500_000_000)
+            }
+        }
+
         await refreshGroupInvites()
     }
 
@@ -1235,18 +1773,19 @@ final class AppState {
         onboardingState = .needsGoalsSetup
     }
 
-    /// Called from `GoalsSetupView`. Persists each non-empty title as a weekly
-    /// goal for the current Monday-anchored week, then enters the main app.
+    /// Called from `GoalsSetupView`. Persists each non-empty title as a
+    /// `.day`-period goal dated to today, so the entries land in the
+    /// dashboard's "TO DO TODAY" section the moment onboarding finishes.
     func saveInitialGoals(_ titles: [String]) {
-        let weekStart = WeekCalculator.weekStart(for: .now)
+        let todayStart = GoalPeriod.day.startDate(for: .now)
         for title in titles {
             let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { continue }
             personalStore.addGoal(
                 title: trimmed,
                 for: currentUserID,
-                period: .week,
-                periodStart: weekStart
+                period: .day,
+                periodStart: todayStart
             )
         }
         isFirstRunOnboarding = false
@@ -1262,10 +1801,33 @@ final class AppState {
         do {
             async let owned = circleRepository.ownedCircles()
             async let joined = circleRepository.joinedCircles()
-            self.ownedCircles = try await owned
-            self.joinedCircles = try await joined
+            let serverOwned = try await owned
+            let serverJoined = try await joined
+
+            let serverIDs = Set((serverOwned + serverJoined).map(\.id))
+            // The server has surfaced these — they no longer need optimistic
+            // preservation.
+            recentlyCreatedCircleIDs.subtract(serverIDs)
+            // Keep any circle we created this session that the server's
+            // zone listing hasn't caught up to yet, so it doesn't disappear
+            // from the UI between create and propagation.
+            let optimistic = ownedCircles.filter {
+                recentlyCreatedCircleIDs.contains($0.id) && !serverIDs.contains($0.id)
+            }
+            self.ownedCircles = serverOwned + optimistic
+            self.joinedCircles = serverJoined
         } catch {
             circleActionError = error.localizedDescription
+        }
+    }
+
+    /// Record a freshly-created circle in `ownedCircles` + the optimistic-keep
+    /// set so it shows immediately and survives the next `loadCircles` even
+    /// if the server zone listing is still catching up.
+    private func optimisticallyAdd(_ circle: TallyCircle) {
+        recentlyCreatedCircleIDs.insert(circle.id)
+        if !ownedCircles.contains(where: { $0.id == circle.id }) {
+            ownedCircles.append(circle)
         }
     }
 
@@ -1284,6 +1846,7 @@ final class AppState {
             kind: .group,
             dmPeerID: nil
         )
+        optimisticallyAdd(circle)
         await loadCircles()
         if let active = activeCircle {
             await circleStore.activate(active, currentUserID: currentUserID)
@@ -1324,6 +1887,10 @@ final class AppState {
             kind: .dm,
             dmPeerID: friend.userID
         )
+        // Show the DM in our own Messages list immediately — don't wait for
+        // the server zone listing to catch up (which dropped freshly-created
+        // DMs from the list, part of the "doesn't show up on my tally" bug).
+        optimisticallyAdd(circle)
 
         // 3. Invite the peer via the public-DB GroupInvite flow so they
         // actually see the invitation on their device (the bare CKShare
