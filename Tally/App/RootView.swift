@@ -31,19 +31,19 @@ struct RootView: View {
                 }
 
             case .displayNameEntry:
-                _DisplayNameEntryStub()
+                NameEntryView()
                     .transition(.opacity)
 
             case .firstHabitEntry:
-                _FirstHabitEntryStub()
+                FirstHabitView()
                     .transition(.opacity)
 
             case .firstGoalEntry:
-                _FirstGoalEntryStub()
+                FirstGoalView()
                     .transition(.opacity)
 
             case .leaderboardPreview:
-                _LeaderboardPreviewStub()
+                LeaderboardPreviewView()
                     .transition(.opacity)
 
             case .profileCustomization:
@@ -147,89 +147,6 @@ private struct _StubScaffold<Content: View>: View {
         .padding(24)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(Color.tallyCanvas)
-    }
-}
-
-private struct _DisplayNameEntryStub: View {
-    @Environment(AppState.self) private var appState
-    @State private var name = ""
-    @State private var inFlight = false
-    @State private var error: String?
-    var body: some View {
-        _StubScaffold("Display name entry (screen 1)") {
-            TextField("Display name", text: $name)
-                .textFieldStyle(.roundedBorder)
-            if let error {
-                Text(error).font(.footnote).foregroundStyle(Color.tallyDestructive)
-            }
-            Button(inFlight ? "Saving…" : "Continue") {
-                Task {
-                    inFlight = true
-                    defer { inFlight = false }
-                    do {
-                        try await appState.completeDisplayNameEntry(displayName: name)
-                    } catch {
-                        self.error = error.localizedDescription
-                    }
-                }
-            }
-            .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty || inFlight)
-            .buttonStyle(.borderedProminent)
-        }
-    }
-}
-
-private struct _FirstHabitEntryStub: View {
-    @Environment(AppState.self) private var appState
-    @State private var title = ""
-    var body: some View {
-        _StubScaffold("First habit (screen 2, required)") {
-            TextField("Habit title", text: $title)
-                .textFieldStyle(.roundedBorder)
-            Button("Continue") {
-                appState.completeFirstHabitEntry(title: title)
-            }
-            .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty)
-            .buttonStyle(.borderedProminent)
-        }
-    }
-}
-
-private struct _FirstGoalEntryStub: View {
-    @Environment(AppState.self) private var appState
-    @State private var title = ""
-    @State private var period: GoalPeriod = .week
-    var body: some View {
-        _StubScaffold("First goal (screen 3, skippable)") {
-            TextField("Goal title", text: $title)
-                .textFieldStyle(.roundedBorder)
-            Picker("Period", selection: $period) {
-                Text("Weekly").tag(GoalPeriod.week)
-                Text("Monthly").tag(GoalPeriod.month)
-            }
-            .pickerStyle(.segmented)
-            HStack {
-                Button("Skip") { appState.skipFirstGoalEntry() }
-                    .buttonStyle(.bordered)
-                Button("Continue") {
-                    appState.completeFirstGoalEntry(title: title, period: period)
-                }
-                .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty)
-                .buttonStyle(.borderedProminent)
-            }
-        }
-    }
-}
-
-private struct _LeaderboardPreviewStub: View {
-    @Environment(AppState.self) private var appState
-    var body: some View {
-        _StubScaffold("Leaderboard preview (screen 4)") {
-            Text("Preview leaderboard will render here in commit (c).")
-                .foregroundStyle(.secondary)
-            Button("Continue") { appState.completeLeaderboardPreview() }
-                .buttonStyle(.borderedProminent)
-        }
     }
 }
 

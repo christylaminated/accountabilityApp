@@ -75,6 +75,10 @@
 		D66B0DEFC0FFEE0066BABEAA /* ICloudStorageFullSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = D66B0DEFC0FFEE0066BABE01 /* ICloudStorageFullSheet.swift */; };
 		D99B0DEFC0FFEE0099BABEAA /* SubscriptionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = D99B0DEFC0FFEE0099BABE01 /* SubscriptionManager.swift */; };
 		DAAB0DEFC0FFEE00AABABEAA /* Config.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAAB0DEFC0FFEE00AABABE01 /* Config.swift */; };
+		DBB10DEFC0FFEE00B1BABEAA /* NameEntryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBB10DEFC0FFEE00B1BABE01 /* NameEntryView.swift */; };
+		DBB20DEFC0FFEE00B2BABEAA /* FirstHabitView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBB20DEFC0FFEE00B2BABE01 /* FirstHabitView.swift */; };
+		DBB30DEFC0FFEE00B3BABEAA /* FirstGoalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBB30DEFC0FFEE00B3BABE01 /* FirstGoalView.swift */; };
+		DBB40DEFC0FFEE00B4BABEAA /* LeaderboardPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBB40DEFC0FFEE00B4BABE01 /* LeaderboardPreviewView.swift */; };
 		DDDD0DEFC0FFEE00DDBABE99 /* RevenueCat in Frameworks */ = {isa = PBXBuildFile; productRef = 7A0D58F32FD0CBC000F36ACB /* RevenueCat */; };
 		D7539724508FDA45F5EF819E /* UserProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A984F64EB765CBCA58109CA /* UserProfile.swift */; };
 		DD3C34BA9BCF58E4313CF34C /* HistoryCalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B23EFD69AE88007BCFBA851F /* HistoryCalendarView.swift */; };
@@ -171,6 +175,10 @@
 		D66B0DEFC0FFEE0066BABE01 /* ICloudStorageFullSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ICloudStorageFullSheet.swift; sourceTree = "<group>"; };
 		D99B0DEFC0FFEE0099BABE01 /* SubscriptionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionManager.swift; sourceTree = "<group>"; };
 		DAAB0DEFC0FFEE00AABABE01 /* Config.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Config.swift; sourceTree = "<group>"; };
+		DBB10DEFC0FFEE00B1BABE01 /* NameEntryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NameEntryView.swift; sourceTree = "<group>"; };
+		DBB20DEFC0FFEE00B2BABE01 /* FirstHabitView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirstHabitView.swift; sourceTree = "<group>"; };
+		DBB30DEFC0FFEE00B3BABE01 /* FirstGoalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirstGoalView.swift; sourceTree = "<group>"; };
+		DBB40DEFC0FFEE00B4BABE01 /* LeaderboardPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeaderboardPreviewView.swift; sourceTree = "<group>"; };
 		DA342347F6BF4B4C6E2F7968 /* ProfileSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileSettingsView.swift; sourceTree = "<group>"; };
 		DA4022F12FFC0A196A98FA76 /* ProfileRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileRepository.swift; sourceTree = "<group>"; };
 		E2A062890E118D54EA899C1D /* CKClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CKClient.swift; sourceTree = "<group>"; };
@@ -205,6 +213,7 @@
 				BFF87D5B71EE0052DDC7CCAA /* Identity */,
 				9D846205ADB3522FB157003D /* MemberDetail */,
 				00C5910B045913EC2EF70D3C /* Messaging */,
+				DBB50DEFC0FFEE00B5BABE99 /* Onboarding */,
 			);
 			path = Features;
 			sourceTree = "<group>";
@@ -288,6 +297,17 @@
 				D99B0DEFC0FFEE0099BABE01 /* SubscriptionManager.swift */,
 			);
 			path = Subscription;
+			sourceTree = "<group>";
+		};
+		DBB50DEFC0FFEE00B5BABE99 /* Onboarding */ = {
+			isa = PBXGroup;
+			children = (
+				DBB10DEFC0FFEE00B1BABE01 /* NameEntryView.swift */,
+				DBB20DEFC0FFEE00B2BABE01 /* FirstHabitView.swift */,
+				DBB30DEFC0FFEE00B3BABE01 /* FirstGoalView.swift */,
+				DBB40DEFC0FFEE00B4BABE01 /* LeaderboardPreviewView.swift */,
+			);
+			path = Onboarding;
 			sourceTree = "<group>";
 		};
 		5046F46EBC8F0B0C450E44ED /* Goals */ = {
@@ -679,6 +699,10 @@
 				D66B0DEFC0FFEE0066BABEAA /* ICloudStorageFullSheet.swift in Sources */,
 				D99B0DEFC0FFEE0099BABEAA /* SubscriptionManager.swift in Sources */,
 				DAAB0DEFC0FFEE00AABABEAA /* Config.swift in Sources */,
+				DBB10DEFC0FFEE00B1BABEAA /* NameEntryView.swift in Sources */,
+				DBB20DEFC0FFEE00B2BABEAA /* FirstHabitView.swift in Sources */,
+				DBB30DEFC0FFEE00B3BABEAA /* FirstGoalView.swift in Sources */,
+				DBB40DEFC0FFEE00B4BABEAA /* LeaderboardPreviewView.swift in Sources */,
 				22E68C51D9AB0A507BB689BE /* LocalCache.swift in Sources */,
 				A8F02C6763DBED2031D9F423 /* MainTabView.swift in Sources */,
 				2EF4CD66338EB2415A1B358D /* MemberDetailView.swift in Sources */,
