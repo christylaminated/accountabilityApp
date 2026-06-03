@@ -79,6 +79,10 @@
 		DBB20DEFC0FFEE00B2BABEAA /* FirstHabitView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBB20DEFC0FFEE00B2BABE01 /* FirstHabitView.swift */; };
 		DBB30DEFC0FFEE00B3BABEAA /* FirstGoalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBB30DEFC0FFEE00B3BABE01 /* FirstGoalView.swift */; };
 		DBB40DEFC0FFEE00B4BABEAA /* LeaderboardPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBB40DEFC0FFEE00B4BABE01 /* LeaderboardPreviewView.swift */; };
+		DBB60DEFC0FFEE00B6BABEAA /* ProfileCustomizationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBB60DEFC0FFEE00B6BABE01 /* ProfileCustomizationView.swift */; };
+		DBB70DEFC0FFEE00B7BABEAA /* PaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBB70DEFC0FFEE00B7BABE01 /* PaywallView.swift */; };
+		DBB80DEFC0FFEE00B8BABEAA /* CelebrationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBB80DEFC0FFEE00B8BABE01 /* CelebrationView.swift */; };
+		DBB90DEFC0FFEE00B9BABEAA /* ConfettiView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBB90DEFC0FFEE00B9BABE01 /* ConfettiView.swift */; };
 		DDDD0DEFC0FFEE00DDBABE99 /* RevenueCat in Frameworks */ = {isa = PBXBuildFile; productRef = 7A0D58F32FD0CBC000F36ACB /* RevenueCat */; };
 		D7539724508FDA45F5EF819E /* UserProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A984F64EB765CBCA58109CA /* UserProfile.swift */; };
 		DD3C34BA9BCF58E4313CF34C /* HistoryCalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B23EFD69AE88007BCFBA851F /* HistoryCalendarView.swift */; };
@@ -179,6 +183,10 @@
 		DBB20DEFC0FFEE00B2BABE01 /* FirstHabitView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirstHabitView.swift; sourceTree = "<group>"; };
 		DBB30DEFC0FFEE00B3BABE01 /* FirstGoalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirstGoalView.swift; sourceTree = "<group>"; };
 		DBB40DEFC0FFEE00B4BABE01 /* LeaderboardPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeaderboardPreviewView.swift; sourceTree = "<group>"; };
+		DBB60DEFC0FFEE00B6BABE01 /* ProfileCustomizationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileCustomizationView.swift; sourceTree = "<group>"; };
+		DBB70DEFC0FFEE00B7BABE01 /* PaywallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallView.swift; sourceTree = "<group>"; };
+		DBB80DEFC0FFEE00B8BABE01 /* CelebrationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CelebrationView.swift; sourceTree = "<group>"; };
+		DBB90DEFC0FFEE00B9BABE01 /* ConfettiView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfettiView.swift; sourceTree = "<group>"; };
 		DA342347F6BF4B4C6E2F7968 /* ProfileSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileSettingsView.swift; sourceTree = "<group>"; };
 		DA4022F12FFC0A196A98FA76 /* ProfileRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileRepository.swift; sourceTree = "<group>"; };
 		E2A062890E118D54EA899C1D /* CKClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CKClient.swift; sourceTree = "<group>"; };
@@ -306,6 +314,9 @@
 				DBB20DEFC0FFEE00B2BABE01 /* FirstHabitView.swift */,
 				DBB30DEFC0FFEE00B3BABE01 /* FirstGoalView.swift */,
 				DBB40DEFC0FFEE00B4BABE01 /* LeaderboardPreviewView.swift */,
+				DBB60DEFC0FFEE00B6BABE01 /* ProfileCustomizationView.swift */,
+				DBB70DEFC0FFEE00B7BABE01 /* PaywallView.swift */,
+				DBB80DEFC0FFEE00B8BABE01 /* CelebrationView.swift */,
 			);
 			path = Onboarding;
 			sourceTree = "<group>";
@@ -371,6 +382,7 @@
 			children = (
 				0E8934A3D8914800D3038037 /* AvatarView.swift */,
 				2975C824D6A555C048A5F7E8 /* CheckboxButton.swift */,
+				DBB90DEFC0FFEE00B9BABE01 /* ConfettiView.swift */,
 				35137C828BEDFE0F1A23F7C2 /* EmptyStateView.swift */,
 				D66B0DEFC0FFEE0066BABE01 /* ICloudStorageFullSheet.swift */,
 			);
@@ -703,6 +715,10 @@
 				DBB20DEFC0FFEE00B2BABEAA /* FirstHabitView.swift in Sources */,
 				DBB30DEFC0FFEE00B3BABEAA /* FirstGoalView.swift in Sources */,
 				DBB40DEFC0FFEE00B4BABEAA /* LeaderboardPreviewView.swift in Sources */,
+				DBB60DEFC0FFEE00B6BABEAA /* ProfileCustomizationView.swift in Sources */,
+				DBB70DEFC0FFEE00B7BABEAA /* PaywallView.swift in Sources */,
+				DBB80DEFC0FFEE00B8BABEAA /* CelebrationView.swift in Sources */,
+				DBB90DEFC0FFEE00B9BABEAA /* ConfettiView.swift in Sources */,
 				22E68C51D9AB0A507BB689BE /* LocalCache.swift in Sources */,
 				A8F02C6763DBED2031D9F423 /* MainTabView.swift in Sources */,
 				2EF4CD66338EB2415A1B358D /* MemberDetailView.swift in Sources */,

@@ -47,15 +47,15 @@ struct RootView: View {
                     .transition(.opacity)
 
             case .profileCustomization:
-                _ProfileCustomizationStub()
+                ProfileCustomizationView()
                     .transition(.opacity)
 
             case .paywall:
-                _PaywallStub()
+                PaywallView()
                     .transition(.opacity)
 
             case .celebration:
-                _CelebrationStub()
+                CelebrationView()
                     .transition(.opacity)
 
             case .enteredMainApp:
@@ -123,89 +123,3 @@ private struct ErrorScreen: View {
     }
 }
 
-// MARK: - Placeholder stubs for the new flow
-//
-// These are intentionally bare — they walk the state machine end-to-end so
-// the build is testable, but the real UI lands in commits (c) and (d). Each
-// stub posts the matching AppState completion method.
-
-private struct _StubScaffold<Content: View>: View {
-    let title: String
-    let body_: Content
-    init(_ title: String, @ViewBuilder content: () -> Content) {
-        self.title = title
-        self.body_ = content()
-    }
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("[STUB] \(title)")
-                .font(.system(.title3, design: .rounded, weight: .semibold))
-                .foregroundStyle(.secondary)
-            body_
-            Spacer()
-        }
-        .padding(24)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(Color.tallyCanvas)
-    }
-}
-
-private struct _ProfileCustomizationStub: View {
-    @Environment(AppState.self) private var appState
-    @State private var username = ""
-    @State private var inFlight = false
-    @State private var error: String?
-    var body: some View {
-        _StubScaffold("Profile customization (screen 5)") {
-            TextField("Username", text: $username)
-                .textFieldStyle(.roundedBorder)
-                .textInputAutocapitalization(.never)
-            if let error {
-                Text(error).font(.footnote).foregroundStyle(Color.tallyDestructive)
-            }
-            Button(inFlight ? "Saving…" : "Continue") {
-                Task {
-                    inFlight = true
-                    defer { inFlight = false }
-                    do {
-                        try await appState.completeProfileCustomization(
-                            username: username,
-                            avatarSymbol: "leaf",
-                            theme: .classic
-                        )
-                    } catch {
-                        self.error = error.localizedDescription
-                    }
-                }
-            }
-            .disabled(username.trimmingCharacters(in: .whitespaces).isEmpty || inFlight)
-            .buttonStyle(.borderedProminent)
-        }
-    }
-}
-
-private struct _PaywallStub: View {
-    @Environment(AppState.self) private var appState
-    var body: some View {
-        _StubScaffold("Paywall (screen 6, non-dismissible — real one in commit d)") {
-            Text("Real paywall + RevenueCat wiring lands in commit (d).")
-                .foregroundStyle(.secondary)
-            Button("Pretend-purchase → Continue") { appState.completePaywall() }
-                .buttonStyle(.borderedProminent)
-        }
-    }
-}
-
-private struct _CelebrationStub: View {
-    @Environment(AppState.self) private var appState
-    var body: some View {
-        _StubScaffold("Celebration (screen 7)") {
-            Text("Real confetti lands in commit (d).")
-                .foregroundStyle(.secondary)
-            Button("Enter main app") {
-                Task { await appState.completeCelebration() }
-            }
-            .buttonStyle(.borderedProminent)
-        }
-    }
-}
