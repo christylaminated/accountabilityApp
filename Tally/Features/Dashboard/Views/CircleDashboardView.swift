@@ -10,6 +10,7 @@ struct CircleDashboardView: View {
     @State private var showProfileSettings = false
     @State private var showAddTodayGoal = false
     @State private var showFriendSearch = false
+    @State private var inviteBannerRevision = 0
     /// Day the user is currently viewing on the Today tab. Defaults to today
     /// and changes when they tap a past dot in the streak chain — the rest
     /// of the page re-scopes to that day (habits + goals are read-only when
@@ -106,6 +107,10 @@ struct CircleDashboardView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 28) {
                     headerArea
+                    InviteFriendsBanner(
+                        presentFriendSearch: $showFriendSearch,
+                        revision: $inviteBannerRevision
+                    )
                     streakSection
                     habitsSection
                     goalsSection

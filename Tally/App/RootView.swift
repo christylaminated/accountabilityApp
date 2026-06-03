@@ -17,6 +17,7 @@ import SwiftUI
 /// in Settings and coming back here progresses the gate automatically.
 struct RootView: View {
     @Environment(AppState.self) private var appState
+    @Environment(SubscriptionManager.self) private var subscriptions
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
@@ -60,6 +61,19 @@ struct RootView: View {
 
             case .enteredMainApp:
                 MainTabView()
+                    // Lapse cover: if the user reaches the main app without
+                    // an active entitlement (build-37 legacy user, cancelled,
+                    // refunded, or grace-period lapse) we present the same
+                    // PaywallView as a non-dismissible full-screen cover.
+                    // The binding evaluates `isSubscribed` reactively so a
+                    // successful purchase, restore, or DEBUG bypass auto-
+                    // dismisses the cover.
+                    .fullScreenCover(isPresented: Binding(
+                        get: { !subscriptions.isSubscribed },
+                        set: { _ in }
+                    )) {
+                        PaywallView()
+                    }
                     .transition(.opacity)
 
             case .error(let message):

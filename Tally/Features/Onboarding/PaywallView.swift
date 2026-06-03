@@ -30,6 +30,11 @@ struct PaywallView: View {
     @State private var isRestoring = false
     @State private var errorMessage: String?
 
+    #if DEBUG
+    @State private var heroTapCount: Int = 0
+    @State private var showDebugMenu = false
+    #endif
+
     // TODO(christy): replace with the real legal URLs before shipping.
     private let termsURL = URL(string: "https://example.com/tally-terms")!
     private let privacyURL = URL(string: "https://example.com/tally-privacy")!
@@ -86,7 +91,26 @@ struct PaywallView: View {
             if !hasOfferings && subscriptions.loadError != nil {
                 await subscriptions.refreshStatus()
             }
+            // If the entitlement is already true on appear (debug bypass,
+            // restore from another device, RC stream raced ahead), advance
+            // immediately. `completePaywall` is state-guarded so this is a
+            // no-op when used as a lapse-cover over the main app.
+            if subscriptions.isSubscribed {
+                appState.completePaywall()
+            }
         }
+        // Fires when isSubscribed flips after the screen appeared — covers
+        // real purchases that go through `purchase()`, restores, the
+        // CustomerInfo stream catching up, AND the DEBUG bypass toggle.
+        .onChange(of: subscriptions.isSubscribed) { _, isSub in
+            if isSub { appState.completePaywall() }
+        }
+        #if DEBUG
+        .sheet(isPresented: $showDebugMenu) {
+            DebugPaywallMenu()
+                .environment(subscriptions)
+        }
+        #endif
     }
 
     private var hero: some View {
@@ -99,6 +123,20 @@ struct PaywallView: View {
                 .foregroundStyle(Color.tallyTextPrimary)
                 .multilineTextAlignment(.center)
         }
+        // DEBUG-only: five taps on the hero opens the bypass menu. The
+        // gesture is intentionally non-obvious so we don't ship a discoverable
+        // skip button to users by accident; the whole block is stripped from
+        // Release builds.
+        #if DEBUG
+        .contentShape(Rectangle())
+        .onTapGesture {
+            heroTapCount += 1
+            if heroTapCount >= 5 {
+                heroTapCount = 0
+                showDebugMenu = true
+            }
+        }
+        #endif
     }
 
     private var valueBullets: some View {
@@ -353,3 +391,41 @@ struct PaywallView: View {
         case monthly
     }
 }
+
+#if DEBUG
+/// Hidden debug menu for testing post-paywall flows on a sandbox account
+/// without paying. Triggered by 5-tapping the paywall hero. Reads/writes
+/// `SubscriptionManager.debugBypassPaywall`, persisted to LocalCache.
+/// Stripped from Release builds.
+private struct DebugPaywallMenu: View {
+    @Environment(SubscriptionManager.self) private var subscriptions
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var bypass: Bool = false
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Toggle("Bypass paywall (force isSubscribed = true)", isOn: $bypass)
+                        .onChange(of: bypass) { _, new in
+                            subscriptions.debugBypassPaywall = new
+                        }
+                } footer: {
+                    Text("DEBUG only — this flag is stripped from Release builds. Persists to LocalCache so it survives relaunch.")
+                }
+            }
+            .navigationTitle("Debug")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+            .onAppear {
+                bypass = subscriptions.debugBypassPaywall
+            }
+        }
+    }
+}
+#endif

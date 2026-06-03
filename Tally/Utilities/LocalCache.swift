@@ -44,6 +44,25 @@ enum LocalCacheKey {
     /// profile/userID caches so a partial decode never traps us on the spinner.
     static let hasOnboarded = "Tally.cache.hasOnboarded"
 
+    /// True once the user has issued their first friend request via
+    /// `AppState.sendFriendRequest`. Used by `InviteFriendsBanner` to
+    /// permanently hide once the user has engaged with the friend flow,
+    /// even if the recipient later declines or unfriends.
+    static let hasSentFirstFriendRequest = "Tally.cache.hasSentFirstFriendRequest"
+
+    /// How many times the Today-tab Invite Friends banner has been
+    /// dismissed. At 3 the banner hides permanently. Resets on account
+    /// switch / deleteAccount (it's userScoped).
+    static let inviteBannerDismissCount = "Tally.cache.inviteBannerDismissCount"
+
+    /// DEBUG-only override: when true, `SubscriptionManager.isSubscribed`
+    /// returns true regardless of the real RevenueCat state, so a dev can
+    /// test post-paywall flows on a sandbox account without paying. The
+    /// key is NOT in `userScoped` because it's a per-device dev flag, and
+    /// reads/writes are wrapped in `#if DEBUG` blocks so Release builds
+    /// can't honor it even if the value got injected.
+    static let debugPaywallBypass = "Tally.cache.debugPaywallBypass"
+
     /// The last persisted step in the paywalled onboarding state machine.
     /// Stored as the rawValue of `AppState.PersistedOnboardingStep`. Lets us
     /// resume the user mid-flow if they kill the app between (say) entering
@@ -115,6 +134,7 @@ enum LocalCacheKey {
         declinedFriendRequestIDs, declinedGroupInviteIDs,
         locallyUnfriendedIDs, pendingReciprocalSenders,
         processedUnfriendNotificationIDs, pendingUnfriendTargets,
-        pendingGroupInvites
+        pendingGroupInvites,
+        hasSentFirstFriendRequest, inviteBannerDismissCount
     ]
 }

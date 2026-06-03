@@ -689,10 +689,13 @@ final class AppState {
         onboardingState = .paywall
     }
 
-    /// Step 6 → Step 7. Called by `PaywallView` after a successful purchase.
-    /// (Verification of `isSubscribed` happens at the view layer via
-    /// `SubscriptionManager`; this method just advances state.)
+    /// Step 6 → Step 7. Called by `PaywallView` once `isSubscribed` is true
+    /// (either a real purchase, a successful restore, or the Debug bypass
+    /// toggle). Guarded on the current state so the same call from the
+    /// lapse-cover paywall (where `onboardingState == .enteredMainApp`)
+    /// doesn't accidentally bounce the user back to celebration.
     func completePaywall() {
+        guard onboardingState == .paywall else { return }
         onboardingState = .celebration
     }
 
@@ -971,6 +974,10 @@ final class AppState {
         // request so the search UI immediately switches from "Send" to
         // "Request pending" without waiting for the next 6s refresh.
         outgoingRequestTargetIDs.insert(userRecordName)
+        // Persistent signal for `InviteFriendsBanner` to permanently hide
+        // — once the user has invited *anyone*, the banner has served its
+        // purpose, regardless of whether the request is accepted later.
+        LocalCache.save(true, forKey: LocalCacheKey.hasSentFirstFriendRequest)
         // Refresh immediately so a self-send (or any quick verification) shows
         // up in the inbox without requiring a manual pull-to-refresh.
         await refreshFriendRequests()

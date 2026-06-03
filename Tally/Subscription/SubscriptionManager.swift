@@ -28,15 +28,42 @@ import RevenueCat
 @MainActor
 @Observable
 final class SubscriptionManager {
-    private(set) var isSubscribed: Bool = false
+    /// The real RevenueCat-driven entitlement. Read through `isSubscribed`,
+    /// which in Debug builds also honors `debugBypassPaywall`.
+    private(set) var realIsSubscribed: Bool = false
     private(set) var currentOffering: Offering?
     private(set) var loadError: String?
+
+    /// `true` if the user holds the `premium` entitlement OR (in Debug
+    /// builds) the dev bypass toggle is on. The gate views read this; the
+    /// underlying RevenueCat-state is in `realIsSubscribed` for when the
+    /// distinction matters.
+    var isSubscribed: Bool {
+        #if DEBUG
+        if debugBypassPaywall { return true }
+        #endif
+        return realIsSubscribed
+    }
+
+    #if DEBUG
+    /// Per-device dev flag that flips `isSubscribed` true without an actual
+    /// purchase. Persisted to LocalCache so it survives relaunch (devs
+    /// shouldn't have to re-toggle every run). Stripped from Release.
+    var debugBypassPaywall: Bool = false {
+        didSet {
+            LocalCache.save(debugBypassPaywall, forKey: LocalCacheKey.debugPaywallBypass)
+        }
+    }
+    #endif
 
     private var customerInfoTask: Task<Void, Never>?
 
     init() {
         Purchases.logLevel = .warn
         Purchases.configure(withAPIKey: SubscriptionConfig.revenueCatAPIKey)
+        #if DEBUG
+        self.debugBypassPaywall = LocalCache.load(Bool.self, forKey: LocalCacheKey.debugPaywallBypass) ?? false
+        #endif
         startCustomerInfoStream()
         Task { [weak self] in await self?.refreshStatus() }
     }
@@ -91,6 +118,6 @@ final class SubscriptionManager {
     }
 
     private func applyCustomerInfo(_ info: CustomerInfo) {
-        isSubscribed = info.entitlements[SubscriptionConfig.entitlementID]?.isActive == true
+        realIsSubscribed = info.entitlements[SubscriptionConfig.entitlementID]?.isActive == true
     }
 }
