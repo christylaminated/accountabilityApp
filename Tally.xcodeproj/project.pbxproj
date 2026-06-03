@@ -59,20 +59,23 @@
 		B342C99CCA6052466B51F997 /* ThemeColor.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE763330034CD0CEB3E6F148 /* ThemeColor.swift */; };
 		B7688D4FB96CEA7382FDC71F /* Color+Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB5DB01330511281AED65F5D /* Color+Theme.swift */; };
 		B97A569EB0D34660FA19CA48 /* CircleRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = B57527E1EBC1269EACB65A37 /* CircleRepository.swift */; };
+		C1BB2E44C03E14D3F6C57E01 /* Habit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81274E10DB3D034993CAD125 /* Habit.swift */; };
+		C20854EC3BE56E3A54223FCF /* ShareCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C04FFCDBD8615D78004D547 /* ShareCoordinator.swift */; };
+		C625714CA898BACADBB5D1AF /* CircleSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EF5919B0A3456AC4D7520B1 /* CircleSettingsView.swift */; };
+		C6DEA3365130BE06EC19FBB8 /* HabitCelebrationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6DD670F1D258FBAD3801A69 /* HabitCelebrationView.swift */; };
+		C8EEF15AC254074D42C7EC9E /* PersonalRoot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 131B65496F7C2096D461EFB0 /* PersonalRoot.swift */; };
+		CA01ABEF11CE5722A6DEDADD /* CircleAddMemberByUsernameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA01ABEF11CE5722A6DEDADE /* CircleAddMemberByUsernameView.swift */; };
+		CA6D88B34B1C2CFF17595CBB /* FriendsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52D645AA20CC08D5771E92FB /* FriendsView.swift */; };
 		D11B0DEFC0FFEE0011BABEAA /* FriendRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = D11B0DEFC0FFEE0011BABE01 /* FriendRequest.swift */; };
 		D22B0DEFC0FFEE0022BABEAA /* FriendRequestRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = D22B0DEFC0FFEE0022BABE01 /* FriendRequestRepository.swift */; };
 		D33B0DEFC0FFEE0033BABEAA /* MockFriendRequestRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = D33B0DEFC0FFEE0033BABE01 /* MockFriendRequestRepository.swift */; };
 		D44B0DEFC0FFEE0044BABEAA /* FriendRequestsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = D44B0DEFC0FFEE0044BABE01 /* FriendRequestsSection.swift */; };
 		D55B0DEFC0FFEE0055BABEAA /* ICloudErrorDetection.swift in Sources */ = {isa = PBXBuildFile; fileRef = D55B0DEFC0FFEE0055BABE01 /* ICloudErrorDetection.swift */; };
-		D66B0DEFC0FFEE0066BABEAA /* ICloudStorageFullSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = D66B0DEFC0FFEE0066BABE01 /* ICloudStorageFullSheet.swift */; };
-		C1BB2E44C03E14D3F6C57E01 /* Habit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81274E10DB3D034993CAD125 /* Habit.swift */; };
-		C20854EC3BE56E3A54223FCF /* ShareCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C04FFCDBD8615D78004D547 /* ShareCoordinator.swift */; };
-		C625714CA898BACADBB5D1AF /* CircleSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EF5919B0A3456AC4D7520B1 /* CircleSettingsView.swift */; };
-		CA01ABEF11CE5722A6DEDADD /* CircleAddMemberByUsernameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA01ABEF11CE5722A6DEDADE /* CircleAddMemberByUsernameView.swift */; };
-		C6DEA3365130BE06EC19FBB8 /* HabitCelebrationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6DD670F1D258FBAD3801A69 /* HabitCelebrationView.swift */; };
-		C8EEF15AC254074D42C7EC9E /* PersonalRoot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 131B65496F7C2096D461EFB0 /* PersonalRoot.swift */; };
-		CA6D88B34B1C2CFF17595CBB /* FriendsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52D645AA20CC08D5771E92FB /* FriendsView.swift */; };
 		D5E7F9B7014514226A1A68DC /* MemberRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DFE77214583F77CB5A7185D /* MemberRowView.swift */; };
+		D66B0DEFC0FFEE0066BABEAA /* ICloudStorageFullSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = D66B0DEFC0FFEE0066BABE01 /* ICloudStorageFullSheet.swift */; };
+		D99B0DEFC0FFEE0099BABEAA /* SubscriptionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = D99B0DEFC0FFEE0099BABE01 /* SubscriptionManager.swift */; };
+		DAAB0DEFC0FFEE00AABABEAA /* Config.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAAB0DEFC0FFEE00AABABE01 /* Config.swift */; };
+		DDDD0DEFC0FFEE00DDBABE99 /* RevenueCat in Frameworks */ = {isa = PBXBuildFile; productRef = 7A0D58F32FD0CBC000F36ACB /* RevenueCat */; };
 		D7539724508FDA45F5EF819E /* UserProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A984F64EB765CBCA58109CA /* UserProfile.swift */; };
 		DD3C34BA9BCF58E4313CF34C /* HistoryCalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B23EFD69AE88007BCFBA851F /* HistoryCalendarView.swift */; };
 		DFA18036DC32AFE857E88F4C /* HabitsSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 426A21943CB544027A7E415A /* HabitsSetupView.swift */; };
@@ -114,7 +117,6 @@
 		2C04FFCDBD8615D78004D547 /* ShareCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareCoordinator.swift; sourceTree = "<group>"; };
 		2E237822882594EFFAEB4744 /* MemberDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemberDetailView.swift; sourceTree = "<group>"; };
 		2EF5919B0A3456AC4D7520B1 /* CircleSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CircleSettingsView.swift; sourceTree = "<group>"; };
-		CA01ABEF11CE5722A6DEDADE /* CircleAddMemberByUsernameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CircleAddMemberByUsernameView.swift; sourceTree = "<group>"; };
 		3299AC9D570A5254E7ECF943 /* CircleMember.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CircleMember.swift; sourceTree = "<group>"; };
 		3399F493BC7F15DA8ADEB22C /* CloudShareInvitePresenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudShareInvitePresenter.swift; sourceTree = "<group>"; };
 		3505FB88C3FE6E97F1E72AB2 /* MockUsernameRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockUsernameRepository.swift; sourceTree = "<group>"; };
@@ -153,12 +155,6 @@
 		A549BBDEB61F46E5176B90CE /* WeekCalculatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeekCalculatorTests.swift; sourceTree = "<group>"; };
 		B23EFD69AE88007BCFBA851F /* HistoryCalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryCalendarView.swift; sourceTree = "<group>"; };
 		B57527E1EBC1269EACB65A37 /* CircleRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CircleRepository.swift; sourceTree = "<group>"; };
-		D11B0DEFC0FFEE0011BABE01 /* FriendRequest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FriendRequest.swift; sourceTree = "<group>"; };
-		D22B0DEFC0FFEE0022BABE01 /* FriendRequestRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FriendRequestRepository.swift; sourceTree = "<group>"; };
-		D33B0DEFC0FFEE0033BABE01 /* MockFriendRequestRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockFriendRequestRepository.swift; sourceTree = "<group>"; };
-		D44B0DEFC0FFEE0044BABE01 /* FriendRequestsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FriendRequestsSection.swift; sourceTree = "<group>"; };
-		D55B0DEFC0FFEE0055BABE01 /* ICloudErrorDetection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ICloudErrorDetection.swift; sourceTree = "<group>"; };
-		D66B0DEFC0FFEE0066BABE01 /* ICloudStorageFullSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ICloudStorageFullSheet.swift; sourceTree = "<group>"; };
 		BD07A89C9EF367D0B3BF4C56 /* TallyTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = TallyTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		BE763330034CD0CEB3E6F148 /* ThemeColor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeColor.swift; sourceTree = "<group>"; };
 		C1E680C8647CCB622C23236B /* HabitRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HabitRowView.swift; sourceTree = "<group>"; };
@@ -166,6 +162,15 @@
 		C6B3614B136953A5B2236493 /* CircleSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CircleSetupView.swift; sourceTree = "<group>"; };
 		C6E6BAAA6E9C4BAC1F2597EE /* MockCircleRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockCircleRepository.swift; sourceTree = "<group>"; };
 		C998D4524473F7524D00E4B9 /* WeekCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeekCalculator.swift; sourceTree = "<group>"; };
+		CA01ABEF11CE5722A6DEDADE /* CircleAddMemberByUsernameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CircleAddMemberByUsernameView.swift; sourceTree = "<group>"; };
+		D11B0DEFC0FFEE0011BABE01 /* FriendRequest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FriendRequest.swift; sourceTree = "<group>"; };
+		D22B0DEFC0FFEE0022BABE01 /* FriendRequestRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FriendRequestRepository.swift; sourceTree = "<group>"; };
+		D33B0DEFC0FFEE0033BABE01 /* MockFriendRequestRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockFriendRequestRepository.swift; sourceTree = "<group>"; };
+		D44B0DEFC0FFEE0044BABE01 /* FriendRequestsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FriendRequestsSection.swift; sourceTree = "<group>"; };
+		D55B0DEFC0FFEE0055BABE01 /* ICloudErrorDetection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ICloudErrorDetection.swift; sourceTree = "<group>"; };
+		D66B0DEFC0FFEE0066BABE01 /* ICloudStorageFullSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ICloudStorageFullSheet.swift; sourceTree = "<group>"; };
+		D99B0DEFC0FFEE0099BABE01 /* SubscriptionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionManager.swift; sourceTree = "<group>"; };
+		DAAB0DEFC0FFEE00AABABE01 /* Config.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Config.swift; sourceTree = "<group>"; };
 		DA342347F6BF4B4C6E2F7968 /* ProfileSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileSettingsView.swift; sourceTree = "<group>"; };
 		DA4022F12FFC0A196A98FA76 /* ProfileRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileRepository.swift; sourceTree = "<group>"; };
 		E2A062890E118D54EA899C1D /* CKClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CKClient.swift; sourceTree = "<group>"; };
@@ -266,6 +271,7 @@
 				1D9E9260735DA0A8A9E5CB92 /* Mock */,
 				F08AE960B56D6B900010977D /* Models */,
 				6D15E2A4673DDC7E277C86EC /* Shared */,
+				DBBB0DEFC0FFEE00BBBABE99 /* Subscription */,
 				AC7FA6A0A93D4EFD1F9CC499 /* Utilities */,
 				0E91360750E6493DD7621468 /* Assets.xcassets */,
 				7F575993EA15D30937E5B831 /* Info.plist */,
@@ -273,6 +279,15 @@
 				952D829F4BE8048607324226 /* TallyApp.swift */,
 			);
 			path = Tally;
+			sourceTree = "<group>";
+		};
+		DBBB0DEFC0FFEE00BBBABE99 /* Subscription */ = {
+			isa = PBXGroup;
+			children = (
+				DAAB0DEFC0FFEE00AABABE01 /* Config.swift */,
+				D99B0DEFC0FFEE0099BABE01 /* SubscriptionManager.swift */,
+			);
+			path = Subscription;
 			sourceTree = "<group>";
 		};
 		5046F46EBC8F0B0C450E44ED /* Goals */ = {
@@ -526,6 +541,7 @@
 			buildConfigurationList = 1CE06C52A241371D16CFAE3B /* Build configuration list for PBXNativeTarget "Tally" */;
 			buildPhases = (
 				CACE146F76E8632C4560C232 /* Sources */,
+				DCCC0DEFC0FFEE00CCBABE99 /* Frameworks */,
 				94E81F7D0BB35613A931FAA0 /* Resources */,
 			);
 			buildRules = (
@@ -534,6 +550,7 @@
 			);
 			name = Tally;
 			packageProductDependencies = (
+				7A0D58F32FD0CBC000F36ACB /* RevenueCat */,
 			);
 			productName = Tally;
 			productReference = 4DCF1A5BC6FA366C4B658D35 /* Tally.app */;
@@ -562,6 +579,9 @@
 			);
 			mainGroup = 519AF95473A55A971C76D7FC;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				7A0D58F22FD0CBC000F36ACB /* XCRemoteSwiftPackageReference "purchases-ios" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = C75C7E2A36C05412BA7D5036 /* Products */;
 			projectDirPath = "";
@@ -583,6 +603,17 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		DCCC0DEFC0FFEE00CCBABE99 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				DDDD0DEFC0FFEE00DDBABE99 /* RevenueCat in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		1457CDAC95B864FAC2E93BC5 /* Sources */ = {
@@ -646,6 +677,8 @@
 				D55B0DEFC0FFEE0055BABEAA /* ICloudErrorDetection.swift in Sources */,
 				7332561AE65743C77CF70FBE /* ICloudStatusGate.swift in Sources */,
 				D66B0DEFC0FFEE0066BABEAA /* ICloudStorageFullSheet.swift in Sources */,
+				D99B0DEFC0FFEE0099BABEAA /* SubscriptionManager.swift in Sources */,
+				DAAB0DEFC0FFEE00AABABEAA /* Config.swift in Sources */,
 				22E68C51D9AB0A507BB689BE /* LocalCache.swift in Sources */,
 				A8F02C6763DBED2031D9F423 /* MainTabView.swift in Sources */,
 				2EF4CD66338EB2415A1B358D /* MemberDetailView.swift in Sources */,
@@ -922,6 +955,25 @@
 			defaultConfigurationName = Debug;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		7A0D58F22FD0CBC000F36ACB /* XCRemoteSwiftPackageReference "purchases-ios" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/RevenueCat/purchases-ios";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 5.75.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		7A0D58F32FD0CBC000F36ACB /* RevenueCat */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7A0D58F22FD0CBC000F36ACB /* XCRemoteSwiftPackageReference "purchases-ios" */;
+			productName = RevenueCat;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = A0B742B9D975DE83128F71C3 /* Project object */;
 }

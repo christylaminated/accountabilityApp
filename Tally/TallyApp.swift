@@ -9,11 +9,17 @@ struct TallyApp: App {
 
     @State private var appState = AppState()
     @State private var themeManager = ThemeManager.shared
+    /// Owns the RevenueCat session + entitlement state. Injected into the
+    /// environment so downstream views (paywall, subscription gate, banner
+    /// dismissals) can read `isSubscribed` and call purchase/restore via a
+    /// single abstraction. No other module imports RevenueCat.
+    @State private var subscriptionManager = SubscriptionManager()
 
     var body: some Scene {
         WindowGroup {
             RootView()
                 .environment(appState)
+                .environment(subscriptionManager)
                 // Carry the whole theme through the environment so views
                 // can pattern-match on it (mini-previews, etc.). Most views
                 // should just read `Color.tally*` statics — they observe
