@@ -15,21 +15,45 @@ import SwiftUI
 @MainActor
 @Observable
 final class AppState {
+    /// New 8-step paywalled onboarding flow + the transient runtime states
+    /// (sign-in gate, checking iCloud, error). The in-flow cases are mirrored
+    /// in `PersistedOnboardingStep` and written to `LocalCacheKey.onboardingStep`
+    /// on every transition so killing the app mid-flow resumes at the same step.
+    /// Transient states (`.checkingICloud`, `.needsSignIn`, `.error`) are
+    /// runtime-only and do not overwrite the persisted step.
     enum OnboardingState: Equatable {
         case checkingICloud
         case needsSignIn(reason: CKAccountStatus)
-        case needsProfileSetup
-        case needsCircleSetup
-        case needsThemePick
-        case needsHabitsSetup
-        case needsGoalsSetup
-        case ready
+        case displayNameEntry        // screen 1
+        case firstHabitEntry         // screen 2 (required)
+        case firstGoalEntry          // screen 3 (skippable)
+        case leaderboardPreview      // screen 4
+        case profileCustomization    // screen 5 (username + avatar + theme)
+        case paywall                 // screen 6 (non-dismissible)
+        case celebration             // screen 7
+        case enteredMainApp          // screen 8 / main app
         case error(String)
+    }
+
+    /// Stable, Codable mirror of the in-flow cases used for LocalCache
+    /// persistence. Excludes transient runtime states so re-launch always
+    /// resumes at a real step.
+    enum PersistedOnboardingStep: String, Codable {
+        case displayNameEntry
+        case firstHabitEntry
+        case firstGoalEntry
+        case leaderboardPreview
+        case profileCustomization
+        case paywall
+        case celebration
+        case enteredMainApp
     }
 
     // MARK: - Onboarding / identity
 
-    var onboardingState: OnboardingState = .checkingICloud
+    var onboardingState: OnboardingState = .checkingICloud {
+        didSet { persistOnboardingStep() }
+    }
 
     /// The signed-in user's CloudKit profile. Set after fetch on launch and after
     /// the user submits ProfileSetupView.
@@ -240,12 +264,24 @@ final class AppState {
         // straight onto the dashboard. The background refresh below verifies
         // everything and fixes up any stale state.
         let hasOnboarded = LocalCache.load(Bool.self, forKey: LocalCacheKey.hasOnboarded) ?? false
-        if hasOnboarded {
+        let persistedStepRaw = LocalCache.load(String.self, forKey: LocalCacheKey.onboardingStep)
+        let persistedStep = persistedStepRaw.flatMap(PersistedOnboardingStep.init(rawValue:))
+
+        if let persistedStep {
+            // Resume mid-flow on relaunch. Profile + userID may or may not be
+            // present depending on how far the user got; that's OK — each
+            // step's view handles a partial profile.
             self.currentUserID = LocalCache.load(String.self, forKey: LocalCacheKey.currentUserID) ?? ""
             self.ownCloudProfile = LocalCache.load(UserProfile.self, forKey: LocalCacheKey.ownProfile)
-            self.onboardingState = .ready
+            self.onboardingState = Self.state(from: persistedStep)
+        } else if hasOnboarded {
+            // Build-37 (and earlier) user with no persisted step: they finished
+            // the old onboarding, so drop them straight into the main app.
+            self.currentUserID = LocalCache.load(String.self, forKey: LocalCacheKey.currentUserID) ?? ""
+            self.ownCloudProfile = LocalCache.load(UserProfile.self, forKey: LocalCacheKey.ownProfile)
+            self.onboardingState = .enteredMainApp
         }
-        NSLog("[Tally] AppState.init hasOnboarded=\(hasOnboarded) state=\(self.onboardingState)")
+        NSLog("[Tally] AppState.init hasOnboarded=\(hasOnboarded) persistedStep=\(persistedStepRaw ?? "nil") state=\(self.onboardingState)")
 
         registerAccountChangeObserver()
         Task { await self.refreshAccountState() }
@@ -270,7 +306,7 @@ final class AppState {
                 // Skip when not signed-in or still onboarding — no point
                 // hitting CloudKit before currentUserID is populated.
                 guard !self.currentUserID.isEmpty,
-                      self.onboardingState == .ready else { continue }
+                      self.onboardingState == .enteredMainApp else { continue }
                 await self.refreshFriendRequests()
                 // Drain the half-completed-accept queue. Each entry is a
                 // sender we acknowledged but never successfully sent our
@@ -351,8 +387,47 @@ final class AppState {
     /// we *don't* swap back to `.checkingICloud` — the user keeps seeing their
     /// dashboard while the refresh runs silently. Only a first launch (no
     /// cache) or a mid-onboarding state shows the spinner.
+    /// Map a persisted step back to a runtime OnboardingState.
+    static func state(from step: PersistedOnboardingStep) -> OnboardingState {
+        switch step {
+        case .displayNameEntry:     return .displayNameEntry
+        case .firstHabitEntry:      return .firstHabitEntry
+        case .firstGoalEntry:       return .firstGoalEntry
+        case .leaderboardPreview:   return .leaderboardPreview
+        case .profileCustomization: return .profileCustomization
+        case .paywall:              return .paywall
+        case .celebration:          return .celebration
+        case .enteredMainApp:       return .enteredMainApp
+        }
+    }
+
+    /// Map an in-memory state to its persisted form, or nil for transient
+    /// runtime states that must never overwrite the stored step.
+    private static func persistedStep(from state: OnboardingState) -> PersistedOnboardingStep? {
+        switch state {
+        case .displayNameEntry:     return .displayNameEntry
+        case .firstHabitEntry:      return .firstHabitEntry
+        case .firstGoalEntry:       return .firstGoalEntry
+        case .leaderboardPreview:   return .leaderboardPreview
+        case .profileCustomization: return .profileCustomization
+        case .paywall:              return .paywall
+        case .celebration:          return .celebration
+        case .enteredMainApp:       return .enteredMainApp
+        case .checkingICloud, .needsSignIn, .error:
+            return nil
+        }
+    }
+
+    /// Called from `onboardingState.didSet`. Writes the current step to
+    /// LocalCache so a relaunch picks up where we were; transient states
+    /// leave the stored value untouched.
+    private func persistOnboardingStep() {
+        guard let step = Self.persistedStep(from: onboardingState) else { return }
+        LocalCache.save(step.rawValue, forKey: LocalCacheKey.onboardingStep)
+    }
+
     func refreshAccountState() async {
-        if onboardingState != .ready {
+        if onboardingState != .enteredMainApp {
             onboardingState = .checkingICloud
         }
 
@@ -384,9 +459,27 @@ final class AppState {
                     await processUnfriendNotifications()
                     await retryPendingUnfriendNotifications()
                     await retryPendingGroupInvites()
-                    await enterMainAppOrCircleSetup()
+                    // Resume at whichever step is persisted, or fall through
+                    // to the main app for a build-37 legacy user.
+                    if let circle = activeCircle {
+                        await circleStore.activate(circle, currentUserID: currentUserID)
+                    }
+                    if let stepRaw = LocalCache.load(String.self, forKey: LocalCacheKey.onboardingStep),
+                       let step = PersistedOnboardingStep(rawValue: stepRaw) {
+                        onboardingState = Self.state(from: step)
+                    } else {
+                        // Profile exists but no persisted step (legacy or
+                        // direct-jump) — drop into the main app.
+                        onboardingState = .enteredMainApp
+                    }
                 } else {
-                    onboardingState = .needsProfileSetup
+                    // No profile yet — start (or resume) the new flow.
+                    if let stepRaw = LocalCache.load(String.self, forKey: LocalCacheKey.onboardingStep),
+                       let step = PersistedOnboardingStep(rawValue: stepRaw) {
+                        onboardingState = Self.state(from: step)
+                    } else {
+                        onboardingState = .displayNameEntry
+                    }
                 }
             } catch {
                 onboardingState = .error(error.localizedDescription)
@@ -400,18 +493,9 @@ final class AppState {
         }
     }
 
-    /// After auth + profile are confirmed: activate the current Circle (if any)
-    /// and show the main app. A user with zero Circles is a valid state —
-    /// they're on the dashboard with the "Add a friend" prompt.
-    /// (`hasOnboarded` is already set the moment the profile is fetched, in
-    /// `persistProfile(_:)`, so even if Circle/store activation throws later
-    /// the spinner-skip is unaffected on the next launch.)
-    private func enterMainAppOrCircleSetup() async {
-        if let circle = activeCircle {
-            await circleStore.activate(circle, currentUserID: currentUserID)
-        }
-        onboardingState = .ready
-    }
+    // Legacy `enterMainAppOrCircleSetup` (which set `.ready`) is gone —
+    // the new flow's terminal step is `.enteredMainApp`, and
+    // `refreshAccountState` activates the first circle inline.
 
     /// Centralized profile-set with cache + onboarding-flag writes. The flag
     /// goes to disk the instant we have a profile in hand — so any subsequent
@@ -485,24 +569,23 @@ final class AppState {
             clearAvatarPhoto: false
         )
 
-        // Route through the theme picker on a first run if the user hasn't
-        // picked one yet. Returning users (who already have hasPickedTheme
-        // set) skip straight to habits setup.
-        let hasPickedTheme = UserDefaults.standard.bool(forKey: ThemeManager.hasPickedThemeKey)
-        onboardingState = hasPickedTheme ? .needsHabitsSetup : .needsThemePick
+        // Legacy saveProfile (used by the old ProfileSetupView) jumps straight
+        // to the main app. The new paywalled flow uses
+        // `completeDisplayNameEntry` → `completeProfileCustomization` instead.
+        onboardingState = .enteredMainApp
         await handleIncomingShareIfNeeded()
     }
 
-    /// Called from the onboarding theme picker. Persists the choice via
-    /// ThemeManager, marks the picker as seen, and routes forward.
+    /// Legacy theme-pick handler. Retained for source compatibility but no
+    /// longer reachable from RootView — the new flow folds theme selection
+    /// into `.profileCustomization`.
     func finishThemePick(_ chosen: TallyTheme) {
         setTheme(chosen)
         UserDefaults.standard.set(true, forKey: ThemeManager.hasPickedThemeKey)
-        onboardingState = .needsHabitsSetup
+        onboardingState = .enteredMainApp
     }
 
-    /// Called from `CircleSetupView`. Creates the user's first Circle, activates
-    /// the store on it, and (on a first run) routes to habits setup.
+    /// Legacy first-circle bootstrap. Unreachable in the new flow.
     func setUpInitialCircle(name: String) async throws {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let profile = ownCloudProfile
@@ -516,15 +599,111 @@ final class AppState {
         )
         await loadCircles()
         await circleStore.activate(circle, currentUserID: currentUserID)
-        advancePastCircleSetup()
+        onboardingState = .enteredMainApp
     }
 
-    /// Move on from Circle setup — to habits on a first run, else straight to the
-    /// main app. Used after creating a Circle or accepting an invite. Retained
-    /// for backward compatibility; new onboarding no longer routes through
-    /// `.needsCircleSetup` at all.
-    private func advancePastCircleSetup() {
-        onboardingState = isFirstRunOnboarding ? .needsHabitsSetup : .ready
+    // MARK: - New paywalled-onboarding step completions
+
+    /// Step 1 → Step 2. Fetches `currentUserID` if it isn't set yet (same
+    /// safeguard as `saveProfile`'s post-delete-resignup path), writes a
+    /// minimal `UserProfile` with the display name + default avatar (no
+    /// username yet — that's collected in `.profileCustomization`),
+    /// activates the personal store, and advances to `.firstHabitEntry`.
+    func completeDisplayNameEntry(displayName: String) async throws {
+        let trimmed = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        if currentUserID.isEmpty {
+            currentUserID = try await CKClient.shared.userRecordID().recordName
+            LocalCache.save(currentUserID, forKey: LocalCacheKey.currentUserID)
+        }
+        let profile = try await profileRepository.saveOwnProfile(
+            displayName: trimmed,
+            avatarSymbol: "leaf",
+            avatarImageData: nil,
+            clearAvatarPhoto: false,
+            username: nil
+        )
+        isFirstRunOnboarding = true
+        persistProfile(profile)
+        try? await personalRepository.ensurePersonalZone()
+        try? await personalRepository.updatePersonalRootProfile(
+            displayName: trimmed,
+            avatarSymbol: "leaf",
+            avatarImageData: nil,
+            clearAvatarPhoto: false
+        )
+        await personalStore.activate(currentUserID: currentUserID)
+        onboardingState = .firstHabitEntry
+    }
+
+    /// Step 2 → Step 3. Saves the required first habit and advances.
+    func completeFirstHabitEntry(title: String) {
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        personalStore.addHabit(title: trimmed, for: currentUserID, privacy: .shared)
+        onboardingState = .firstGoalEntry
+    }
+
+    /// Step 3 → Step 4 (entered a goal). Saves the goal at the period the
+    /// user picked and advances to the leaderboard preview.
+    func completeFirstGoalEntry(title: String, period: GoalPeriod) {
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty {
+            let periodStart = period.startDate(for: .now)
+            personalStore.addGoal(
+                title: trimmed,
+                for: currentUserID,
+                period: period,
+                periodStart: periodStart
+            )
+        }
+        onboardingState = .leaderboardPreview
+    }
+
+    /// Step 3 → Step 4 (skipped).
+    func skipFirstGoalEntry() {
+        onboardingState = .leaderboardPreview
+    }
+
+    /// Step 4 → Step 5.
+    func completeLeaderboardPreview() {
+        onboardingState = .profileCustomization
+    }
+
+    /// Step 5 → Step 6. Claims the username (throws on collision), updates
+    /// avatar + theme, then advances to the paywall.
+    func completeProfileCustomization(
+        username: String,
+        avatarSymbol: String,
+        theme: TallyTheme
+    ) async throws {
+        try await updateProfile(
+            displayName: ownCloudProfile?.displayName ?? "",
+            avatarSymbol: avatarSymbol,
+            username: username,
+            avatarImageData: nil,
+            clearAvatarPhoto: false
+        )
+        setTheme(theme)
+        UserDefaults.standard.set(true, forKey: ThemeManager.hasPickedThemeKey)
+        onboardingState = .paywall
+    }
+
+    /// Step 6 → Step 7. Called by `PaywallView` after a successful purchase.
+    /// (Verification of `isSubscribed` happens at the view layer via
+    /// `SubscriptionManager`; this method just advances state.)
+    func completePaywall() {
+        onboardingState = .celebration
+    }
+
+    /// Step 7 → Step 8. Marks onboarding complete and enters the main app.
+    func completeCelebration() async {
+        isFirstRunOnboarding = false
+        LocalCache.save(true, forKey: LocalCacheKey.hasOnboarded)
+        if let circle = activeCircle {
+            await circleStore.activate(circle, currentUserID: currentUserID)
+        }
+        onboardingState = .enteredMainApp
     }
 
     /// Set `circle` as the active Circle and reload its members + chat.
@@ -1343,7 +1522,10 @@ final class AppState {
         lastFriendRequestError = nil
         lastGroupInviteError = nil
         isFirstRunOnboarding = true
-        onboardingState = .needsProfileSetup
+        // Account-delete resets the persisted step too so the user lands at
+        // the start of the new paywalled flow on their next sign-in.
+        LocalCache.remove(forKey: LocalCacheKey.onboardingStep)
+        onboardingState = .displayNameEntry
         NSLog("[Tally] deleteAccount: done")
     }
 
@@ -1770,7 +1952,7 @@ final class AppState {
             guard !trimmed.isEmpty else { continue }
             personalStore.addHabit(title: trimmed, for: currentUserID)
         }
-        onboardingState = .needsGoalsSetup
+        onboardingState = .enteredMainApp  // legacy; new flow uses completeFirstHabitEntry
     }
 
     /// Called from `GoalsSetupView`. Persists each non-empty title as a
@@ -1790,7 +1972,7 @@ final class AppState {
         }
         isFirstRunOnboarding = false
         LocalCache.save(true, forKey: LocalCacheKey.hasOnboarded)
-        onboardingState = .ready
+        onboardingState = .enteredMainApp  // legacy; new flow uses completeFirstGoalEntry
     }
 
     // MARK: - Circles (CloudKit)
@@ -1928,9 +2110,9 @@ final class AppState {
                 if let active = activeCircle {
                     await circleStore.activate(active, currentUserID: currentUserID)
                 }
-                if onboardingState == .needsCircleSetup {
-                    advancePastCircleSetup()
-                }
+                // The legacy `.needsCircleSetup` step is gone — incoming circle
+                // shares accepted during onboarding just append to the circle
+                // list; the user keeps progressing through the new flow.
             } else if ShareCoordinator.zoneName(from: metadata) == CloudKitPersonalRepository.zoneName {
                 // Personal-share invite — become friends. Reciprocally add the
                 // inviter as a participant on MY personal share so they see my

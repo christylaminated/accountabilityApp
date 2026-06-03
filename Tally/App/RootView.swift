@@ -1,14 +1,17 @@
 import SwiftUI
 
 /// Root view. Switches on `AppState.onboardingState`:
-///   • .checkingICloud      → loading spinner
-///   • .needsSignIn(reason) → ICloudStatusGate
-///   • .needsProfileSetup   → ProfileSetupView  (name + emoji)
-///   • .needsCircleSetup    → CircleSetupView   (create / join a Circle)
-///   • .needsHabitsSetup    → HabitsSetupView   (daily habits)
-///   • .needsGoalsSetup     → GoalsSetupView    (this week's intentions)
-///   • .ready               → MainTabView
-///   • .error(message)      → recoverable error screen with Retry
+///   • .checkingICloud          → loading spinner
+///   • .needsSignIn(reason)     → ICloudStatusGate
+///   • .displayNameEntry        → name entry (placeholder; commit c)
+///   • .firstHabitEntry         → first habit (placeholder; commit c)
+///   • .firstGoalEntry          → first goal (placeholder; commit c)
+///   • .leaderboardPreview      → leaderboard preview (placeholder; commit c)
+///   • .profileCustomization    → username + avatar + theme (placeholder; commit c)
+///   • .paywall                 → paywall (placeholder; commit d)
+///   • .celebration             → celebration (placeholder; commit d)
+///   • .enteredMainApp          → MainTabView
+///   • .error(message)          → recoverable error screen with Retry
 ///
 /// Re-checks account state when scene returns to active so signing into iCloud
 /// in Settings and coming back here progresses the gate automatically.
@@ -27,43 +30,35 @@ struct RootView: View {
                     Task { await appState.refreshAccountState() }
                 }
 
-            case .needsProfileSetup:
-                ProfileSetupView { name, username, symbol in
-                    try await appState.saveProfile(
-                        displayName: name,
-                        username: username,
-                        avatarSymbol: symbol
-                    )
-                }
-                .transition(.opacity)
+            case .displayNameEntry:
+                _DisplayNameEntryStub()
+                    .transition(.opacity)
 
-            case .needsCircleSetup:
-                CircleSetupView { name in
-                    try await appState.setUpInitialCircle(name: name)
-                }
-                .transition(.opacity)
+            case .firstHabitEntry:
+                _FirstHabitEntryStub()
+                    .transition(.opacity)
 
-            case .needsThemePick:
-                ThemePickerOnboardingView(
-                    displayName: appState.ownCloudProfile?.displayName ?? ""
-                ) { chosen in
-                    appState.finishThemePick(chosen)
-                }
-                .transition(.opacity)
+            case .firstGoalEntry:
+                _FirstGoalEntryStub()
+                    .transition(.opacity)
 
-            case .needsHabitsSetup:
-                HabitsSetupView { titles in
-                    appState.saveInitialHabits(titles)
-                }
-                .transition(.opacity)
+            case .leaderboardPreview:
+                _LeaderboardPreviewStub()
+                    .transition(.opacity)
 
-            case .needsGoalsSetup:
-                GoalsSetupView { titles in
-                    appState.saveInitialGoals(titles)
-                }
-                .transition(.opacity)
+            case .profileCustomization:
+                _ProfileCustomizationStub()
+                    .transition(.opacity)
 
-            case .ready:
+            case .paywall:
+                _PaywallStub()
+                    .transition(.opacity)
+
+            case .celebration:
+                _CelebrationStub()
+                    .transition(.opacity)
+
+            case .enteredMainApp:
                 MainTabView()
                     .transition(.opacity)
 
@@ -125,5 +120,175 @@ private struct ErrorScreen: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.tallyCanvas)
+    }
+}
+
+// MARK: - Placeholder stubs for the new flow
+//
+// These are intentionally bare — they walk the state machine end-to-end so
+// the build is testable, but the real UI lands in commits (c) and (d). Each
+// stub posts the matching AppState completion method.
+
+private struct _StubScaffold<Content: View>: View {
+    let title: String
+    let body_: Content
+    init(_ title: String, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.body_ = content()
+    }
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("[STUB] \(title)")
+                .font(.system(.title3, design: .rounded, weight: .semibold))
+                .foregroundStyle(.secondary)
+            body_
+            Spacer()
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(Color.tallyCanvas)
+    }
+}
+
+private struct _DisplayNameEntryStub: View {
+    @Environment(AppState.self) private var appState
+    @State private var name = ""
+    @State private var inFlight = false
+    @State private var error: String?
+    var body: some View {
+        _StubScaffold("Display name entry (screen 1)") {
+            TextField("Display name", text: $name)
+                .textFieldStyle(.roundedBorder)
+            if let error {
+                Text(error).font(.footnote).foregroundStyle(Color.tallyDestructive)
+            }
+            Button(inFlight ? "Saving…" : "Continue") {
+                Task {
+                    inFlight = true
+                    defer { inFlight = false }
+                    do {
+                        try await appState.completeDisplayNameEntry(displayName: name)
+                    } catch {
+                        self.error = error.localizedDescription
+                    }
+                }
+            }
+            .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty || inFlight)
+            .buttonStyle(.borderedProminent)
+        }
+    }
+}
+
+private struct _FirstHabitEntryStub: View {
+    @Environment(AppState.self) private var appState
+    @State private var title = ""
+    var body: some View {
+        _StubScaffold("First habit (screen 2, required)") {
+            TextField("Habit title", text: $title)
+                .textFieldStyle(.roundedBorder)
+            Button("Continue") {
+                appState.completeFirstHabitEntry(title: title)
+            }
+            .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty)
+            .buttonStyle(.borderedProminent)
+        }
+    }
+}
+
+private struct _FirstGoalEntryStub: View {
+    @Environment(AppState.self) private var appState
+    @State private var title = ""
+    @State private var period: GoalPeriod = .week
+    var body: some View {
+        _StubScaffold("First goal (screen 3, skippable)") {
+            TextField("Goal title", text: $title)
+                .textFieldStyle(.roundedBorder)
+            Picker("Period", selection: $period) {
+                Text("Weekly").tag(GoalPeriod.week)
+                Text("Monthly").tag(GoalPeriod.month)
+            }
+            .pickerStyle(.segmented)
+            HStack {
+                Button("Skip") { appState.skipFirstGoalEntry() }
+                    .buttonStyle(.bordered)
+                Button("Continue") {
+                    appState.completeFirstGoalEntry(title: title, period: period)
+                }
+                .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty)
+                .buttonStyle(.borderedProminent)
+            }
+        }
+    }
+}
+
+private struct _LeaderboardPreviewStub: View {
+    @Environment(AppState.self) private var appState
+    var body: some View {
+        _StubScaffold("Leaderboard preview (screen 4)") {
+            Text("Preview leaderboard will render here in commit (c).")
+                .foregroundStyle(.secondary)
+            Button("Continue") { appState.completeLeaderboardPreview() }
+                .buttonStyle(.borderedProminent)
+        }
+    }
+}
+
+private struct _ProfileCustomizationStub: View {
+    @Environment(AppState.self) private var appState
+    @State private var username = ""
+    @State private var inFlight = false
+    @State private var error: String?
+    var body: some View {
+        _StubScaffold("Profile customization (screen 5)") {
+            TextField("Username", text: $username)
+                .textFieldStyle(.roundedBorder)
+                .textInputAutocapitalization(.never)
+            if let error {
+                Text(error).font(.footnote).foregroundStyle(Color.tallyDestructive)
+            }
+            Button(inFlight ? "Saving…" : "Continue") {
+                Task {
+                    inFlight = true
+                    defer { inFlight = false }
+                    do {
+                        try await appState.completeProfileCustomization(
+                            username: username,
+                            avatarSymbol: "leaf",
+                            theme: .classic
+                        )
+                    } catch {
+                        self.error = error.localizedDescription
+                    }
+                }
+            }
+            .disabled(username.trimmingCharacters(in: .whitespaces).isEmpty || inFlight)
+            .buttonStyle(.borderedProminent)
+        }
+    }
+}
+
+private struct _PaywallStub: View {
+    @Environment(AppState.self) private var appState
+    var body: some View {
+        _StubScaffold("Paywall (screen 6, non-dismissible — real one in commit d)") {
+            Text("Real paywall + RevenueCat wiring lands in commit (d).")
+                .foregroundStyle(.secondary)
+            Button("Pretend-purchase → Continue") { appState.completePaywall() }
+                .buttonStyle(.borderedProminent)
+        }
+    }
+}
+
+private struct _CelebrationStub: View {
+    @Environment(AppState.self) private var appState
+    var body: some View {
+        _StubScaffold("Celebration (screen 7)") {
+            Text("Real confetti lands in commit (d).")
+                .foregroundStyle(.secondary)
+            Button("Enter main app") {
+                Task { await appState.completeCelebration() }
+            }
+            .buttonStyle(.borderedProminent)
+        }
     }
 }

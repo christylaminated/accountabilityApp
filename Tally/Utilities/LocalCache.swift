@@ -43,6 +43,14 @@ enum LocalCacheKey {
     /// spinner on launch and go straight to the dashboard. Decoupled from the
     /// profile/userID caches so a partial decode never traps us on the spinner.
     static let hasOnboarded = "Tally.cache.hasOnboarded"
+
+    /// The last persisted step in the paywalled onboarding state machine.
+    /// Stored as the rawValue of `AppState.PersistedOnboardingStep`. Lets us
+    /// resume the user mid-flow if they kill the app between (say) entering
+    /// their name and reaching the paywall. Only the in-flow steps are
+    /// persisted; transient states (.checkingICloud, .needsSignIn, .error)
+    /// are never written.
+    static let onboardingStep = "Tally.cache.onboardingStep"
     /// UI preference — not user-scoped, kept across account changes.
     static let themeColor = "Tally.cache.themeColor"
 
@@ -103,7 +111,7 @@ enum LocalCacheKey {
 
     /// Cache keys cleared on iCloud account switch.
     static let userScoped: [String] = [
-        currentUserID, ownProfile, personalStore, hasOnboarded,
+        currentUserID, ownProfile, personalStore, hasOnboarded, onboardingStep,
         declinedFriendRequestIDs, declinedGroupInviteIDs,
         locallyUnfriendedIDs, pendingReciprocalSenders,
         processedUnfriendNotificationIDs, pendingUnfriendTargets,
