@@ -58,6 +58,40 @@ struct PaywallView: View {
         annualPackage != nil || monthlyPackage != nil
     }
 
+    /// Subcaption under the annual price card — computed from the real
+    /// `StoreProduct.price` values so it stays correct as ASC/RC prices
+    /// change. Shows per-month equivalent and savings % vs the monthly
+    /// package. Gracefully omits savings when no monthly is available, or
+    /// when the savings would be zero/negative (e.g. equal pricing).
+    private var annualSubcaption: String? {
+        guard let annual = annualPackage else { return nil }
+        let product = annual.storeProduct
+        let perMonth = product.price / 12
+        let formatter = product.priceFormatter ?? Self.fallbackPriceFormatter
+        guard let perMonthString = formatter.string(from: perMonth as NSDecimalNumber) else {
+            return nil
+        }
+
+        guard let monthly = monthlyPackage else {
+            return "\(perMonthString)/mo"
+        }
+        let monthlyDouble = NSDecimalNumber(decimal: monthly.storeProduct.price).doubleValue
+        guard monthlyDouble > 0 else { return "\(perMonthString)/mo" }
+        let perMonthDouble = NSDecimalNumber(decimal: perMonth).doubleValue
+        let savingsPercent = Int(((1 - perMonthDouble / monthlyDouble) * 100).rounded())
+        guard savingsPercent > 0 else { return "\(perMonthString)/mo" }
+        return "\(perMonthString)/mo · save \(savingsPercent)%"
+    }
+
+    /// Currency formatter used when `StoreProduct.priceFormatter` is nil
+    /// (rare — should only happen in unusual locale states). Falls back to
+    /// the device's current locale so prices stay readable.
+    private static let fallbackPriceFormatter: NumberFormatter = {
+        let f = NumberFormatter()
+        f.numberStyle = .currency
+        return f
+    }()
+
     var body: some View {
         ScrollView {
             VStack(spacing: 28) {
@@ -208,8 +242,8 @@ struct PaywallView: View {
                     Text(priceLine)
                         .font(.system(.body, design: .rounded, weight: .medium))
                         .foregroundStyle(Color.tallyTextPrimary)
-                    if isAnnual {
-                        Text("$3.33/mo · save 44%")
+                    if isAnnual, let subcaption = annualSubcaption {
+                        Text(subcaption)
                             .font(.system(.caption, design: .rounded))
                             .foregroundStyle(Color.tallyTextSecondary)
                     }
