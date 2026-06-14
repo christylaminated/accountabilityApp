@@ -4,8 +4,11 @@ import RevenueCat
 /// Screen 6 — the paywall. Non-dismissible: there is no close button, no
 /// drag indicator, no swipe-down gesture, and no back button. The user
 /// either subscribes (or starts the free trial) or restores a previous
-/// purchase. The display name is in the headline ("Lock in with [name]"
-/// — known conversion lever).
+/// purchase. The headline ("Lock in with your friends.") leads with
+/// Tally's social differentiator — every habit app claims accountability,
+/// only Tally is about doing it with friends. The user's name is
+/// reserved for the celebration screen where it lands as a one-time
+/// congratulation rather than as the conversion pitch.
 ///
 /// On a successful purchase or restore, `SubscriptionManager.isSubscribed`
 /// flips to true and we call `AppState.completePaywall()`. A canceled
@@ -38,10 +41,6 @@ struct PaywallView: View {
     // TODO(christy): replace with the real legal URLs before shipping.
     private let termsURL = URL(string: "https://example.com/tally-terms")!
     private let privacyURL = URL(string: "https://example.com/tally-privacy")!
-
-    private var displayName: String {
-        appState.ownCloudProfile?.displayName ?? "you"
-    }
 
     private var offering: Offering? { subscriptions.currentOffering }
     private var annualPackage: Package? { offering?.annual }
@@ -152,7 +151,7 @@ struct PaywallView: View {
             Image(systemName: "checkmark.seal.fill")
                 .font(.system(size: 56, weight: .light))
                 .foregroundStyle(Color.tallyAccent)
-            Text("Lock in with \(displayName).")
+            Text("Lock in with your friends.")
                 .font(.system(.largeTitle, design: .rounded, weight: .bold))
                 .foregroundStyle(Color.tallyTextPrimary)
                 .multilineTextAlignment(.center)
