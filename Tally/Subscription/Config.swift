@@ -10,8 +10,7 @@ import Foundation
 ///   - Offering `default` is the one the paywall reads packages from.
 ///   - Product IDs match the ASC subscriptions.
 enum SubscriptionConfig {
-    // TODO(christy): replace before shipping — RevenueCat public API key.
-    static let revenueCatAPIKey = "REVENUECAT_API_KEY_HERE"
+    static let revenueCatAPIKey = "appl_yQNsvfmlOtANvMvxlUWMSNxRJfn"
 
     static let entitlementID = "premium"
     static let offeringID = "default"
