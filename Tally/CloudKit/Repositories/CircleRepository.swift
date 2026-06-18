@@ -319,13 +319,25 @@ struct CloudKitCircleRepository: CircleRepository {
     }
 
     func leaveCircle(_ circle: TallyCircle) async throws {
-        // Participant-only path: remove self from the share. CloudKit moves the
-        // zone out of our shared DB automatically.
-        let (db, _) = try await locate(circle)
+        // Participant-only path: clean up our membership record AND remove
+        // self from the share. Order matters — we delete the CircleMember
+        // record FIRST while we still have .readWrite access to the shared
+        // zone (granted by the share), because we lose that access the
+        // moment we leave the share. Otherwise the member record would
+        // tombstone-leak in the owner's zone, showing us as a former member
+        // forever.
+        let (db, zoneID) = try await locate(circle)
         guard let share = try await share(for: circle) else {
             throw CKClientError.unexpected("Circle has no share.")
         }
         let myRecordName = try await client.userRecordID().recordName
+
+        let memberRecordID = CKRecord.ID(
+            recordName: "member-\(myRecordName)",
+            zoneID: zoneID
+        )
+        _ = try? await db.deleteRecord(withID: memberRecordID)
+
         if let me = share.participants.first(where: {
             $0.userIdentity.userRecordID?.recordName == myRecordName
         }) {

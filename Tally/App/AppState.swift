@@ -1433,6 +1433,47 @@ final class AppState {
             }
         }
 
+        // 2.5. Notify every current friend that we're leaving. Reuses the
+        //      existing UnfriendNotification path: their app processes it
+        //      to drop us from their local friends list/leaderboard within
+        //      a poll cycle instead of waiting for them to refresh and
+        //      discover our shared zone is gone. Best-effort — failures
+        //      just mean their app will fall back to implicit detection
+        //      on next refresh.
+        let friendIDsForNotify = personalStore.friends.map { $0.userID }
+        if !userID.isEmpty, !friendIDsForNotify.isEmpty {
+            for friendID in friendIDsForNotify {
+                do {
+                    let notification = UnfriendNotification(
+                        id: UUID(),
+                        fromUserRecordName: userID,
+                        toUserRecordName: friendID,
+                        sentAt: .now
+                    )
+                    try await unfriendNotificationRepository.send(notification)
+                } catch {
+                    NSLog("[Tally] deleteAccount: notify friend \(friendID) failed (non-fatal): \(error.localizedDescription)")
+                }
+            }
+            NSLog("[Tally] deleteAccount: notified \(friendIDsForNotify.count) friends")
+        }
+
+        // 2.6. Leave every joined-but-not-owned circle. `leaveCircle`
+        //      deletes our own CircleMember record from the owner's zone
+        //      AND drops us from the CKShare in one server op. Without
+        //      this, our member record would tombstone-leak: the group
+        //      owner's app would keep showing us as a former member
+        //      with our (now-deleted) display name. Best-effort per
+        //      circle.
+        for circle in joinedCircles {
+            do {
+                try await circleRepository.leaveCircle(circle)
+                NSLog("[Tally] deleteAccount: left joined circle \(circle.id)")
+            } catch {
+                NSLog("[Tally] deleteAccount: leave circle \(circle.id) failed (non-fatal): \(error.localizedDescription)")
+            }
+        }
+
         // 3. Private DB — delete every owned Circle zone. Zone deletion
         //    cascades to the root, members, messages, and the CKShare in
         //    one server-side op.
