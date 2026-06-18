@@ -61,7 +61,7 @@ struct InviteFriendsBanner: View {
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
                         .background(tallyAccent)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.tallyOnAccent)
                         .clipShape(Capsule())
                 }
                 .buttonStyle(.plain)

@@ -114,10 +114,9 @@ struct CircleDashboardView: View {
                     streakSection
                     habitsSection
                     goalsSection
+                    friendsSection
                     if friends.isEmpty {
                         inviteBanner
-                    } else {
-                        friendsSection
                     }
                     Color.clear.frame(height: 80)
                 }

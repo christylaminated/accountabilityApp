@@ -1,5 +1,6 @@
 import SwiftUI
 import PhotosUI
+import StoreKit
 #if canImport(UIKit)
 import UIKit
 #endif
@@ -29,6 +30,7 @@ struct ProfileSettingsView: View {
     @State private var showQuotaSheet = false
     @State private var showDeleteConfirm = false
     @State private var isDeleting = false
+    @State private var showManageSubscriptions = false
 
     /// Same set as `ProfileSetupView` so onboarding and editing match.
     private static let symbolChoices: [String] = [
@@ -114,6 +116,25 @@ struct ProfileSettingsView: View {
                 }
 
                 Section {
+                    Button {
+                        showManageSubscriptions = true
+                    } label: {
+                        HStack {
+                            Text("Manage subscription")
+                                .foregroundStyle(Color.tallyTextPrimary)
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.footnote.weight(.semibold))
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                } header: {
+                    Text("Subscription")
+                } footer: {
+                    Text("Change your plan, cancel, or see your renewal date. Managed by Apple — opens Apple's subscription sheet without leaving Tally.")
+                }
+
+                Section {
                     Button(role: .destructive) {
                         showDeleteConfirm = true
                     } label: {
@@ -174,6 +195,7 @@ struct ProfileSettingsView: View {
                     Task { await save() }
                 })
             }
+            .manageSubscriptionsSheet(isPresented: $showManageSubscriptions)
         }
     }
 

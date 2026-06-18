@@ -22,7 +22,7 @@ struct HabitListView: View {
     /// across three states so the user feels the day move forward.
     private var progressSubtext: String {
         if doneToday == 0 {
-            return "If you were the person you want to be, what would you do today?"
+            return "If you were the person you want to be, what would you do every day?"
         } else if doneToday < habits.count {
             return "Do what your dream self would do."
         } else {
