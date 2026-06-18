@@ -38,9 +38,8 @@ struct PaywallView: View {
     @State private var showDebugMenu = false
     #endif
 
-    // TODO(christy): replace with the real legal URLs before shipping.
-    private let termsURL = URL(string: "https://example.com/tally-terms")!
-    private let privacyURL = URL(string: "https://example.com/tally-privacy")!
+    private let termsURL = URL(string: "https://christylaminated.github.io/tally-legal/terms.html")!
+    private let privacyURL = URL(string: "https://christylaminated.github.io/tally-legal/privacy.html")!
 
     private var offering: Offering? { subscriptions.currentOffering }
     private var annualPackage: Package? { offering?.annual }
