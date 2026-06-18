@@ -675,13 +675,14 @@ final class AppState {
     func completeProfileCustomization(
         username: String,
         avatarSymbol: String,
-        theme: TallyTheme
+        theme: TallyTheme,
+        avatarImageData: Data? = nil
     ) async throws {
         try await updateProfile(
             displayName: ownCloudProfile?.displayName ?? "",
             avatarSymbol: avatarSymbol,
             username: username,
-            avatarImageData: nil,
+            avatarImageData: avatarImageData,
             clearAvatarPhoto: false
         )
         setTheme(theme)

@@ -25,16 +25,19 @@ struct LeaderboardPreviewView: View {
         return max(n, 1)
     }
 
-    /// Five entries, user pinned at index 2 (rank 3). The ordering and
-    /// numbers are picked for vibe, not a strict sort — the preview's job
-    /// is to make the gap visible, not to model a real ranking algorithm.
+    /// Five entries, user pinned at index 2 (rank 3). Mirrors the real
+    /// dashboard leaderboard's metrics (streak + "X of Y today") so the
+    /// preview honestly reflects what the user will see once they have
+    /// friends. Numbers picked for vibe — the friend group is consistent,
+    /// the user is starting their first day, and the bottom two haven't
+    /// kicked it off yet.
     private var entries: [Entry] {
         [
-            Entry(rank: 1, name: "Maya",     habits: 11, isMe: false),
-            Entry(rank: 2, name: "Jordan",   habits: 9,  isMe: false),
-            Entry(rank: 3, name: displayName, habits: myHabitCount, isMe: true),
-            Entry(rank: 4, name: "Sam",      habits: 8,  isMe: false),
-            Entry(rank: 5, name: "Riley",    habits: 6,  isMe: false),
+            Entry(rank: 1, name: "Maya",      streak: 11, doneToday: 3, totalHabits: 4, isMe: false),
+            Entry(rank: 2, name: "Jordan",    streak: 9,  doneToday: 4, totalHabits: 4, isMe: false),
+            Entry(rank: 3, name: displayName, streak: 1,  doneToday: 0, totalHabits: myHabitCount, isMe: true),
+            Entry(rank: 4, name: "Sam",       streak: 7,  doneToday: 0, totalHabits: 3, isMe: false),
+            Entry(rank: 5, name: "Riley",     streak: 5,  doneToday: 1, totalHabits: 3, isMe: false),
         ]
     }
 
@@ -97,16 +100,41 @@ struct LeaderboardPreviewView: View {
                 Text(entry.name)
                     .font(.system(size: 15, weight: isMe ? .semibold : .medium))
                     .foregroundStyle(Color.tallyTextPrimary)
-                Text("\(entry.habits) habits this week")
+                Text(statusText(for: entry))
                     .font(.system(size: 13))
-                    .foregroundStyle(Color.tallyTextSecondary)
+                    .foregroundStyle(statusColor(for: entry))
             }
             Spacer()
+            if entry.streak > 0 {
+                HStack(spacing: 3) {
+                    Text("\(entry.streak)")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Color.tallyTextPrimary)
+                    Image(systemName: "flame.fill")
+                        .font(.system(size: 11))
+                        .foregroundStyle(Color.tallyAccent)
+                }
+            }
         }
         .padding(.vertical, 12)
         .padding(.horizontal, isMe ? 8 : 0)
         .background(isMe ? Color.tallyAccent.opacity(0.08) : Color.clear)
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+
+    /// Mirrors `LeaderboardRow.statusText` in CircleDashboardView so the
+    /// preview reads identically to what users see once they have friends.
+    private func statusText(for entry: Entry) -> String {
+        guard entry.totalHabits > 0 else { return "No habits yet" }
+        if entry.doneToday == 0 { return "Not started today" }
+        if entry.doneToday == entry.totalHabits { return "All done today ✓" }
+        return "\(entry.doneToday) of \(entry.totalHabits) today"
+    }
+
+    private func statusColor(for entry: Entry) -> Color {
+        (entry.totalHabits > 0 && entry.doneToday == entry.totalHabits)
+            ? Color.tallyAccent
+            : Color.tallyTextSecondary
     }
 
     private func rankColor(for rank: Int) -> Color {
@@ -135,7 +163,9 @@ struct LeaderboardPreviewView: View {
     private struct Entry {
         let rank: Int
         let name: String
-        let habits: Int
+        let streak: Int
+        let doneToday: Int
+        let totalHabits: Int
         let isMe: Bool
     }
 }

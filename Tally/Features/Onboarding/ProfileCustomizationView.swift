@@ -1,4 +1,8 @@
 import SwiftUI
+import PhotosUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 /// Screen 5 of the paywalled onboarding flow.
 ///
@@ -23,6 +27,13 @@ struct ProfileCustomizationView: View {
     @State private var username: String = ""
     @State private var avatarSymbol: String = "leaf"
     @State private var theme: TallyTheme = .classic
+
+    /// Avatar photo bits. Photo is optional; falls back to `avatarSymbol`
+    /// when none is picked. Resized + JPEG-compressed before storage to
+    /// keep CloudKit writes small.
+    @State private var avatarPhotoData: Data?
+    @State private var pickedPhotoItem: PhotosPickerItem?
+    @State private var showPhotoPicker = false
 
     /// Result of the most recent availability check.
     @State private var usernameStatus: UsernameStatus = .idle
@@ -58,6 +69,7 @@ struct ProfileCustomizationView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
                 header
+                photoSection
                 usernameSection
                 avatarSection
                 themeSection
@@ -77,7 +89,97 @@ struct ProfileCustomizationView: View {
         .background(Color.tallyCanvas)
         .scrollDismissesKeyboard(.interactively)
         .onAppear { primeDefaultUsername() }
+        .photosPicker(
+            isPresented: $showPhotoPicker,
+            selection: $pickedPhotoItem,
+            matching: .images,
+            photoLibrary: .shared()
+        )
+        .onChange(of: pickedPhotoItem) { _, item in
+            Task { await loadPickedPhoto(item) }
+        }
     }
+
+    // MARK: - Photo
+
+    /// Optional photo upload. Tappable circular preview shows the picked
+    /// photo or falls back to the selected SF Symbol avatar so users always
+    /// see what their profile will look like.
+    private var photoSection: some View {
+        VStack(spacing: 12) {
+            Button {
+                showPhotoPicker = true
+            } label: {
+                ZStack(alignment: .bottomTrailing) {
+                    AvatarView(
+                        symbolName: avatarSymbol,
+                        imageData: avatarPhotoData,
+                        size: 96
+                    )
+                    Image(systemName: "camera.fill")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(Color.tallyOnAccent)
+                        .frame(width: 30, height: 30)
+                        .background(tallyAccent)
+                        .clipShape(Circle())
+                        .overlay(Circle().stroke(Color.tallyCanvas, lineWidth: 2))
+                }
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(avatarPhotoData == nil ? "Add photo" : "Change photo")
+
+            HStack(spacing: 14) {
+                Button {
+                    showPhotoPicker = true
+                } label: {
+                    Text(avatarPhotoData == nil ? "Add a photo" : "Change photo")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(tallyAccent)
+                }
+                .buttonStyle(.plain)
+                if avatarPhotoData != nil {
+                    Button {
+                        avatarPhotoData = nil
+                        pickedPhotoItem = nil
+                    } label: {
+                        Text("Remove")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(Color.tallyDestructive)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    /// Pulls the picked image off the PhotosPicker, decodes and resizes to
+    /// 256pt square JPEG at 0.7 quality so CloudKit writes stay small.
+    /// Mirrors ProfileSettingsView.loadPickedPhoto.
+    private func loadPickedPhoto(_ item: PhotosPickerItem?) async {
+        guard let item else { return }
+        do {
+            guard let raw = try await item.loadTransferable(type: Data.self) else { return }
+            #if canImport(UIKit)
+            avatarPhotoData = resizeJPEG(raw, maxDimension: 256, quality: 0.7)
+            #endif
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    #if canImport(UIKit)
+    private func resizeJPEG(_ data: Data, maxDimension: CGFloat, quality: CGFloat) -> Data? {
+        guard let image = UIImage(data: data) else { return nil }
+        let scale = min(maxDimension / image.size.width, maxDimension / image.size.height, 1.0)
+        let newSize = CGSize(width: image.size.width * scale, height: image.size.height * scale)
+        let renderer = UIGraphicsImageRenderer(size: newSize)
+        let resized = renderer.image { _ in
+            image.draw(in: CGRect(origin: .zero, size: newSize))
+        }
+        return resized.jpegData(compressionQuality: quality)
+    }
+    #endif
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -194,7 +296,7 @@ struct ProfileCustomizationView: View {
 
     private var avatarSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Avatar")
+            Text(avatarPhotoData == nil ? "Avatar" : "Fallback icon")
                 .font(.system(.subheadline, design: .rounded, weight: .semibold))
                 .foregroundStyle(.secondary)
             let columns = Array(
@@ -369,7 +471,8 @@ struct ProfileCustomizationView: View {
                 try await appState.completeProfileCustomization(
                     username: username,
                     avatarSymbol: avatarSymbol,
-                    theme: theme
+                    theme: theme,
+                    avatarImageData: avatarPhotoData
                 )
             } catch {
                 errorMessage = error.localizedDescription
