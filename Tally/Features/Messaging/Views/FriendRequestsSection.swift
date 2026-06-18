@@ -22,7 +22,7 @@ struct FriendRequestsSection: View {
                         .padding(.horizontal, 8)
                         .padding(.vertical, 3)
                         .background(tallyAccent)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.tallyOnAccent)
                         .clipShape(Capsule())
                 }
             }
@@ -95,7 +95,7 @@ private struct FriendRequestRow: View {
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)
                         .background(tallyAccent)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.tallyOnAccent)
                         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }
                 .buttonStyle(.plain)
@@ -165,7 +165,7 @@ struct GroupInvitesSection: View {
                         .padding(.horizontal, 8)
                         .padding(.vertical, 3)
                         .background(tallyAccent)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.tallyOnAccent)
                         .clipShape(Capsule())
                 }
             }
@@ -282,7 +282,7 @@ private struct GroupInviteRow: View {
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)
                         .background(tallyAccent)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.tallyOnAccent)
                         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }
                 .buttonStyle(.plain)

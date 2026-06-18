@@ -145,7 +145,7 @@ struct FriendSearchView: View {
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
                         .background(tallyAccent)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.tallyOnAccent)
                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 }
                 .buttonStyle(.plain)

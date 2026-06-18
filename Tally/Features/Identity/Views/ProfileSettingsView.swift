@@ -214,7 +214,7 @@ struct ProfileSettingsView: View {
                     )
                     Image(systemName: "camera.fill")
                         .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.tallyOnAccent)
                         .frame(width: 30, height: 30)
                         .background(tallyAccent)
                         .clipShape(Circle())
@@ -383,7 +383,7 @@ struct ProfileSettingsView: View {
                             if isSelected {
                                 Image(systemName: "checkmark")
                                     .font(.system(size: 14, weight: .bold))
-                                    .foregroundStyle(.white)
+                                    .foregroundStyle(Color.tallyOnAccent)
                             }
                         }
                     )

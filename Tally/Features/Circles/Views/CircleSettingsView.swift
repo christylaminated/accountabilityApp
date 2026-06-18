@@ -158,7 +158,7 @@ struct CircleSettingsView: View {
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
                         .background(atCap ? Color.tallyTextSecondary.opacity(0.3) : tallyAccent)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.tallyOnAccent)
                         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
                 .buttonStyle(.plain)

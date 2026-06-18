@@ -267,7 +267,7 @@ struct ProfileCustomizationView: View {
                             if isSelected {
                                 Image(systemName: "checkmark")
                                     .font(.system(size: 14, weight: .bold))
-                                    .foregroundStyle(.white)
+                                    .foregroundStyle(Color.tallyOnAccent)
                             }
                         }
                     )
@@ -286,7 +286,7 @@ struct ProfileCustomizationView: View {
         Button(action: submit) {
             HStack(spacing: 8) {
                 if isSubmitting {
-                    ProgressView().tint(.white)
+                    ProgressView().tint(Color.tallyOnAccent)
                 }
                 Text(isSubmitting ? "Saving…" : "Continue")
                     .font(.system(.body, design: .rounded, weight: .semibold))
@@ -298,7 +298,7 @@ struct ProfileCustomizationView: View {
                 ? tallyAccent
                 : Color.tallyTextSecondary.opacity(0.3)
             )
-            .foregroundStyle(.white)
+            .foregroundStyle(Color.tallyOnAccent)
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
         .disabled(!isValid || isSubmitting)

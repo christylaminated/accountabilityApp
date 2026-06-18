@@ -173,7 +173,7 @@ struct ProfileSetupView: View {
                 if isSubmitting {
                     ProgressView()
                         .progressViewStyle(.circular)
-                        .tint(.white)
+                        .tint(Color.tallyOnAccent)
                 }
                 Text(isSubmitting ? "Saving…" : "Continue")
                     .font(.system(.body, design: .rounded, weight: .semibold))
@@ -185,7 +185,7 @@ struct ProfileSetupView: View {
                 ? tallyAccent
                 : Color.tallyTextSecondary.opacity(0.3)
             )
-            .foregroundStyle(.white)
+            .foregroundStyle(Color.tallyOnAccent)
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
         .disabled(!isValid || isSubmitting)
@@ -400,7 +400,7 @@ struct ThemePickerOnboardingView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 16)
                 .background(selected.accent)
-                .foregroundStyle(.white)
+                .foregroundStyle(Color.tallyOnAccent)
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
         .buttonStyle(.plain)
@@ -459,7 +459,7 @@ private struct ThemePreviewCard: View {
                         .overlay(
                             Image(systemName: "checkmark")
                                 .font(.system(size: 7, weight: .bold))
-                                .foregroundStyle(.white)
+                                .foregroundStyle(Color.tallyOnAccent)
                         )
                 }
                 .padding(8)

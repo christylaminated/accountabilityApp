@@ -124,7 +124,7 @@ struct CircleAddMemberByUsernameView: View {
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
                         .background(isSelf(user) ? Color.tallyTextSecondary.opacity(0.3) : tallyAccent)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.tallyOnAccent)
                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 }
                 .buttonStyle(.plain)

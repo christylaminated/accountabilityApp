@@ -96,7 +96,7 @@ struct GoalsSetupView: View {
                 if isSubmitting {
                     ProgressView()
                         .progressViewStyle(.circular)
-                        .tint(.white)
+                        .tint(Color.tallyOnAccent)
                 }
                 Text(nonEmpty.isEmpty ? "Skip for now" : "Done")
                     .font(.system(.body, design: .rounded, weight: .semibold))

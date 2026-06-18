@@ -37,7 +37,7 @@ struct ICloudStatusGate: View {
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 14)
                             .background(tallyAccent)
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Color.tallyOnAccent)
                             .clipShape(RoundedRectangle(cornerRadius: 14))
                     }
                 }

@@ -23,7 +23,7 @@ struct MessageComposerView: View {
                     .font(.body.weight(.semibold))
                     .frame(width: 36, height: 36)
                     .background(disabled ? Color.tallyTextSecondary.opacity(0.3) : tallyAccent)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color.tallyOnAccent)
                     .clipShape(Circle())
             }
             .disabled(disabled)

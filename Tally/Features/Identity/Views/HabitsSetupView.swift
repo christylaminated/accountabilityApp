@@ -104,7 +104,7 @@ struct HabitsSetupView: View {
                 if isSubmitting {
                     ProgressView()
                         .progressViewStyle(.circular)
-                        .tint(.white)
+                        .tint(Color.tallyOnAccent)
                 }
                 Text(nonEmpty.isEmpty ? "Skip for now" : "Continue")
                     .font(.system(.body, design: .rounded, weight: .semibold))

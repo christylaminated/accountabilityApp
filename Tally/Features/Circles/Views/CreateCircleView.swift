@@ -321,7 +321,7 @@ struct CreateCircleView: View {
         Button(action: actionButtonTapped) {
             HStack(spacing: 8) {
                 if isCreating {
-                    ProgressView().tint(.white)
+                    ProgressView().tint(Color.tallyOnAccent)
                 }
                 Text(actionButtonText)
                     .font(.system(.body, design: .rounded, weight: .semibold))
@@ -329,7 +329,7 @@ struct CreateCircleView: View {
             .frame(maxWidth: .infinity)
             .padding(.vertical, 16)
             .background(actionButtonEnabled ? tallyAccent : Color.tallyTextSecondary.opacity(0.3))
-            .foregroundStyle(.white)
+            .foregroundStyle(Color.tallyOnAccent)
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
         .disabled(!actionButtonEnabled || isCreating)

@@ -247,7 +247,7 @@ struct MemberDetailView: View {
                 Text(isOpeningDM ? "Opening…" : "Message")
                 Spacer()
                 if isOpeningDM {
-                    ProgressView().tint(.white)
+                    ProgressView().tint(Color.tallyOnAccent)
                 } else {
                     Image(systemName: "chevron.right")
                         .foregroundStyle(Color.white.opacity(0.7))
@@ -256,7 +256,7 @@ struct MemberDetailView: View {
             .font(.body.weight(.semibold))
             .padding(14)
             .background(tallyAccent)
-            .foregroundStyle(.white)
+            .foregroundStyle(Color.tallyOnAccent)
             .clipShape(RoundedRectangle(cornerRadius: 14))
         }
         .buttonStyle(.plain)

@@ -73,7 +73,7 @@ struct FirstHabitView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 16)
                 .background(isValid ? Color.tallyAccent : Color.tallyTextSecondary.opacity(0.3))
-                .foregroundStyle(.white)
+                .foregroundStyle(Color.tallyOnAccent)
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
         .disabled(!isValid)

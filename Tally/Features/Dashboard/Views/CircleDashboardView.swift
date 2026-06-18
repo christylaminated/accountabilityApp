@@ -647,7 +647,7 @@ private struct HabitCard: View {
                 .opacity(isDone ? 1 : 0)
             Image(systemName: "checkmark")
                 .font(.system(size: 14, weight: .bold))
-                .foregroundStyle(.white)
+                .foregroundStyle(Color.tallyOnAccent)
                 .scaleEffect(isDone ? 1 : 0)
                 .opacity(isDone ? 1 : 0)
         }
@@ -704,7 +704,7 @@ private struct GoalRow: View {
                 .opacity(isDone ? 1 : 0)
             Image(systemName: "checkmark")
                 .font(.system(size: 11, weight: .bold))
-                .foregroundStyle(.white)
+                .foregroundStyle(Color.tallyOnAccent)
                 .scaleEffect(isDone ? 1 : 0)
                 .opacity(isDone ? 1 : 0)
         }

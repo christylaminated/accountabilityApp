@@ -1,0 +1,5 @@
+# IAP signing keys (private — never commit).
+# Local copies are kept for reference; RevenueCat holds the active copy
+# server-side after upload, and the app does not read this file at runtime.
+*.p8
+SubscriptionKey_*.p8

@@ -90,7 +90,7 @@ struct CircleSetupView: View {
         Button(action: create) {
             HStack(spacing: 8) {
                 if isCreating {
-                    ProgressView().progressViewStyle(.circular).tint(.white)
+                    ProgressView().progressViewStyle(.circular).tint(Color.tallyOnAccent)
                 }
                 Text(isCreating ? "Creating…" : "Create Circle")
                     .font(.system(.body, design: .rounded, weight: .semibold))
@@ -98,7 +98,7 @@ struct CircleSetupView: View {
             .frame(maxWidth: .infinity)
             .padding(.vertical, 16)
             .background(isValid && !isCreating ? tallyAccent : Color.tallyTextSecondary.opacity(0.3))
-            .foregroundStyle(.white)
+            .foregroundStyle(Color.tallyOnAccent)
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
         .disabled(!isValid || isCreating)

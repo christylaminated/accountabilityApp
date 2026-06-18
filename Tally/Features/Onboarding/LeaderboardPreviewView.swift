@@ -127,7 +127,7 @@ struct LeaderboardPreviewView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 16)
                 .background(Color.tallyAccent)
-                .foregroundStyle(.white)
+                .foregroundStyle(Color.tallyOnAccent)
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
     }

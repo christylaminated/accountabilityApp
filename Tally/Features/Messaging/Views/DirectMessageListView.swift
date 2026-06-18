@@ -118,7 +118,7 @@ private struct DMThreadRow: View {
                     if unread > 0 {
                         Text("\(unread)")
                             .font(.caption.weight(.bold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Color.tallyOnAccent)
                             .padding(.horizontal, 7).padding(.vertical, 2)
                             .background(tallyAccent)
                             .clipShape(Capsule())
