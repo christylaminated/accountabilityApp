@@ -233,7 +233,7 @@ struct PaywallView: View {
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 3)
                                 .background(Color.tallyAccent)
-                                .foregroundStyle(.white)
+                                .foregroundStyle(Color.tallyOnAccent)
                                 .clipShape(Capsule())
                         }
                     }
@@ -270,14 +270,14 @@ struct PaywallView: View {
         VStack(spacing: 12) {
             Button(action: purchase) {
                 HStack(spacing: 8) {
-                    if isPurchasing { ProgressView().tint(.white) }
+                    if isPurchasing { ProgressView().tint(Color.tallyOnAccent) }
                     Text(isPurchasing ? "Starting…" : "Start 3-Day Free Trial")
                         .font(.system(.body, design: .rounded, weight: .semibold))
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 18)
                 .background(selectedPackage == nil ? Color.tallyTextSecondary.opacity(0.3) : Color.tallyAccent)
-                .foregroundStyle(.white)
+                .foregroundStyle(Color.tallyOnAccent)
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             }
             .disabled(selectedPackage == nil || isPurchasing)
@@ -370,7 +370,7 @@ struct PaywallView: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 16)
                     .background(Color.tallyAccent)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color.tallyOnAccent)
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             }
             .buttonStyle(.plain)
