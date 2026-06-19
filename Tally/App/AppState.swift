@@ -1434,16 +1434,32 @@ final class AppState {
             }
         }
 
-        // 2.5. Notify every current friend that we're leaving. Reuses the
-        //      existing UnfriendNotification path: their app processes it
-        //      to drop us from their local friends list/leaderboard within
-        //      a poll cycle instead of waiting for them to refresh and
-        //      discover our shared zone is gone. Best-effort — failures
-        //      just mean their app will fall back to implicit detection
-        //      on next refresh.
-        let friendIDsForNotify = personalStore.friends.map { $0.userID }
-        if !userID.isEmpty, !friendIDsForNotify.isEmpty {
-            for friendID in friendIDsForNotify {
+        // 2.5. Build the canonical friend list from BOTH the local cache
+        //      AND CloudKit's sharedDB, then for each friend:
+        //        a. Send UnfriendNotification → their app drops us from
+        //           their friends list/leaderboard on next poll.
+        //        b. Leave their shared zone → drops their data from OUR
+        //           sharedDB so re-onboarding under the same iCloud
+        //           doesn't resurrect them.
+        //
+        //      Sourcing from BOTH cache and CloudKit catches the edge
+        //      case where the user deletes before personalStore.load()
+        //      has populated `friends` — previously that left the hide-
+        //      list empty and re-onboarding pulled every old friend
+        //      back in from sharedDB.
+        var canonicalFriendIDs = Set(personalStore.friends.map { $0.userID })
+        do {
+            let zones = try await personalRepository.friendZones()
+            for zone in zones {
+                canonicalFriendIDs.insert(zone.zoneID.ownerName)
+            }
+            NSLog("[Tally] deleteAccount: enumerated \(zones.count) friend zones in sharedDB; canonical friend count=\(canonicalFriendIDs.count)")
+        } catch {
+            NSLog("[Tally] deleteAccount: friendZones enumeration failed (non-fatal, falling back to cache): \(error.localizedDescription)")
+        }
+
+        if !userID.isEmpty {
+            for friendID in canonicalFriendIDs {
                 do {
                     let notification = UnfriendNotification(
                         id: UUID(),
@@ -1455,8 +1471,18 @@ final class AppState {
                 } catch {
                     NSLog("[Tally] deleteAccount: notify friend \(friendID) failed (non-fatal): \(error.localizedDescription)")
                 }
+                // Remove ourselves from the friend's share. CloudKit
+                // permits participants to leave any share they're in,
+                // so this works even though we don't own the share.
+                // Without it, the zone re-appears in our sharedDB on
+                // re-onboarding under the same iCloud user record.
+                do {
+                    try await personalRepository.leaveFriendShare(ownerRecordName: friendID)
+                } catch {
+                    NSLog("[Tally] deleteAccount: leave friend share \(friendID) failed (non-fatal): \(error.localizedDescription)")
+                }
             }
-            NSLog("[Tally] deleteAccount: notified \(friendIDsForNotify.count) friends")
+            NSLog("[Tally] deleteAccount: processed cleanup for \(canonicalFriendIDs.count) friends")
         }
 
         // 2.6. Leave every joined-but-not-owned circle. `leaveCircle`
@@ -1516,7 +1542,10 @@ final class AppState {
             .union(incomingFriendRequests.map { $0.id.uuidString })
         let allDeclinedInvites = declinedGroupInviteIDs
             .union(incomingGroupInvites.map { $0.id.uuidString })
-        let allLocallyUnfriended = Set(personalStore.friends.map { $0.userID })
+        // Use the canonical set built in step 2.5 (cache UNION CloudKit
+        // sharedDB) so the hide-list catches every former friend even if
+        // personalStore.friends wasn't fully populated at delete-time.
+        let allLocallyUnfriended = canonicalFriendIDs
         NSLog("[Tally] deleteAccount: snapshot hide-lists requests=\(allDeclinedRequests.count) invites=\(allDeclinedInvites.count) friends=\(allLocallyUnfriended.count)")
 
         // 7. Local cleanup — wipe every cached row, then re-save just the
