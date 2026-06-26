@@ -1285,18 +1285,25 @@ final class AppState {
             lastUnfriendCleanupError = "Removed them from your side, but couldn't confirm their access to your data was revoked — they may still see your data. (\(reason)) Try unfriending again."
         }
 
-        // Step 2 used to be `leaveFriendShare` (calling
-        // CKShare.removeParticipant on the friend's share via
-        // sharedDB). That API has been observed raising
-        // NSInternalInconsistencyException on iOS 26 under various
-        // CloudKit states — an Obj-C exception Swift `try` can't catch,
-        // so the app aborts. We've replaced it with a persistent local
-        // filter: `dropFriendLocally` marks the friend in
-        // `personalStore.locallyUnfriendedIDs` (saved to LocalCache),
-        // and `PersonalStore.load` / `.refresh` filter friend zones
-        // against that set so the friend stays gone across launches
-        // even though their zone technically remains in our sharedDB.
+        // Step 2: remove the friend's zone from MY sharedDB so we truly have
+        // nothing in common afterward — two layers:
+        //   2a. `dropFriendLocally` hides them immediately in the UI and
+        //       persists the hide, covering the window before the server-side
+        //       leave below propagates (and the case where it's refused).
+        //   2b. `leaveFriendShare` removes me from THEIR share server-side, so
+        //       their zone leaves my sharedDB for good — this is what makes a
+        //       reinstall clean instead of resurrecting them. It WAS disabled
+        //       because CKShare.removeParticipant crashes on iOS 26; it's now
+        //       crash-safe (wrapped in the Obj-C exception shim), so we call it
+        //       again. Best-effort: a failure just leaves the local hide
+        //       doing its job until their device processes the notification.
         personalStore.dropFriendLocally(userID: friend.userID)
+        do {
+            try await personalRepository.leaveFriendShare(ownerRecordName: friend.userID)
+            NSLog("[Tally] unfriend: left friend's share server-side")
+        } catch {
+            NSLog("[Tally] unfriend: leaveFriendShare failed (non-fatal, local hide still applies): \(error.localizedDescription)")
+        }
 
         // Step 3: tell THEIR app about the unfriend. Without this, their
         // PersonalStore.refresh would still see us in their friends list
