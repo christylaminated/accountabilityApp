@@ -468,7 +468,21 @@ struct CloudKitPersonalRepository: PersonalRepository {
         }
 
         NSLog("[Tally] leaveFriendShare: about to remove self (role=\(me.role.rawValue), status=\(me.acceptanceStatus.rawValue))")
-        share.removeParticipant(me)
+        // `share.removeParticipant` is the exact call that has raised an
+        // uncatchable Obj-C NSException on iOS 26 (see ExceptionCatcher.h).
+        // The guards above prevent the states we know about, but the shim is
+        // the real safety net: a raised exception becomes a thrown Swift
+        // error we can swallow instead of crashing the app. If it throws we
+        // bail WITHOUT saving — the participant wasn't removed, so there's
+        // nothing to persist.
+        do {
+            try ExceptionCatcher.catchException {
+                share.removeParticipant(me)
+            }
+        } catch {
+            NSLog("[Tally] leaveFriendShare: removeParticipant raised, caught via shim — skipping (owner=\(ownerRecordName)): \(error.localizedDescription)")
+            return
+        }
         do {
             _ = try await client.sharedDB.modifyRecords(
                 saving: [share],
