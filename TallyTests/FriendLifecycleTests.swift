@@ -245,4 +245,78 @@ struct FriendLifecycleTests {
         // Plain unfriend → persisted hide (their zone still exists).
         #expect(store.isLocallyUnfriended(userID: "alice"))
     }
+
+    // MARK: - Friend-symmetry self-heal
+
+    /// An AppState wired for reconcile: signed in, in the main app, with a
+    /// profile (sendReciprocalShareBack requires one). `addFriendParticipant`
+    /// appends to `personal.friends`, which we use as the observable "a repair
+    /// was attempted for this friend" signal.
+    private func reconcileApp(personal: MockPersonalRepository, store: PersonalStore) -> AppState {
+        let app = appState(
+            personal: personal, store: store,
+            notifications: MockUnfriendNotificationRepository()
+        )
+        app.onboardingState = .enteredMainApp
+        app.ownCloudProfile = UserProfile(
+            displayName: "Me", avatarSymbol: "leaf",
+            avatarImageData: nil, username: "me", createdAt: Date()
+        )
+        return app
+    }
+
+    @Test func selfHeal_skipsFriendWhoAlreadySeesMe() async {
+        let personal = repo(friendOwners: ["alice"])
+        personal.personalShareParticipants = ["alice"]   // alice already sees me
+        let store = PersonalStore(repository: personal)
+        await store.activate(currentUserID: "me")
+        let app = reconcileApp(personal: personal, store: store)
+
+        await app.reconcileFriendSymmetry(trigger: "test")
+
+        // Already symmetric → no repair attempted.
+        #expect(!personal.friends.contains { $0.recordName == "alice" })
+    }
+
+    @Test func selfHeal_bailsWhenParticipantsUnreadable() async {
+        let personal = repo(friendOwners: ["alice"])
+        personal.personalShareParticipantsError = NSError(domain: "test", code: 1)
+        let store = PersonalStore(repository: personal)
+        await store.activate(currentUserID: "me")
+        let app = reconcileApp(personal: personal, store: store)
+
+        await app.reconcileFriendSymmetry(trigger: "test")
+
+        // Conservative: couldn't read who sees me → do nothing.
+        #expect(!personal.friends.contains { $0.recordName == "alice" })
+    }
+
+    @Test func selfHeal_skipsUnfriendedPerson() async {
+        let personal = repo(friendOwners: ["alice"])
+        personal.personalShareParticipants = []          // alice can't see me
+        let store = PersonalStore(repository: personal)
+        await store.activate(currentUserID: "me")
+        store.dropFriendLocally(userID: "alice")         // but I unfriended her
+        let app = reconcileApp(personal: personal, store: store)
+
+        await app.reconcileFriendSymmetry(trigger: "test")
+
+        // Never re-friend someone who was explicitly unfriended.
+        #expect(!personal.friends.contains { $0.recordName == "alice" })
+    }
+
+    @Test func selfHeal_repairsOneWayFriend() async {
+        let personal = repo(friendOwners: ["alice"])
+        personal.personalShareParticipants = []          // alice can't see me
+        let store = PersonalStore(repository: personal)
+        await store.activate(currentUserID: "me")
+        let app = reconcileApp(personal: personal, store: store)
+
+        await app.reconcileFriendSymmetry(trigger: "test")
+
+        // One-way → repair attempted: alice re-added as a participant on my
+        // share. (The reciprocal send can't fully complete against the mock's
+        // URL-less share, but the repair path ran — which is what we assert.)
+        #expect(personal.friends.contains { $0.recordName == "alice" })
+    }
 }

@@ -55,8 +55,14 @@ final class MockPersonalRepository: PersonalRepository, @unchecked Sendable {
     /// User record names considered participants on "my" share — i.e. who can
     /// see me. Tests set this to simulate one-way vs symmetric friendships.
     var personalShareParticipants: Set<String> = []
+    /// When set, `personalShareParticipantIDs` throws it — lets tests exercise
+    /// the self-heal's conservative "can't read participants → do nothing" path.
+    var personalShareParticipantsError: Error?
 
-    func personalShareParticipantIDs() async throws -> Set<String> { personalShareParticipants }
+    func personalShareParticipantIDs() async throws -> Set<String> {
+        if let personalShareParticipantsError { throw personalShareParticipantsError }
+        return personalShareParticipants
+    }
 
     func friendZones() async throws -> [CKRecordZone] { friendZoneList }
 
