@@ -1444,32 +1444,28 @@ final class AppState {
         }
 
         // 2.5. Build the canonical friend list from BOTH the local cache
-        //      AND CloudKit's sharedDB, then run the SAME unfriend logic
-        //      the normal `unfriend(_:)` path uses, for every friend:
-        //        a. Send UnfriendNotification → their app drops us from
-        //           their friends list/leaderboard on next poll AND
-        //           revokes our latent access to their zone. This is the
-        //           half that makes the unfriend symmetric.
-        //        b. Resurrection on OUR side is handled by the persisted
-        //           hide-list (`locallyUnfriendedIDs`, saved from this
-        //           same canonical set in step 7) — `PersonalStore.load`
-        //           filters friend zones against it — so a same-iCloud
-        //           re-onboarding won't pull old friends back in.
+        //      AND CloudKit's sharedDB, then for every friend:
+        //        a. Send an account-deletion UnfriendNotification → their
+        //           app erases us from their list + revokes our access on
+        //           its next poll.
+        //        b. LEAVE their share server-side (`leaveFriendShare`, now
+        //           crash-safe via the Obj-C exception shim) → removes their
+        //           zone from OUR sharedDB so a true REINSTALL under the same
+        //           iCloud has nothing left to resurrect. This is the only
+        //           reliable fix for "redownload shows no old friends": the
+        //           local hide-list lives in UserDefaults and is wiped by an
+        //           app delete, so it cannot carry across a reinstall — only
+        //           a genuine server-side removal does.
         //
-        //      We deliberately DON'T call `leaveFriendShare` here. That
-        //      API (CKShare.removeParticipant on the friend's share) has
-        //      been observed raising an uncatchable
-        //      NSInternalInconsistencyException on iOS 26 — an Obj-C
-        //      exception Swift `try` can't catch — which would CRASH the
-        //      app mid-loop and abort deletion before the remaining
-        //      friends were notified. The normal `unfriend(_:)` flow
-        //      dropped it for exactly this reason; deletion now matches.
+        //      Both halves are best-effort and independent: one friend's
+        //      failure (or a raised-then-caught removeParticipant) must not
+        //      block the rest of the deletion. The persisted hide-list
+        //      (step 7) still backstops the same-iCloud re-onboard-without-
+        //      reinstall case and the brief window before the leave lands.
         //
         //      Sourcing from BOTH cache and CloudKit catches the edge
         //      case where the user deletes before personalStore.load()
-        //      has populated `friends` — previously that left the hide-
-        //      list empty and re-onboarding pulled every old friend
-        //      back in from sharedDB.
+        //      has populated `friends`.
         var canonicalFriendIDs = Set(personalStore.friends.map { $0.userID })
         do {
             let zones = try await personalRepository.friendZones()
@@ -1483,11 +1479,8 @@ final class AppState {
 
         if !userID.isEmpty {
             for friendID in canonicalFriendIDs {
-                // Notify their device so it auto-unfriends us (drops us
-                // from their list + revokes our access to their zone) on
-                // its next poll. Best-effort, but crucially crash-free:
-                // a failed send just means that one friend keeps stale
-                // state, not that the whole deletion aborts.
+                // a. Notify their device so it erases us (account-deletion
+                //    flavor → no tombstone on their side either). Best-effort.
                 do {
                     let notification = UnfriendNotification(
                         id: UUID(),
@@ -1500,24 +1493,40 @@ final class AppState {
                 } catch {
                     NSLog("[Tally] deleteAccount: notify friend \(friendID) failed (non-fatal): \(error.localizedDescription)")
                 }
+                // b. Leave their share server-side so their zone leaves our
+                //    sharedDB — the reinstall-clean half. Crash-safe via the
+                //    shim; a failure here never aborts the loop.
+                do {
+                    try await personalRepository.leaveFriendShare(ownerRecordName: friendID)
+                } catch {
+                    NSLog("[Tally] deleteAccount: leave friend share \(friendID) failed (non-fatal): \(error.localizedDescription)")
+                }
             }
-            NSLog("[Tally] deleteAccount: notified \(canonicalFriendIDs.count) friends of unfriend")
+            NSLog("[Tally] deleteAccount: processed server-side cleanup for \(canonicalFriendIDs.count) friends")
         }
 
-        // 2.6. Leave every joined-but-not-owned circle. `leaveCircle`
-        //      deletes our own CircleMember record from the owner's zone
-        //      AND drops us from the CKShare in one server op. Without
-        //      this, our member record would tombstone-leak: the group
-        //      owner's app would keep showing us as a former member
-        //      with our (now-deleted) display name. Best-effort per
-        //      circle.
-        for circle in joinedCircles {
-            do {
-                try await circleRepository.leaveCircle(circle)
-                NSLog("[Tally] deleteAccount: left joined circle \(circle.id)")
-            } catch {
-                NSLog("[Tally] deleteAccount: leave circle \(circle.id) failed (non-fatal): \(error.localizedDescription)")
+        // 2.6. Leave every joined-but-not-owned circle. Enumerate the joined
+        //      circle zones from CloudKit rather than the in-memory
+        //      `joinedCircles` array — that array may be empty or stale if the
+        //      user deletes before `loadCircles()` ran, which previously left
+        //      us as a lingering member in friends' circles. Going to the
+        //      source guarantees we leave EVERY owner's circle.
+        //      `leaveJoinedCircleZone` deletes our member record + drops us
+        //      from the share (crash-safe via the shim). Best-effort per zone:
+        //      one failure must not block the rest.
+        do {
+            let joinedZones = try await CKClient.shared.joinedCircleZones()
+            for zone in joinedZones {
+                do {
+                    try await circleRepository.leaveJoinedCircleZone(zone)
+                    NSLog("[Tally] deleteAccount: left joined circle zone \(zone.zoneID.zoneName)")
+                } catch {
+                    NSLog("[Tally] deleteAccount: leave joined circle zone \(zone.zoneID.zoneName) failed (non-fatal): \(error.localizedDescription)")
+                }
             }
+            NSLog("[Tally] deleteAccount: processed \(joinedZones.count) joined circle zones")
+        } catch {
+            NSLog("[Tally] deleteAccount: joined circle enumeration failed (non-fatal): \(error.localizedDescription)")
         }
 
         // 3. Private DB — delete every owned Circle zone. Zone deletion

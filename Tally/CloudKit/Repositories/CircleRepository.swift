@@ -61,6 +61,13 @@ protocol CircleRepository: Sendable {
     /// Participant leaves a Circle (removes self from the share). Not for owners.
     func leaveCircle(_ circle: TallyCircle) async throws
 
+    /// Leave a joined Circle addressed directly by its shared zone — used by
+    /// account deletion to leave EVERY joined circle enumerated from CloudKit,
+    /// not just the ones currently loaded into the in-memory `joinedCircles`.
+    /// Same effect as `leaveCircle` (deletes our member record + drops us from
+    /// the share), crash-safe via the exception shim.
+    func leaveJoinedCircleZone(_ zone: CKRecordZone) async throws
+
     /// Owner deletes a Circle entirely: deletes the zone, which cascade-deletes
     /// every record inside it (root, members, messages, summaries, the share).
     func deleteCircle(_ circle: TallyCircle) async throws
@@ -341,9 +348,60 @@ struct CloudKitCircleRepository: CircleRepository {
         if let me = share.participants.first(where: {
             $0.userIdentity.userRecordID?.recordName == myRecordName
         }) {
-            share.removeParticipant(me)
+            // Same iOS 26 NSException risk as PersonalRepository.leaveFriendShare
+            // (removeParticipant on an owner's share we don't own) — run it
+            // through the shim so a raised exception is caught, not fatal.
+            do {
+                try ExceptionCatcher.catchException { share.removeParticipant(me) }
+            } catch {
+                NSLog("[Tally] leaveCircle: removeParticipant raised, caught via shim — skipping: \(error.localizedDescription)")
+                return
+            }
             _ = try await db.modifyRecords(saving: [share], deleting: [])
         }
+    }
+
+    /// Leave a joined Circle by its shared zone. Mirrors `leaveCircle` but
+    /// works purely from the zone (no TallyCircle needed), so account deletion
+    /// can leave circles it enumerated straight from CloudKit.
+    func leaveJoinedCircleZone(_ zone: CKRecordZone) async throws {
+        let db = client.sharedDB
+        let zoneID = zone.zoneID
+        let myRecordName = try await client.userRecordID().recordName
+
+        // Delete our membership row FIRST, while the share still grants write
+        // access to the zone (same ordering rationale as leaveCircle).
+        let memberRecordID = CKRecord.ID(recordName: "member-\(myRecordName)", zoneID: zoneID)
+        _ = try? await db.deleteRecord(withID: memberRecordID)
+
+        let rootID = CKRecord.ID(recordName: Self.rootRecordName, zoneID: zoneID)
+        let root: CKRecord
+        do {
+            root = try await db.record(for: rootID)
+        } catch let error as CKError where error.code == .unknownItem || error.code == .zoneNotFound {
+            // Zone already being torn down server-side — nothing left to leave.
+            return
+        }
+        guard let shareRef = root.share,
+              let share = try await db.record(for: shareRef.recordID) as? CKShare,
+              let me = share.currentUserParticipant,
+              me.role != .owner,
+              me.acceptanceStatus == .accepted,
+              share.participants.contains(where: { $0 == me })
+        else { return }
+
+        do {
+            try ExceptionCatcher.catchException { share.removeParticipant(me) }
+        } catch {
+            NSLog("[Tally] leaveJoinedCircleZone: removeParticipant raised, caught via shim — skipping (\(zoneID.zoneName)): \(error.localizedDescription)")
+            return
+        }
+        _ = try await db.modifyRecords(
+            saving: [share],
+            deleting: [],
+            savePolicy: .ifServerRecordUnchanged,
+            atomically: false
+        )
     }
 
     func deleteCircle(_ circle: TallyCircle) async throws {

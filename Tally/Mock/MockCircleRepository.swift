@@ -94,6 +94,10 @@ final class MockCircleRepository: CircleRepository, @unchecked Sendable {
         joined.removeAll { $0.id == circle.id }
     }
 
+    func leaveJoinedCircleZone(_ zone: CKRecordZone) async throws {
+        // Previews/tests don't model the shared-zone topology; no-op.
+    }
+
     func deleteCircle(_ circle: TallyCircle) async throws {
         owned.removeAll { $0.id == circle.id }
         membersByCircle[circle.id] = nil
