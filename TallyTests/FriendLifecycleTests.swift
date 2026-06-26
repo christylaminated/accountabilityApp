@@ -1,0 +1,248 @@
+import Testing
+import CloudKit
+import Foundation
+@testable import Tally
+
+/// Covers the friend lifecycle the unfriend / delete-account work touches:
+///   add friend → unfriend (persisted hide) → re-add (clear hide) and the
+///   distinct "their account was deleted" path (erase, NO persisted hide).
+///
+/// Scope note: these exercise `PersonalStore` (the suppression/erase engine)
+/// and `AppState.processUnfriendNotifications` (the erase-vs-hide decision)
+/// with in-memory mocks. `AppState.deleteAccount` itself is NOT covered — it
+/// calls `CKClient.shared` directly (zone deletes), so it can't run without a
+/// live CloudKit account.
+///
+/// `.serialized` because every case shares `UserDefaults.standard` via
+/// `LocalCache`; `init()` wipes the user-scoped keys before each test.
+@MainActor
+@Suite("FriendLifecycle", .serialized)
+struct FriendLifecycleTests {
+
+    init() {
+        LocalCache.clearAll()
+    }
+
+    // MARK: - Helpers
+
+    /// A friend's personal zone as it appears in our sharedDB, keyed by their
+    /// user record name (the `ownerName`).
+    private func zone(_ owner: String) -> CKRecordZone {
+        CKRecordZone(zoneID: CKRecordZone.ID(zoneName: "personalData", ownerName: owner))
+    }
+
+    /// A mock personal repository whose sharedDB surfaces `owners` as friends.
+    private func repo(friendOwners owners: [String]) -> MockPersonalRepository {
+        let mock = MockPersonalRepository()
+        mock.friendZoneList = owners.map(zone)
+        return mock
+    }
+
+    /// A store that has already loaded `owners` as friends.
+    private func loadedStore(_ owners: [String]) async -> (PersonalStore, MockPersonalRepository) {
+        let mock = repo(friendOwners: owners)
+        let store = PersonalStore(repository: mock)
+        await store.activate(currentUserID: "me")
+        return (store, mock)
+    }
+
+    private func hasFriend(_ store: PersonalStore, _ id: String) -> Bool {
+        store.friends.contains { $0.userID == id }
+    }
+
+    // MARK: - Adding friends
+
+    @Test func addingFriend_surfacesFromSharedZones() async {
+        let (store, _) = await loadedStore(["alice", "bob"])
+        #expect(hasFriend(store, "alice"))
+        #expect(hasFriend(store, "bob"))
+        #expect(store.friends.count == 2)
+    }
+
+    // MARK: - Unfriend (persisted hide)
+
+    @Test func unfriend_removesFriendAndHidesAcrossRefresh() async {
+        let (store, _) = await loadedStore(["alice"])
+
+        store.dropFriendLocally(userID: "alice")
+        #expect(!hasFriend(store, "alice"))
+        #expect(store.isLocallyUnfriended(userID: "alice"))
+
+        // Their zone is still in sharedDB; a refresh must NOT bring them back.
+        await store.refresh()
+        #expect(!hasFriend(store, "alice"))
+    }
+
+    @Test func unfriend_persistsAcrossRelaunch() async {
+        let (store, mock) = await loadedStore(["alice"])
+        store.dropFriendLocally(userID: "alice")
+
+        // Fresh store == app relaunch. Same sharedDB (zone still present),
+        // same LocalCache. The persisted hide must keep alice gone.
+        let relaunched = PersonalStore(repository: mock)
+        await relaunched.activate(currentUserID: "me")
+        #expect(!hasFriend(relaunched, "alice"))
+        #expect(relaunched.isLocallyUnfriended(userID: "alice"))
+    }
+
+    // MARK: - Re-adding a previously unfriended friend
+
+    @Test func reAddFriend_afterUnfriend_clearsHideAndReappears() async {
+        let (store, _) = await loadedStore(["alice"])
+        store.dropFriendLocally(userID: "alice")
+        #expect(!hasFriend(store, "alice"))
+
+        // Re-friending clears the hide (what acceptFriendRequest /
+        // handleIncomingShareIfNeeded do under the hood).
+        store.clearLocalUnfriend(userID: "alice")
+        #expect(!store.isLocallyUnfriended(userID: "alice"))
+
+        await store.refresh()
+        #expect(hasFriend(store, "alice"))
+    }
+
+    // MARK: - Account deletion (erase, NO persisted tombstone)
+
+    @Test func deletedAccount_erasesFriendWithoutPersistedTombstone() async {
+        let (store, _) = await loadedStore(["alice"])
+
+        store.eraseDeletedFriend(userID: "alice")
+        #expect(!hasFriend(store, "alice"))
+        // The crux: a deletion does NOT leave a persisted hide-list entry.
+        #expect(!store.isLocallyUnfriended(userID: "alice"))
+
+        // In-session refresh still suppresses the flicker while the zone
+        // deletion propagates.
+        await store.refresh()
+        #expect(!hasFriend(store, "alice"))
+    }
+
+    @Test func deletedAccount_leavesNoResidueOnceZoneIsGone() async {
+        let (store, mock) = await loadedStore(["alice"])
+        store.eraseDeletedFriend(userID: "alice")
+
+        // Their zone has now actually been destroyed server-side.
+        mock.friendZoneList = []
+
+        let relaunched = PersonalStore(repository: mock)
+        await relaunched.activate(currentUserID: "me")
+        #expect(!hasFriend(relaunched, "alice"))
+        // No tombstone left behind — fully erased, not hidden.
+        #expect(!relaunched.isLocallyUnfriended(userID: "alice"))
+    }
+
+    /// The session guard is intentionally NOT persisted. This documents the
+    /// contract: erase relies on the zone being gone, not on a durable hide —
+    /// the opposite of `unfriend_persistsAcrossRelaunch`.
+    @Test func deletedAccount_sessionGuardIsNotPersisted() async {
+        let (store, mock) = await loadedStore(["alice"])
+        store.eraseDeletedFriend(userID: "alice")
+
+        // Relaunch while the zone (hypothetically) still lingers: with no
+        // persisted hide and a fresh in-memory guard, alice resurfaces —
+        // exactly why we depend on the zone actually being deleted.
+        let relaunched = PersonalStore(repository: mock)
+        await relaunched.activate(currentUserID: "me")
+        #expect(hasFriend(relaunched, "alice"))
+    }
+
+    // MARK: - UnfriendNotification deletion flag round-trips through CloudKit
+
+    @Test func deletionFlag_roundTripsThroughCKRecord() {
+        for flag in [true, false] {
+            let notif = UnfriendNotification(
+                id: UUID(),
+                fromUserRecordName: "a",
+                toUserRecordName: "b",
+                sentAt: Date(),
+                isAccountDeletion: flag
+            )
+            let record = CKRecord(recordType: UnfriendNotification.recordType)
+            notif.populate(record)
+            let decoded = UnfriendNotification(record: record)
+            #expect(decoded?.isAccountDeletion == flag)
+        }
+    }
+
+    @Test func deletionFlag_defaultsFalseWhenFieldMissing() {
+        // Older records written before the field existed must decode as a
+        // plain unfriend, never a hard erase.
+        let record = CKRecord(recordType: UnfriendNotification.recordType)
+        record["id"] = UUID().uuidString
+        record["fromUserRecordName"] = "a"
+        record["toUserRecordName"] = "b"
+        record["sentAt"] = Date()
+        let decoded = UnfriendNotification(record: record)
+        #expect(decoded != nil)
+        #expect(decoded?.isAccountDeletion == false)
+    }
+
+    // MARK: - Receiving side: erase-vs-hide decision in AppState
+
+    /// Build an AppState wired entirely to in-memory mocks. On the test
+    /// simulator there's no signed-in iCloud, so the init's background
+    /// `refreshAccountState` short-circuits at `.noAccount` and never touches
+    /// the state we assert on.
+    private func appState(
+        personal: MockPersonalRepository,
+        store: PersonalStore,
+        notifications: MockUnfriendNotificationRepository
+    ) -> AppState {
+        let app = AppState(
+            profileRepository: MockProfileRepository(),
+            circleRepository: MockCircleRepository(),
+            personalRepository: personal,
+            usernameRepository: MockUsernameRepository(),
+            friendRequestRepository: MockFriendRequestRepository(),
+            groupInviteRepository: MockGroupInviteRepository(),
+            unfriendNotificationRepository: notifications,
+            personalStore: store
+        )
+        app.stopFriendRequestPolling()
+        app.currentUserID = "me"
+        return app
+    }
+
+    @Test func receivingDeletionNotification_erasesFriendNoTombstone() async {
+        let personal = repo(friendOwners: ["alice"])
+        let store = PersonalStore(repository: personal)
+        await store.activate(currentUserID: "me")
+        #expect(hasFriend(store, "alice"))
+
+        let notif = UnfriendNotification(
+            id: UUID(), fromUserRecordName: "alice", toUserRecordName: "me",
+            sentAt: Date(), isAccountDeletion: true
+        )
+        let app = appState(
+            personal: personal, store: store,
+            notifications: MockUnfriendNotificationRepository(notifications: [notif])
+        )
+
+        await app.processUnfriendNotifications()
+
+        #expect(!hasFriend(store, "alice"))
+        // Deletion → erased, not hidden.
+        #expect(!store.isLocallyUnfriended(userID: "alice"))
+    }
+
+    @Test func receivingUnfriendNotification_hidesFriendWithTombstone() async {
+        let personal = repo(friendOwners: ["alice"])
+        let store = PersonalStore(repository: personal)
+        await store.activate(currentUserID: "me")
+
+        let notif = UnfriendNotification(
+            id: UUID(), fromUserRecordName: "alice", toUserRecordName: "me",
+            sentAt: Date(), isAccountDeletion: false
+        )
+        let app = appState(
+            personal: personal, store: store,
+            notifications: MockUnfriendNotificationRepository(notifications: [notif])
+        )
+
+        await app.processUnfriendNotifications()
+
+        #expect(!hasFriend(store, "alice"))
+        // Plain unfriend → persisted hide (their zone still exists).
+        #expect(store.isLocallyUnfriended(userID: "alice"))
+    }
+}

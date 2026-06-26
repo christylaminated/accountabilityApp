@@ -174,13 +174,19 @@ extension GroupInvite: CKRecordConvertible {
 ///   - Record Type: `UnfriendNotification`
 ///   - Fields: `id` (String), `fromUserRecordName` (String, Queryable),
 ///     `toUserRecordName` (String, Queryable + Sortable),
-///     `sentAt` (Date/Time, Sortable)
+///     `sentAt` (Date/Time, Sortable), `isAccountDeletion` (Int64)
 ///   - Then Deploy Schema to Production for TestFlight builds.
 struct UnfriendNotification: Identifiable, Hashable {
     let id: UUID
     var fromUserRecordName: String
     var toUserRecordName: String
     var sentAt: Date
+    /// True when this signal was emitted by `deleteAccount` rather than a
+    /// plain unfriend. The recipient erases the sender entirely (no
+    /// persisted hide-list entry) because a deleted account's zone is
+    /// destroyed server-side — there's nothing to keep suppressing. A
+    /// plain unfriend leaves the zone intact, so it still needs the hide.
+    var isAccountDeletion: Bool = false
 }
 
 extension UnfriendNotification: CKRecordConvertible {
@@ -198,6 +204,10 @@ extension UnfriendNotification: CKRecordConvertible {
         self.fromUserRecordName = fromUserRecordName
         self.toUserRecordName = toUserRecordName
         self.sentAt = sentAt
+        // Missing on older records (and on plain unfriends) → defaults to
+        // false, so an unknown notification is safely treated as a normal
+        // unfriend rather than a hard erase.
+        self.isAccountDeletion = (record["isAccountDeletion"] as? Int64 ?? 0) == 1
     }
 
     func populate(_ record: CKRecord) {
@@ -205,5 +215,6 @@ extension UnfriendNotification: CKRecordConvertible {
         record["fromUserRecordName"] = fromUserRecordName
         record["toUserRecordName"] = toUserRecordName
         record["sentAt"] = sentAt
+        record["isAccountDeletion"] = Int64(isAccountDeletion ? 1 : 0)
     }
 }

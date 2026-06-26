@@ -6,6 +6,13 @@ final class MockPersonalRepository: PersonalRepository, @unchecked Sendable {
     var snapshot = PersonalSnapshot()
     var ensureCallCount = 0
     var friends: [CKRecord.ID] = []
+    /// Friend zones surfaced by `friendZones()`. Empty by default (previews
+    /// don't model the other side); tests populate it to simulate friends
+    /// whose personal zone appears in our sharedDB.
+    var friendZoneList: [CKRecordZone] = []
+    /// Per-owner snapshots returned by `friendSnapshot`, keyed by the zone's
+    /// `ownerName`. Missing owners fall back to an empty snapshot.
+    var friendSnapshotsByOwner: [String: PersonalSnapshot] = [:]
 
     func ensurePersonalZone() async throws {
         ensureCallCount += 1
@@ -45,10 +52,10 @@ final class MockPersonalRepository: PersonalRepository, @unchecked Sendable {
         // in production. Previews don't model the other side.
     }
 
-    func friendZones() async throws -> [CKRecordZone] { [] }
+    func friendZones() async throws -> [CKRecordZone] { friendZoneList }
 
     func friendSnapshot(zoneID: CKRecordZone.ID, since token: CKServerChangeToken?) async throws -> PersonalSnapshot {
-        PersonalSnapshot()
+        friendSnapshotsByOwner[zoneID.ownerName] ?? PersonalSnapshot()
     }
 
     func updatePersonalRootProfile(

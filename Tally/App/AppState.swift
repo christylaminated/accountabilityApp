@@ -1180,11 +1180,20 @@ final class AppState {
             for notif in incoming {
                 let idStr = notif.id.uuidString
                 if processedUnfriendNotificationIDs.contains(idStr) { continue }
-                NSLog("[Tally] processUnfriendNotifications: applying unfriend from=\(notif.fromUserRecordName) id=\(idStr)")
-                // `dropFriendLocally` adds to locallyUnfriendedIDs, removes
-                // their cached habits/goals/completions, and saves to
-                // LocalCache. Idempotent if they were already in the set.
-                personalStore.dropFriendLocally(userID: notif.fromUserRecordName)
+                NSLog("[Tally] processUnfriendNotifications: applying \(notif.isAccountDeletion ? "account-deletion erase" : "unfriend") from=\(notif.fromUserRecordName) id=\(idStr)")
+                if notif.isAccountDeletion {
+                    // Their account is gone — erase them outright. No
+                    // persisted hide-list entry: the zone is destroyed
+                    // server-side, so the departed-zone path keeps them gone
+                    // and a session guard covers the propagation window.
+                    personalStore.eraseDeletedFriend(userID: notif.fromUserRecordName)
+                } else {
+                    // Plain unfriend — their zone still exists, so persist
+                    // the hide. `dropFriendLocally` adds to locallyUnfriendedIDs,
+                    // removes their cached habits/goals/completions, and saves
+                    // to LocalCache. Idempotent if they were already in the set.
+                    personalStore.dropFriendLocally(userID: notif.fromUserRecordName)
+                }
 
                 // ALSO revoke their access to OUR data. The unfriender
                 // already cut our access to theirs (their `unfriend` call
@@ -1435,12 +1444,26 @@ final class AppState {
         }
 
         // 2.5. Build the canonical friend list from BOTH the local cache
-        //      AND CloudKit's sharedDB, then for each friend:
+        //      AND CloudKit's sharedDB, then run the SAME unfriend logic
+        //      the normal `unfriend(_:)` path uses, for every friend:
         //        a. Send UnfriendNotification → their app drops us from
-        //           their friends list/leaderboard on next poll.
-        //        b. Leave their shared zone → drops their data from OUR
-        //           sharedDB so re-onboarding under the same iCloud
-        //           doesn't resurrect them.
+        //           their friends list/leaderboard on next poll AND
+        //           revokes our latent access to their zone. This is the
+        //           half that makes the unfriend symmetric.
+        //        b. Resurrection on OUR side is handled by the persisted
+        //           hide-list (`locallyUnfriendedIDs`, saved from this
+        //           same canonical set in step 7) — `PersonalStore.load`
+        //           filters friend zones against it — so a same-iCloud
+        //           re-onboarding won't pull old friends back in.
+        //
+        //      We deliberately DON'T call `leaveFriendShare` here. That
+        //      API (CKShare.removeParticipant on the friend's share) has
+        //      been observed raising an uncatchable
+        //      NSInternalInconsistencyException on iOS 26 — an Obj-C
+        //      exception Swift `try` can't catch — which would CRASH the
+        //      app mid-loop and abort deletion before the remaining
+        //      friends were notified. The normal `unfriend(_:)` flow
+        //      dropped it for exactly this reason; deletion now matches.
         //
         //      Sourcing from BOTH cache and CloudKit catches the edge
         //      case where the user deletes before personalStore.load()
@@ -1460,29 +1483,25 @@ final class AppState {
 
         if !userID.isEmpty {
             for friendID in canonicalFriendIDs {
+                // Notify their device so it auto-unfriends us (drops us
+                // from their list + revokes our access to their zone) on
+                // its next poll. Best-effort, but crucially crash-free:
+                // a failed send just means that one friend keeps stale
+                // state, not that the whole deletion aborts.
                 do {
                     let notification = UnfriendNotification(
                         id: UUID(),
                         fromUserRecordName: userID,
                         toUserRecordName: friendID,
-                        sentAt: .now
+                        sentAt: .now,
+                        isAccountDeletion: true
                     )
                     try await unfriendNotificationRepository.send(notification)
                 } catch {
                     NSLog("[Tally] deleteAccount: notify friend \(friendID) failed (non-fatal): \(error.localizedDescription)")
                 }
-                // Remove ourselves from the friend's share. CloudKit
-                // permits participants to leave any share they're in,
-                // so this works even though we don't own the share.
-                // Without it, the zone re-appears in our sharedDB on
-                // re-onboarding under the same iCloud user record.
-                do {
-                    try await personalRepository.leaveFriendShare(ownerRecordName: friendID)
-                } catch {
-                    NSLog("[Tally] deleteAccount: leave friend share \(friendID) failed (non-fatal): \(error.localizedDescription)")
-                }
             }
-            NSLog("[Tally] deleteAccount: processed cleanup for \(canonicalFriendIDs.count) friends")
+            NSLog("[Tally] deleteAccount: notified \(canonicalFriendIDs.count) friends of unfriend")
         }
 
         // 2.6. Leave every joined-but-not-owned circle. `leaveCircle`
@@ -2197,6 +2216,14 @@ final class AppState {
                 // data too. Then refresh PersonalStore to load their data.
                 if let ownerID = metadata.ownerIdentity.userRecordID {
                     try? await personalRepository.addFriendParticipant(userRecordID: ownerID)
+                    // Accepting their invite is an explicit re-friend, so undo
+                    // any prior local-unfriend hide — otherwise `refresh()`
+                    // would filter their zone right back out and they'd never
+                    // reappear. Also drop any stale zone token so the refresh
+                    // below does a full fetch of their (re-shared) zone.
+                    // Mirrors the reciprocal-accept path in refreshFriendRequests.
+                    personalStore.clearLocalUnfriend(userID: ownerID.recordName)
+                    personalStore.resetFriendZoneToken(ownerName: ownerID.recordName)
                 }
                 await personalStore.refresh()
             }

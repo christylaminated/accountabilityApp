@@ -52,6 +52,15 @@ final class PersonalStore {
     /// and could raise an uncatchable NSException in iOS 26's CloudKit.
     private var locallyUnfriendedIDs: Set<String> = []
 
+    /// User record names of friends erased this session because their
+    /// ACCOUNT was deleted (not unfriended). Deliberately NOT persisted: a
+    /// deleted account's zone is destroyed server-side, so the departed-zone
+    /// path in `refresh()` keeps them gone permanently once CloudKit
+    /// propagates the deletion. This set only suppresses the brief flicker
+    /// window before that propagation lands, and is empty again on next
+    /// launch (by which point the zone is truly gone).
+    private var sessionDeletedFriendIDs: Set<String> = []
+
     init(repository: any PersonalRepository = CloudKitPersonalRepository()) {
         self.repository = repository
         // Restore cached arrays synchronously so the dashboard renders
@@ -114,12 +123,13 @@ final class PersonalStore {
         do {
             let mine = try await repository.ownSnapshot(since: nil)
             let minePrivate = try await repository.ownPrivateSnapshot(since: nil)
-            // Filter out zones belonging to locally-unfriended users so
-            // they never enter the visible friend graph. Their zone may
-            // still be in our sharedDB (we don't leave their share), but
-            // we treat them as gone.
+            // Filter out zones belonging to locally-unfriended OR
+            // account-deleted users so they never enter the visible friend
+            // graph. An unfriended user's zone may still be in our sharedDB
+            // (we don't leave their share); a deleted user's zone is on its
+            // way out. Either way we treat them as gone.
             let zones = try await repository.friendZones()
-                .filter { !locallyUnfriendedIDs.contains($0.zoneID.ownerName) }
+                .filter { !isSuppressedFriendZone(ownerName: $0.zoneID.ownerName) }
 
             var nextHabits = mine.habits + minePrivate.habits
             var nextCompletions = mine.completions + minePrivate.completions
@@ -184,7 +194,7 @@ final class PersonalStore {
             // treated as departed even when the underlying share is
             // still there.
             let zones = try await repository.friendZones()
-                .filter { !locallyUnfriendedIDs.contains($0.zoneID.ownerName) }
+                .filter { !isSuppressedFriendZone(ownerName: $0.zoneID.ownerName) }
             let currentZoneIDs = Set(zones.map { $0.zoneID })
             let knownZoneIDs = Set(friendTokens.keys)
 
@@ -307,6 +317,41 @@ final class PersonalStore {
     /// AND persist the unfriend so subsequent refreshes don't re-add them
     /// from the still-present zone in our sharedDB.
     func dropFriendLocally(userID: String) {
+        purgeFriendData(userID: userID)
+        locallyUnfriendedIDs.insert(userID)
+        LocalCache.save(Array(locallyUnfriendedIDs), forKey: LocalCacheKey.locallyUnfriendedIDs)
+        saveCache()
+    }
+
+    /// Fully erase a friend whose ACCOUNT WAS DELETED. Like
+    /// `dropFriendLocally` it purges their cached data + tokens, but
+    /// deliberately does NOT add them to the persisted `locallyUnfriendedIDs`
+    /// hide-list: a deleted account's zone is destroyed server-side, so once
+    /// CloudKit propagates the removal the `refresh()` departed-zone path
+    /// keeps them gone on its own — there is nothing to suppress across
+    /// launches. We only need `sessionDeletedFriendIDs` (in-memory, not
+    /// persisted) to stop them flickering back in the brief window between
+    /// this deletion signal and the zone actually disappearing from sharedDB.
+    func eraseDeletedFriend(userID: String) {
+        purgeFriendData(userID: userID)
+        sessionDeletedFriendIDs.insert(userID)
+        saveCache()
+    }
+
+    /// True if a friend zone owned by `ownerName` should be kept out of the
+    /// visible friend graph: either they were unfriended (persisted hide) or
+    /// their account was deleted this session (in-memory, until the zone
+    /// itself disappears). Single source of truth for both `load` + `refresh`.
+    private func isSuppressedFriendZone(ownerName: String) -> Bool {
+        locallyUnfriendedIDs.contains(ownerName)
+            || sessionDeletedFriendIDs.contains(ownerName)
+    }
+
+    /// Remove a friend's in-memory rows + change tokens. Shared by
+    /// `dropFriendLocally` (unfriend) and `eraseDeletedFriend` (account
+    /// deletion); the difference between the two is only which suppression
+    /// set the caller adds them to.
+    private func purgeFriendData(userID: String) {
         friends.removeAll { $0.userID == userID }
         habits.removeAll { $0.userID == userID }
         completions.removeAll { $0.userID == userID }
@@ -315,9 +360,6 @@ final class PersonalStore {
         for zoneID in zoneIDs {
             friendTokens.removeValue(forKey: zoneID)
         }
-        locallyUnfriendedIDs.insert(userID)
-        LocalCache.save(Array(locallyUnfriendedIDs), forKey: LocalCacheKey.locallyUnfriendedIDs)
-        saveCache()
     }
 
     /// Nuke every piece of in-memory state. Used by `AppState.deleteAccount`
@@ -347,6 +389,8 @@ final class PersonalStore {
         locallyUnfriendedIDs = Set(
             LocalCache.load([String].self, forKey: LocalCacheKey.locallyUnfriendedIDs) ?? []
         )
+        // In-memory only, scoped to the previous account's session.
+        sessionDeletedFriendIDs = []
     }
 
     /// Drop the change token for any zones owned by `userID`. Used by the
