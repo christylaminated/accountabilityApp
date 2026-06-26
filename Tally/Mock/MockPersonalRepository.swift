@@ -52,6 +52,12 @@ final class MockPersonalRepository: PersonalRepository, @unchecked Sendable {
         // in production. Previews don't model the other side.
     }
 
+    /// User record names considered participants on "my" share — i.e. who can
+    /// see me. Tests set this to simulate one-way vs symmetric friendships.
+    var personalShareParticipants: Set<String> = []
+
+    func personalShareParticipantIDs() async throws -> Set<String> { personalShareParticipants }
+
     func friendZones() async throws -> [CKRecordZone] { friendZoneList }
 
     func friendSnapshot(zoneID: CKRecordZone.ID, since token: CKServerChangeToken?) async throws -> PersonalSnapshot {

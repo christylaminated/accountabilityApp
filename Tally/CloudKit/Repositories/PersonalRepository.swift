@@ -102,6 +102,12 @@ protocol PersonalRepository: Sendable {
     /// permits this so participants always have an "I'm out" option.
     func leaveFriendShare(ownerRecordName: String) async throws
 
+    /// The user-record-names of everyone who is a (non-removed) participant on
+    /// MY personal share — i.e. everyone who can currently see my zone. Used by
+    /// the friend-symmetry self-heal to detect one-way friendships (people I
+    /// can see who are not on this list, so they can't see me). Excludes me.
+    func personalShareParticipantIDs() async throws -> Set<String>
+
     /// All personal zones from friends who've shared with me (lives in shared DB).
     /// Their data is fetched via `friendSnapshot`.
     func friendZones() async throws -> [CKRecordZone]
@@ -499,6 +505,31 @@ struct CloudKitPersonalRepository: PersonalRepository {
             NSLog("[Tally] leaveFriendShare: modifyRecords failed — \(error.localizedDescription)")
             throw error
         }
+    }
+
+    func personalShareParticipantIDs() async throws -> Set<String> {
+        // Read my own share's participants. A genuine "no share yet" maps to an
+        // empty set (nobody sees me); any OTHER error throws so the caller can
+        // abort rather than mistake a fetch failure for "nobody is reciprocal".
+        let root: CKRecord
+        do {
+            root = try await client.privateDB.record(for: rootRecordID)
+        } catch let error as CKError where error.code == .unknownItem {
+            return []
+        }
+        guard let shareRef = root.share else { return [] }
+        guard let share = try await client.privateDB.record(for: shareRef.recordID) as? CKShare else {
+            return []
+        }
+        let myID = try? await client.userRecordID().recordName
+        var ids: Set<String> = []
+        for participant in share.participants {
+            guard participant.acceptanceStatus != .removed,
+                  let name = participant.userIdentity.userRecordID?.recordName else { continue }
+            if let myID, name == myID { continue }  // exclude self (the owner)
+            ids.insert(name)
+        }
+        return ids
     }
 
     func friendZones() async throws -> [CKRecordZone] {

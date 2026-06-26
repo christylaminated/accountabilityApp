@@ -207,6 +207,18 @@ final class AppState {
     /// seeing me (and retaining access) forever.
     private var pendingUnfriendTargets: Set<String> = []
 
+    /// Friend-symmetry self-heal bookkeeping. One-way friendships (people I can
+    /// see who can't see me) get repaired on launch / foreground via the proven
+    /// reciprocal channel. All in-memory and per-session — NEVER persisted — so
+    /// a relaunch re-evaluates from scratch and a stuck repair can't loop:
+    ///   • `reconciledFriendIDsThisSession` — repaired at most once per session;
+    ///   • `friendSymmetryRepairsThisSession` — hard session cap (runaway guard);
+    ///   • `isReconcilingFriendSymmetry` — re-entrancy guard.
+    private var reconciledFriendIDsThisSession: Set<String> = []
+    private var friendSymmetryRepairsThisSession = 0
+    private var isReconcilingFriendSymmetry = false
+    private static let maxFriendSymmetryRepairsPerSession = 50
+
     /// Group/DM invites whose `GroupInvite` write failed and needs retry.
     /// Same `Set<String>` / `[String]` shape as `pendingReciprocalSenders`,
     /// but each entry is a composite `"circleID|userID"` key because an
@@ -459,6 +471,10 @@ final class AppState {
                     await processUnfriendNotifications()
                     await retryPendingUnfriendNotifications()
                     await retryPendingGroupInvites()
+                    // Repair any one-way friendships (I see them but they don't
+                    // see me). Runs here so it fires on both launch and
+                    // foreground, never on the poll timer.
+                    await reconcileFriendSymmetry(trigger: "refreshAccountState")
                     // Resume at whichever step is persisted, or fall through
                     // to the main app for a build-37 legacy user.
                     if let circle = activeCircle {
@@ -1161,6 +1177,72 @@ final class AppState {
 
     private func persistPendingReciprocalSenders() {
         LocalCache.save(Array(pendingReciprocalSenders), forKey: LocalCacheKey.pendingReciprocalSenders)
+    }
+
+    /// Detect and repair one-way friendships: people I can see (their zone is in
+    /// my sharedDB) who are NOT participants on my share — so they can't see me.
+    /// Re-send my share through the proven reciprocal channel so their app
+    /// auto-accepts and the friendship becomes symmetric on both ends.
+    ///
+    /// Deliberately conservative, by design constraint:
+    ///   • runs ONLY on launch / foreground (called from `refreshAccountState`),
+    ///     never on a timer;
+    ///   • never re-friends anyone in the local unfriend/erase hide-list;
+    ///   • repairs each friend at most once per session, under a hard session
+    ///     cap, so a persistently failing repair can't loop;
+    ///   • if it can't read my share participants, it does NOTHING rather than
+    ///     risk mass-resending and manufacturing phantom friendships.
+    func reconcileFriendSymmetry(trigger: String) async {
+        guard onboardingState == .enteredMainApp, !currentUserID.isEmpty else { return }
+        guard !isReconcilingFriendSymmetry else { return }
+        guard friendSymmetryRepairsThisSession < Self.maxFriendSymmetryRepairsPerSession else { return }
+        let visible = personalStore.friends
+        guard !visible.isEmpty else { return }
+
+        isReconcilingFriendSymmetry = true
+        defer { isReconcilingFriendSymmetry = false }
+
+        // Who can currently see me? If we can't determine this, bail — acting on
+        // an empty/partial list would re-send to everyone (phantom risk).
+        let whoCanSeeMe: Set<String>
+        do {
+            whoCanSeeMe = try await personalRepository.personalShareParticipantIDs()
+        } catch {
+            NSLog("[Tally] reconcileFriendSymmetry(\(trigger)): couldn't read my share participants — skipping (conservative): \(error.localizedDescription)")
+            return
+        }
+
+        var repaired = 0
+        for friend in visible {
+            let id = friend.userID
+            if friendSymmetryRepairsThisSession + repaired >= Self.maxFriendSymmetryRepairsPerSession { break }
+            if personalStore.isLocallyUnfriended(userID: id) { continue }  // never re-friend the unfriended
+            if reconciledFriendIDsThisSession.contains(id) { continue }    // once per session
+            if pendingReciprocalSenders.contains(id) { continue }          // normal retry already owns it
+            if whoCanSeeMe.contains(id) { continue }                       // already symmetric — they see me
+
+            // Asymmetric: I can see them, but they're not on my share, so they
+            // can't see me. Repair via the same path acceptFriendRequest uses.
+            reconciledFriendIDsThisSession.insert(id)
+            NSLog("[Tally] reconcileFriendSymmetry(\(trigger)): one-way friend \(id) — re-sending my share")
+            pendingReciprocalSenders.insert(id)
+            persistPendingReciprocalSenders()
+            do {
+                try await sendReciprocalShareBack(to: id)
+                pendingReciprocalSenders.remove(id)
+                persistPendingReciprocalSenders()
+                NSLog("[Tally] reconcileFriendSymmetry(\(trigger)): repaired \(id)")
+            } catch {
+                NSLog("[Tally] reconcileFriendSymmetry(\(trigger)): send failed for \(id), queued for retry: \(error.localizedDescription)")
+            }
+            repaired += 1
+        }
+
+        friendSymmetryRepairsThisSession += repaired
+        if repaired > 0 {
+            await personalStore.refresh()
+            NSLog("[Tally] reconcileFriendSymmetry(\(trigger)): repaired \(repaired) one-way friendship(s)")
+        }
     }
 
     /// Poll the public DB for `UnfriendNotification` records addressed to
