@@ -246,6 +246,29 @@ struct FriendLifecycleTests {
         #expect(store.isLocallyUnfriended(userID: "alice"))
     }
 
+    // MARK: - Unfriend (sending side) — server-side mutual cleanup
+
+    @Test func unfriend_doesServerSideMutualCleanupAndNotifies() async throws {
+        let personal = repo(friendOwners: ["alice"])
+        let store = PersonalStore(repository: personal)
+        await store.activate(currentUserID: "me")
+        #expect(hasFriend(store, "alice"))
+        let notifs = MockUnfriendNotificationRepository()
+        let app = appState(personal: personal, store: store, notifications: notifs)
+
+        try await app.unfriend(Friend(userID: "alice", displayName: "Alice", avatarSymbol: "leaf"))
+
+        // Left their share server-side → their zone leaves my sharedDB (not just
+        // a local hide).
+        #expect(personal.leftFriendShares.contains("alice"))
+        // Notified their device so it drops me — a plain unfriend, not a deletion.
+        let outgoing = try await notifs.outgoing(for: "me")
+        #expect(outgoing.contains { $0.toUserRecordName == "alice" && !$0.isAccountDeletion })
+        // Gone from my list and persistently hidden as a backstop.
+        #expect(!hasFriend(store, "alice"))
+        #expect(store.isLocallyUnfriended(userID: "alice"))
+    }
+
     // MARK: - Friend-symmetry self-heal
 
     /// An AppState wired for reconcile: signed in, in the main app, with a

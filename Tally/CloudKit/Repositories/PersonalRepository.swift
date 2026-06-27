@@ -102,10 +102,12 @@ protocol PersonalRepository: Sendable {
     /// permits this so participants always have an "I'm out" option.
     func leaveFriendShare(ownerRecordName: String) async throws
 
-    /// The user-record-names of everyone who is a (non-removed) participant on
+    /// The user-record-names of everyone who has ACCEPTED a participant slot on
     /// MY personal share — i.e. everyone who can currently see my zone. Used by
     /// the friend-symmetry self-heal to detect one-way friendships (people I
-    /// can see who are not on this list, so they can't see me). Excludes me.
+    /// can see who are not on this list, so they can't see me). Pending (not yet
+    /// accepted) participants are excluded because they can't see me yet, as is
+    /// the owner (me).
     func personalShareParticipantIDs() async throws -> Set<String>
 
     /// All personal zones from friends who've shared with me (lives in shared DB).
@@ -524,7 +526,11 @@ struct CloudKitPersonalRepository: PersonalRepository {
         let myID = try? await client.userRecordID().recordName
         var ids: Set<String> = []
         for participant in share.participants {
-            guard participant.acceptanceStatus != .removed,
+            // ONLY count `.accepted`. A `.pending` participant has been added
+            // to the share but hasn't accepted yet, so they cannot actually see
+            // my zone. Counting them as "sees me" would make the self-heal skip
+            // a friend who still can't see me — leaving the friendship one-way.
+            guard participant.acceptanceStatus == .accepted,
                   let name = participant.userIdentity.userRecordID?.recordName else { continue }
             if let myID, name == myID { continue }  // exclude self (the owner)
             ids.insert(name)

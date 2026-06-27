@@ -47,9 +47,13 @@ final class MockPersonalRepository: PersonalRepository, @unchecked Sendable {
         return .revoked
     }
 
+    /// Owner record names passed to `leaveFriendShare`, in call order. Lets
+    /// tests assert that unfriend / deleteAccount left the friend's share
+    /// server-side rather than only hiding locally.
+    var leftFriendShares: [String] = []
+
     func leaveFriendShare(ownerRecordName: String) async throws {
-        // No-op for the mock; the symmetric half lives on the friend's device
-        // in production. Previews don't model the other side.
+        leftFriendShares.append(ownerRecordName)
     }
 
     /// User record names considered participants on "my" share — i.e. who can

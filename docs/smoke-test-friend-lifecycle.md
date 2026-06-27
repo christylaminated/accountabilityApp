@@ -121,9 +121,21 @@ repeated/again-and-again repairs and no resurrection of unfriended people.
   This is by design (conservative — a device never acts on data it can't see),
   but worth knowing when diagnosing.
 - **Reinstall cleanliness depends on `leaveFriendShare` landing.** It's now
-  crash-safe (Obj-C exception shim) and best-effort per friend. If a particular
-  friend's share removal fails (network), that one zone could linger in the
-  sharedDB until a later cleanup; the others are unaffected.
+  crash-safe (Obj-C exception shim) and best-effort per friend. In the normal
+  case `removeParticipant` succeeds and the zone leaves the sharedDB. Two ways a
+  single friend's zone can still linger (the others are unaffected):
+  network failure on the save, or `removeParticipant` raising an NSException
+  that the shim catches (rare corrupt-share state) — in both cases the removal
+  is skipped and there is **no retry on the delete path** (the account is going
+  away). That one zone would then reappear after a reinstall. If we need to
+  close this fully, the fix is a server-side cleanup the friend's own app runs
+  on receiving the account-deletion signal (it already revokes our access; it
+  would also need to drop our participant slot). Flagging, not fixing, here.
+- **Self-heal now only counts `.accepted` participants** as "can see me"
+  (a `.pending`, added-but-not-yet-accepted participant is treated as still
+  needing repair). This is correct but means a friend mid-accept may get one
+  extra reciprocal re-send during the brief pending window — harmless (their app
+  auto-accepts), but expected in logs.
 - **The exception shim can't be unit-tested** (it's behind the app bridging
   header). Its whole purpose is to stop an iOS 26 crash on
   `CKShare.removeParticipant`, so verify on a real iOS 26 device that unfriend
