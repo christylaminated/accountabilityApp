@@ -186,14 +186,15 @@ struct FriendLifecycleTests {
     private func appState(
         personal: MockPersonalRepository,
         store: PersonalStore,
-        notifications: MockUnfriendNotificationRepository
+        notifications: MockUnfriendNotificationRepository,
+        friendRequests: MockFriendRequestRepository = MockFriendRequestRepository()
     ) -> AppState {
         let app = AppState(
             profileRepository: MockProfileRepository(),
             circleRepository: MockCircleRepository(),
             personalRepository: personal,
             usernameRepository: MockUsernameRepository(),
-            friendRequestRepository: MockFriendRequestRepository(),
+            friendRequestRepository: friendRequests,
             groupInviteRepository: MockGroupInviteRepository(),
             unfriendNotificationRepository: notifications,
             personalStore: store
@@ -267,6 +268,38 @@ struct FriendLifecycleTests {
         // Gone from my list and persistently hidden as a backstop.
         #expect(!hasFriend(store, "alice"))
         #expect(store.isLocallyUnfriended(userID: "alice"))
+    }
+
+    // MARK: - Stale reciprocal must not resurrect a removed friend
+
+    /// The "old friends come back after I delete my account" bug: a friend I
+    /// originally added left a reciprocal FriendRequest in the public DB that I
+    /// can't delete. After delete + re-onboard (same iCloud) that stale
+    /// reciprocal must NOT be auto-accepted, because I never re-requested them.
+    @Test func staleReciprocalFromHiddenFriend_isNotResurrected() async {
+        let personal = repo(friendOwners: [])      // their zone already gone from view
+        let store = PersonalStore(repository: personal)
+        await store.activate(currentUserID: "me")
+        store.dropFriendLocally(userID: "alice")   // alice is hidden (removed)
+        #expect(store.isLocallyUnfriended(userID: "alice"))
+
+        // A leftover reciprocal from alice, with NO outgoing request from me.
+        let stale = FriendRequest(
+            id: UUID(), fromUserRecordName: "alice", toUserRecordName: "me",
+            shareURL: "https://www.icloud.com/share/stale", fromDisplayName: "Alice",
+            fromUsername: "alice", fromAvatarSymbol: "leaf", sentAt: Date(), isReciprocal: true
+        )
+        let app = appState(
+            personal: personal, store: store,
+            notifications: MockUnfriendNotificationRepository(),
+            friendRequests: MockFriendRequestRepository(requests: [stale])
+        )
+
+        await app.refreshFriendRequests()
+
+        // Must still be hidden — the stale reciprocal was declined, not accepted.
+        #expect(store.isLocallyUnfriended(userID: "alice"))
+        #expect(!hasFriend(store, "alice"))
     }
 
     // MARK: - Friend-symmetry self-heal

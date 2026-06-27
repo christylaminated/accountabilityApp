@@ -1750,6 +1750,16 @@ final class AppState {
             lastFriendRequestError = nil
             NSLog("[Tally] refreshFriendRequests: incoming=\(incoming.count) for userID=\(currentUserID)")
 
+            // Fetch MY outgoing requests up front. A reciprocal is only
+            // legitimate if it answers a request I actually sent; the set of
+            // people I've requested lets us reject STALE reciprocals left over
+            // from a previous friendship — the ones that would otherwise
+            // resurrect a friend I unfriended or erased on account deletion.
+            let outgoing = try await friendRequestRepository.outgoing(for: currentUserID)
+            let myRequestTargets = Set(
+                outgoing.filter { !$0.isReciprocal }.map(\.toUserRecordName)
+            )
+
             // Auto-process reciprocal requests first — these arrive when a
             // friend accepted MY earlier request. We need to accept their
             // share silently so we see their data too.
@@ -1761,6 +1771,20 @@ final class AppState {
             // without the recipient's data.
             for r in incoming where r.isReciprocal {
                 NSLog("[Tally] reciprocal: processing from=\(r.fromUserRecordName) id=\(r.id)")
+                // Reject STALE reciprocals. A reciprocal from someone who is
+                // currently hidden (unfriended, or erased on account deletion)
+                // is only legitimate if I've actually re-requested them — i.e.
+                // they're in `myRequestTargets`. With no matching outgoing
+                // request, this is a leftover from a prior friendship; auto-
+                // accepting it (and clearing their hide below) would resurrect
+                // a friend I removed — exactly the "old friends come back after
+                // I delete my account" bug. Decline it so we stop reprocessing.
+                if personalStore.isLocallyUnfriended(userID: r.fromUserRecordName),
+                   !myRequestTargets.contains(r.fromUserRecordName) {
+                    NSLog("[Tally] reciprocal: stale reciprocal from hidden \(r.fromUserRecordName) with no outgoing request — declining, not resurrecting")
+                    markRequestDeclined(r)
+                    continue
+                }
                 guard let url = URL(string: r.shareURL) else {
                     NSLog("[Tally] reciprocal: malformed URL — hiding")
                     markRequestDeclined(r)
@@ -1826,7 +1850,7 @@ final class AppState {
             // Cleanup pass: delete any of MY outgoing requests where the
             // target is now a confirmed friend — the request has served
             // its purpose and only pollutes the public DB otherwise.
-            let outgoing = try await friendRequestRepository.outgoing(for: currentUserID)
+            // (`outgoing` was fetched once up top and is reused here.)
             for r in outgoing where friendIDs.contains(r.toUserRecordName) {
                 try? await friendRequestRepository.delete(r)
             }
