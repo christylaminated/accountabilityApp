@@ -369,6 +369,33 @@ struct FriendLifecycleTests {
         #expect(remaining.contains { $0.toUserRecordName == "carol" })
     }
 
+    // MARK: - Cancel / retract an outgoing friend request
+
+    @Test func cancelFriendRequest_deletesRecordAndClearsPending() async throws {
+        let personal = repo(friendOwners: [])
+        let store = PersonalStore(repository: personal)
+        await store.activate(currentUserID: "me")
+        let mine = FriendRequest(
+            id: UUID(), fromUserRecordName: "me", toUserRecordName: "alice",
+            shareURL: "https://www.icloud.com/share/a", fromDisplayName: "Me",
+            fromUsername: "me", fromAvatarSymbol: "leaf", sentAt: Date(), isReciprocal: false
+        )
+        let frRepo = MockFriendRequestRepository(requests: [mine])
+        let app = appState(
+            personal: personal, store: store,
+            notifications: MockUnfriendNotificationRepository(), friendRequests: frRepo
+        )
+        app.outgoingRequestTargetIDs = ["alice"]
+
+        try await app.cancelFriendRequest(to: "alice")
+
+        // Record is deleted from the public DB (so it leaves their inbox)…
+        let remaining = (try? await frRepo.outgoing(for: "me")) ?? []
+        #expect(!remaining.contains { $0.toUserRecordName == "alice" })
+        // …and the local pending flag is cleared so the UI flips back to Send.
+        #expect(!app.outgoingRequestTargetIDs.contains("alice"))
+    }
+
     // MARK: - Friend-symmetry self-heal
 
     /// An AppState wired for reconcile: signed in, in the main app, with a

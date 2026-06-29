@@ -13,6 +13,7 @@ struct FriendSearchView: View {
     @State private var isSearching = false
     @State private var result: SearchState = .idle
     @State private var sendStatus: SendStatus = .idle
+    @State private var cancelStatus: SendStatus = .idle
 
     private enum SearchState: Equatable {
         case idle
@@ -127,13 +128,43 @@ struct FriendSearchView: View {
                 // duplicate-send pattern silently broke things before
                 // because the recipient's inbox correctly filters out
                 // requests from already-friends.
-                Label("Request pending — waiting for them to accept", systemImage: "hourglass")
-                    .font(.system(.subheadline, design: .rounded, weight: .semibold))
-                    .foregroundStyle(Color.tallyTextSecondary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-                    .background(Color.tallyTextSecondary.opacity(0.12))
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                VStack(spacing: 10) {
+                    Label("Request pending — waiting for them to accept", systemImage: "hourglass")
+                        .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                        .foregroundStyle(Color.tallyTextSecondary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(Color.tallyTextSecondary.opacity(0.12))
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+                    if cancelStatus == .sending {
+                        HStack(spacing: 8) {
+                            ProgressView()
+                            Text("Cancelling…").font(.footnote).foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                    } else {
+                        Button {
+                            Task { await cancelRequest(to: user) }
+                        } label: {
+                            Text("Cancel request")
+                                .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 12)
+                                .background(Color.tallyDestructive.opacity(0.12))
+                                .foregroundStyle(Color.tallyDestructive)
+                                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    if case .failed(let message) = cancelStatus {
+                        Text(message)
+                            .font(.footnote)
+                            .foregroundStyle(Color.tallyDestructive)
+                    }
+                }
             } else {
             switch sendStatus {
             case .idle:
@@ -219,6 +250,18 @@ struct FriendSearchView: View {
             sendStatus = .sent
         } catch {
             sendStatus = .failed(error.localizedDescription)
+        }
+    }
+
+    private func cancelRequest(to user: UserSearchResult) async {
+        cancelStatus = .sending
+        do {
+            try await appState.cancelFriendRequest(to: user.userRecordName)
+            // Success: the target is no longer pending, so the card flips back
+            // to the "Send friend request" button on its own.
+            cancelStatus = .idle
+        } catch {
+            cancelStatus = .failed(error.localizedDescription)
         }
     }
 }

@@ -1000,6 +1000,36 @@ final class AppState {
         await refreshFriendRequests()
     }
 
+    /// Retract a friend request I previously sent. I'm the creator of the
+    /// FriendRequest record, so I have delete rights — deleting it from the
+    /// public DB removes it from the recipient's inbox on their next poll, so
+    /// the cancellation reflects on their side automatically (no extra signal
+    /// needed). Also clears the local pending flag so the UI flips back to
+    /// "Send friend request". Throws on a real write failure so the UI can
+    /// surface it and the user can retry.
+    func cancelFriendRequest(to userRecordName: String) async throws {
+        guard !currentUserID.isEmpty else {
+            throw NSError(
+                domain: "AppState.cancelFriendRequest",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "Not signed into iCloud."]
+            )
+        }
+        NSLog("[Tally] cancelFriendRequest: to=\(userRecordName)")
+        // Delete only the non-reciprocal requests I created for this target —
+        // reciprocals are an internal accept-mechanic, not a user-visible
+        // "pending request."
+        let outgoing = try await friendRequestRepository.outgoing(for: currentUserID)
+        for r in outgoing where r.toUserRecordName == userRecordName && !r.isReciprocal {
+            try await friendRequestRepository.delete(r)
+            NSLog("[Tally] cancelFriendRequest: deleted request id=\(r.id)")
+        }
+        // Flip the UI back to "Send" immediately, then reconcile with the
+        // server on the next refresh.
+        outgoingRequestTargetIDs.remove(userRecordName)
+        await refreshFriendRequests()
+    }
+
     /// Recipient accepts an incoming friend request.
     ///
     /// 1. Fetch the sender's share metadata from the URL embedded in the
