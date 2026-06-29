@@ -1655,10 +1655,25 @@ final class AppState {
         //    we explicitly remember to hide them. Public-DB records we
         //    DID create were deleted in steps 2; this handles everything
         //    else.
-        let allDeclinedRequests = declinedRequestIDs
+        //    Fetch the FULL incoming lists straight from the public DB rather
+        //    than trusting the in-memory `incomingFriendRequests` /
+        //    `incomingGroupInvites` arrays — those are filtered (reciprocals and
+        //    already-friends are dropped) and may not have loaded every record.
+        //    EVERYTHING addressed to my userID right now must be remembered as
+        //    declined, or it resurfaces in my inbox after a same-iCloud
+        //    re-setup ("it still says they sent me a friend request").
+        var allDeclinedRequests = declinedRequestIDs
             .union(incomingFriendRequests.map { $0.id.uuidString })
-        let allDeclinedInvites = declinedGroupInviteIDs
+        var allDeclinedInvites = declinedGroupInviteIDs
             .union(incomingGroupInvites.map { $0.id.uuidString })
+        if !userID.isEmpty {
+            if let everyIncomingRequest = try? await friendRequestRepository.incoming(for: userID) {
+                allDeclinedRequests.formUnion(everyIncomingRequest.map { $0.id.uuidString })
+            }
+            if let everyIncomingInvite = try? await groupInviteRepository.incoming(for: userID) {
+                allDeclinedInvites.formUnion(everyIncomingInvite.map { $0.id.uuidString })
+            }
+        }
         // Use the canonical set built in step 2.5 (cache UNION CloudKit
         // sharedDB) so the hide-list catches every former friend even if
         // personalStore.friends wasn't fully populated at delete-time.

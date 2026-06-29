@@ -302,6 +302,33 @@ struct FriendLifecycleTests {
         #expect(!hasFriend(store, "alice"))
     }
 
+    /// After delete, every incoming request addressed to me is captured into
+    /// the declined list (persisted). On re-setup it must NOT show in the inbox
+    /// — "I deleted my account, it shouldn't still say they sent me a request."
+    @Test func declinedIncomingRequest_staysHiddenAfterResetup() async {
+        let reqID = UUID()
+        // Simulate the persisted post-delete state.
+        LocalCache.save([reqID.uuidString], forKey: LocalCacheKey.declinedFriendRequestIDs)
+
+        let personal = repo(friendOwners: [])
+        let store = PersonalStore(repository: personal)
+        await store.activate(currentUserID: "me")
+        let req = FriendRequest(
+            id: reqID, fromUserRecordName: "bob", toUserRecordName: "me",
+            shareURL: "https://www.icloud.com/share/x", fromDisplayName: "Bob",
+            fromUsername: "bob", fromAvatarSymbol: "leaf", sentAt: Date(), isReciprocal: false
+        )
+        let app = appState(
+            personal: personal, store: store,
+            notifications: MockUnfriendNotificationRepository(),
+            friendRequests: MockFriendRequestRepository(requests: [req])
+        )
+
+        await app.refreshFriendRequests()
+
+        #expect(app.incomingFriendRequests.isEmpty)
+    }
+
     // MARK: - Friend-symmetry self-heal
 
     /// An AppState wired for reconcile: signed in, in the main app, with a
