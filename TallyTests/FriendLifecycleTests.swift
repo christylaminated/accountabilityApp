@@ -369,6 +369,47 @@ struct FriendLifecycleTests {
         #expect(remaining.contains { $0.toUserRecordName == "carol" })
     }
 
+    // MARK: - Former-friend requests stay gone after a reset
+
+    /// The reported bug: after deleting my account, an OLD friend's request
+    /// still shows. A former friend (in the hide-list) whose request predates my
+    /// account reset must be suppressed — even though the delete-time snapshot
+    /// can miss it — while a genuinely NEW request from them still comes through.
+    @Test func formerFriendRequestBeforeReset_isSuppressed_newOneShows() async {
+        let resetAt = Date()
+        LocalCache.save(resetAt, forKey: LocalCacheKey.accountResetAt)
+
+        let personal = repo(friendOwners: [])
+        let store = PersonalStore(repository: personal)
+        await store.activate(currentUserID: "me")
+        store.dropFriendLocally(userID: "alice")   // alice is a former friend (hidden)
+
+        // An OLD request from alice (before the reset) and a NEW one (after).
+        let oldReq = FriendRequest(
+            id: UUID(), fromUserRecordName: "alice", toUserRecordName: "me",
+            shareURL: "https://www.icloud.com/share/old", fromDisplayName: "Alice",
+            fromUsername: "alice", fromAvatarSymbol: "leaf",
+            sentAt: resetAt.addingTimeInterval(-3600), isReciprocal: false
+        )
+        let newReq = FriendRequest(
+            id: UUID(), fromUserRecordName: "alice", toUserRecordName: "me",
+            shareURL: "https://www.icloud.com/share/new", fromDisplayName: "Alice",
+            fromUsername: "alice", fromAvatarSymbol: "leaf",
+            sentAt: resetAt.addingTimeInterval(3600), isReciprocal: false
+        )
+        let app = appState(
+            personal: personal, store: store,
+            notifications: MockUnfriendNotificationRepository(),
+            friendRequests: MockFriendRequestRepository(requests: [oldReq, newReq])
+        )
+
+        await app.refreshFriendRequests()
+
+        // Old (pre-reset) request suppressed; new (post-reset) one still shows.
+        #expect(!app.incomingFriendRequests.contains { $0.id == oldReq.id })
+        #expect(app.incomingFriendRequests.contains { $0.id == newReq.id })
+    }
+
     // MARK: - Cancel / retract an outgoing friend request
 
     @Test func cancelFriendRequest_deletesRecordAndClearsPending() async throws {

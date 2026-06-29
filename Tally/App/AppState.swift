@@ -207,6 +207,12 @@ final class AppState {
     /// seeing me (and retaining access) forever.
     private var pendingUnfriendTargets: Set<String> = []
 
+    /// Timestamp of the last account deletion/reset (persisted, survives a
+    /// same-iCloud re-onboard). Friend requests / group invites from former
+    /// friends sent at or before this are permanently suppressed as stale.
+    /// `.distantPast` means "never reset" → suppresses nothing.
+    private var accountResetAt: Date = .distantPast
+
     /// Friend-symmetry self-heal bookkeeping. One-way friendships (people I can
     /// see who can't see me) get repaired on launch / foreground via the proven
     /// reciprocal channel. All in-memory and per-session — NEVER persisted — so
@@ -262,6 +268,7 @@ final class AppState {
         self.processedUnfriendNotificationIDs = Set(
             LocalCache.load([String].self, forKey: LocalCacheKey.processedUnfriendNotificationIDs) ?? []
         )
+        self.accountResetAt = LocalCache.load(Date.self, forKey: LocalCacheKey.accountResetAt) ?? .distantPast
         self.pendingUnfriendTargets = Set(
             LocalCache.load([String].self, forKey: LocalCacheKey.pendingUnfriendTargets) ?? []
         )
@@ -1746,6 +1753,13 @@ final class AppState {
                         forKey: LocalCacheKey.declinedGroupInviteIDs)
         LocalCache.save(Array(allLocallyUnfriended),
                         forKey: LocalCacheKey.locallyUnfriendedIDs)
+        // Stamp the reset so stale requests/invites from former friends (now in
+        // the hide-list) that predate this moment are suppressed forever, even
+        // if the delete-time id-snapshot above missed one (e.g. a request from
+        // someone who was still a friend at delete time, or a dropped fetch).
+        let resetAt = Date()
+        accountResetAt = resetAt
+        LocalCache.save(resetAt, forKey: LocalCacheKey.accountResetAt)
 
         // 8. Theme — wipe the user's color preference too. Previous
         //    behavior kept it as "UI preference"; user feedback was that
@@ -1908,6 +1922,21 @@ final class AppState {
                     // Surface to UI so a persistent failure isn't invisible.
                     lastFriendRequestError = "Couldn't complete friend connection: \(error.localizedDescription)"
                 }
+            }
+
+            // Suppress stale requests from FORMER friends that predate my last
+            // account reset. These are records others created (I can't delete
+            // them) that the delete-time snapshot may have missed — e.g. from
+            // someone who was still my friend at delete time, so they were
+            // filtered out of my inbox list. Decline them so they never show.
+            // A request sent AFTER the reset still comes through (genuine
+            // re-engagement), and non-former-friends are untouched.
+            for r in incoming where !r.isReciprocal
+                && !declinedRequestIDs.contains(r.id.uuidString)
+                && personalStore.isLocallyUnfriended(userID: r.fromUserRecordName)
+                && r.sentAt <= accountResetAt {
+                NSLog("[Tally] refreshFriendRequests: suppressing stale request from former friend \(r.fromUserRecordName) (sent before account reset)")
+                markRequestDeclined(r)
             }
 
             let friendIDs = Set(personalStore.friends.map(\.userID))
@@ -2177,6 +2206,16 @@ final class AppState {
                 } catch {
                     NSLog("[Tally] refreshGroupInvites: DM auto-accept failed (will retry): \(error.localizedDescription)")
                 }
+            }
+
+            // Suppress stale invites from FORMER friends that predate my last
+            // account reset — same rationale as friend requests: leftover
+            // records I can't delete that the delete-time snapshot may miss.
+            for inv in incoming where !declinedGroupInviteIDs.contains(inv.id.uuidString)
+                && personalStore.isLocallyUnfriended(userID: inv.fromUserRecordName)
+                && inv.sentAt <= accountResetAt {
+                NSLog("[Tally] refreshGroupInvites: suppressing stale invite from former friend \(inv.fromUserRecordName) (sent before account reset)")
+                markGroupInviteDeclined(inv)
             }
 
             // Surface invites that aren't declined and don't reference a

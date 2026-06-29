@@ -111,6 +111,14 @@ enum LocalCacheKey {
     /// is queued for retry. Same shape/lifecycle as pendingReciprocalSenders.
     static let pendingUnfriendTargets = "Tally.cache.pendingUnfriendTargets"
 
+    /// Timestamp (Date) of the user's last account deletion / reset. Re-saved
+    /// after `clearAll` in `deleteAccount` so it survives a same-iCloud
+    /// re-onboard. Used to permanently suppress friend requests / group invites
+    /// from FORMER friends (in `locallyUnfriendedIDs`) that predate the reset —
+    /// stale records others created that we can't delete. A request sent AFTER
+    /// the reset still shows, so genuine re-engagement isn't blocked.
+    static let accountResetAt = "Tally.cache.accountResetAt"
+
     /// "circleID|userID" composite keys for group/DM invite writes that
     /// failed and are queued for retry. Same shape/lifecycle as
     /// pendingReciprocalSenders.
@@ -134,7 +142,7 @@ enum LocalCacheKey {
         declinedFriendRequestIDs, declinedGroupInviteIDs,
         locallyUnfriendedIDs, pendingReciprocalSenders,
         processedUnfriendNotificationIDs, pendingUnfriendTargets,
-        pendingGroupInvites,
+        pendingGroupInvites, accountResetAt,
         hasSentFirstFriendRequest, inviteBannerDismissCount
     ]
 }
