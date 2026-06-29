@@ -131,6 +131,16 @@ repeated/again-and-again repairs and no resurrection of unfriended people.
   close this fully, the fix is a server-side cleanup the friend's own app runs
   on receiving the account-deletion signal (it already revokes our access; it
   would also need to drop our participant slot). Flagging, not fixing, here.
+- **Leftover friend requests are cleaned from both sides.** On delete, your app
+  marks every incoming request/invite addressed to you as dismissed (so they
+  don't resurface in *your* inbox on a same-install re-setup). And when a friend's
+  app processes your unfriend/deletion signal, it deletes the request/invite
+  records *it* created addressed to you — actually removing them from the public
+  DB, so they're gone even if you later fully reinstall. Caveat: that second half
+  needs the other person's app to foreground and process the signal, and it only
+  covers people you were *friends* with (who get notified). A pending request from
+  someone you never befriended could still reappear after a *full reinstall*,
+  because they're never notified to clean it up — flagged as a remaining edge.
 - **Self-heal now only counts `.accepted` participants** as "can see me"
   (a `.pending`, added-but-not-yet-accepted participant is treated as still
   needing repair). This is correct but means a friend mid-accept may get one

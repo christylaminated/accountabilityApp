@@ -1259,6 +1259,9 @@ final class AppState {
         guard !currentUserID.isEmpty else { return }
         do {
             let incoming = try await unfriendNotificationRepository.incoming(for: currentUserID)
+            // Senders we processed this round — used below to delete the
+            // request/invite records WE created addressed to them.
+            var handledSenders: Set<String> = []
             for notif in incoming {
                 let idStr = notif.id.uuidString
                 if processedUnfriendNotificationIDs.contains(idStr) { continue }
@@ -1296,11 +1299,33 @@ final class AppState {
                     NSLog("[Tally] processUnfriendNotifications: revoke failed (non-fatal): \(error.localizedDescription)")
                 }
                 processedUnfriendNotificationIDs.insert(idStr)
+                handledSenders.insert(notif.fromUserRecordName)
             }
             LocalCache.save(
                 Array(processedUnfriendNotificationIDs),
                 forKey: LocalCacheKey.processedUnfriendNotificationIDs
             )
+
+            // Sender-side cleanup: now that this person has unfriended me or
+            // deleted their account, delete the friend-request and group-invite
+            // records *I* created addressed to them. I'm the creator, so I have
+            // delete rights — this actually removes the records from the public
+            // DB rather than only hiding them locally, so even a full reinstall
+            // on their side won't resurface "they sent me a request." This is
+            // the symmetric half of the delete-time decline snapshot: that hides
+            // what others sent me; this erases what I sent others. Best-effort.
+            if !handledSenders.isEmpty {
+                if let myRequests = try? await friendRequestRepository.outgoing(for: currentUserID) {
+                    for r in myRequests where handledSenders.contains(r.toUserRecordName) {
+                        try? await friendRequestRepository.delete(r)
+                    }
+                }
+                if let myInvites = try? await groupInviteRepository.outgoing(for: currentUserID) {
+                    for inv in myInvites where handledSenders.contains(inv.toUserRecordName) {
+                        try? await groupInviteRepository.delete(inv)
+                    }
+                }
+            }
 
             // Outgoing cleanup: delete any UnfriendNotifications we sent
             // that are older than 7 days. The recipient's app polls

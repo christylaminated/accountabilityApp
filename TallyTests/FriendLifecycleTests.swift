@@ -329,6 +329,46 @@ struct FriendLifecycleTests {
         #expect(app.incomingFriendRequests.isEmpty)
     }
 
+    /// Sender-side cleanup: when I learn someone unfriended me / deleted their
+    /// account, the request records I created for them get deleted from the
+    /// public DB — so they're truly gone, not just hidden, even across a
+    /// reinstall on their side.
+    @Test func processingDeletionNotification_deletesMyOutgoingRecordsToThatPerson() async {
+        let personal = repo(friendOwners: [])
+        let store = PersonalStore(repository: personal)
+        await store.activate(currentUserID: "me")
+
+        // A request I created addressed to alice (+ one to carol we must keep).
+        let toAlice = FriendRequest(
+            id: UUID(), fromUserRecordName: "me", toUserRecordName: "alice",
+            shareURL: "https://www.icloud.com/share/a", fromDisplayName: "Me",
+            fromUsername: "me", fromAvatarSymbol: "leaf", sentAt: Date(), isReciprocal: false
+        )
+        let toCarol = FriendRequest(
+            id: UUID(), fromUserRecordName: "me", toUserRecordName: "carol",
+            shareURL: "https://www.icloud.com/share/c", fromDisplayName: "Me",
+            fromUsername: "me", fromAvatarSymbol: "leaf", sentAt: Date(), isReciprocal: false
+        )
+        let frRepo = MockFriendRequestRepository(requests: [toAlice, toCarol])
+        // Alice's account-deletion notification to me.
+        let notif = UnfriendNotification(
+            id: UUID(), fromUserRecordName: "alice", toUserRecordName: "me",
+            sentAt: Date(), isAccountDeletion: true
+        )
+        let app = appState(
+            personal: personal, store: store,
+            notifications: MockUnfriendNotificationRepository(notifications: [notif]),
+            friendRequests: frRepo
+        )
+
+        await app.processUnfriendNotifications()
+
+        let remaining = (try? await frRepo.outgoing(for: "me")) ?? []
+        // My request to alice is gone; unrelated request to carol survives.
+        #expect(!remaining.contains { $0.toUserRecordName == "alice" })
+        #expect(remaining.contains { $0.toUserRecordName == "carol" })
+    }
+
     // MARK: - Friend-symmetry self-heal
 
     /// An AppState wired for reconcile: signed in, in the main app, with a
