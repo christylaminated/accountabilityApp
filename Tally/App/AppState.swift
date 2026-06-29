@@ -1924,18 +1924,19 @@ final class AppState {
                 }
             }
 
-            // Suppress stale requests from FORMER friends that predate my last
-            // account reset. These are records others created (I can't delete
-            // them) that the delete-time snapshot may have missed — e.g. from
-            // someone who was still my friend at delete time, so they were
-            // filtered out of my inbox list. Decline them so they never show.
-            // A request sent AFTER the reset still comes through (genuine
-            // re-engagement), and non-former-friends are untouched.
+            // Suppress EVERY incoming request that predates my last account
+            // reset — NOT gated on the former-friend hide-list. These are
+            // records others created (I can't delete them); after a delete I
+            // want a clean slate, so anything sent before the reset is hidden,
+            // while genuinely NEW requests (sent after the reset) still show.
+            // Previously this was gated on `isLocallyUnfriended`, but that set
+            // can be incomplete (a friend not loaded at delete time never made
+            // it in) — which is exactly how an old friend's request slipped
+            // through. Dropping that gate removes the weak link.
             for r in incoming where !r.isReciprocal
                 && !declinedRequestIDs.contains(r.id.uuidString)
-                && personalStore.isLocallyUnfriended(userID: r.fromUserRecordName)
                 && r.sentAt <= accountResetAt {
-                NSLog("[Tally] refreshFriendRequests: suppressing stale request from former friend \(r.fromUserRecordName) (sent before account reset)")
+                NSLog("[Tally] refreshFriendRequests: suppressing pre-reset request from=\(r.fromUserRecordName) sentAt=\(r.sentAt) resetAt=\(accountResetAt)")
                 markRequestDeclined(r)
             }
 
@@ -1944,6 +1945,12 @@ final class AppState {
                 !r.isReciprocal
                     && !declinedRequestIDs.contains(r.id.uuidString)
                     && !friendIDs.contains(r.fromUserRecordName)
+            }
+            // Diagnostic: log every request we end up SHOWING with the facts
+            // that decide suppression, so a lingering one is debuggable from a
+            // single console line.
+            for r in incomingFriendRequests {
+                NSLog("[Tally] refreshFriendRequests: SHOWING from=\(r.fromUserRecordName) id=\(r.id) sentAt=\(r.sentAt) resetAt=\(accountResetAt)")
             }
 
             // Cleanup pass: delete any of MY outgoing requests where the
@@ -2208,13 +2215,11 @@ final class AppState {
                 }
             }
 
-            // Suppress stale invites from FORMER friends that predate my last
-            // account reset — same rationale as friend requests: leftover
-            // records I can't delete that the delete-time snapshot may miss.
+            // Suppress every invite that predates my last account reset — same
+            // clean-slate rule as friend requests, not gated on the hide-list.
             for inv in incoming where !declinedGroupInviteIDs.contains(inv.id.uuidString)
-                && personalStore.isLocallyUnfriended(userID: inv.fromUserRecordName)
                 && inv.sentAt <= accountResetAt {
-                NSLog("[Tally] refreshGroupInvites: suppressing stale invite from former friend \(inv.fromUserRecordName) (sent before account reset)")
+                NSLog("[Tally] refreshGroupInvites: suppressing pre-reset invite from=\(inv.fromUserRecordName) sentAt=\(inv.sentAt) resetAt=\(accountResetAt)")
                 markGroupInviteDeclined(inv)
             }
 

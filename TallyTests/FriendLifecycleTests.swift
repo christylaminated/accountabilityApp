@@ -372,17 +372,18 @@ struct FriendLifecycleTests {
     // MARK: - Former-friend requests stay gone after a reset
 
     /// The reported bug: after deleting my account, an OLD friend's request
-    /// still shows. A former friend (in the hide-list) whose request predates my
-    /// account reset must be suppressed — even though the delete-time snapshot
-    /// can miss it — while a genuinely NEW request from them still comes through.
-    @Test func formerFriendRequestBeforeReset_isSuppressed_newOneShows() async {
+    /// still shows. Any request that predates my account reset must be
+    /// suppressed — crucially WITHOUT relying on the former-friend hide-list
+    /// (which can be incomplete) — while a genuinely NEW request still shows.
+    @Test func requestBeforeReset_isSuppressed_newOneShows() async {
         let resetAt = Date()
         LocalCache.save(resetAt, forKey: LocalCacheKey.accountResetAt)
 
         let personal = repo(friendOwners: [])
         let store = PersonalStore(repository: personal)
         await store.activate(currentUserID: "me")
-        store.dropFriendLocally(userID: "alice")   // alice is a former friend (hidden)
+        // NOTE: alice is deliberately NOT in the hide-list — suppression must
+        // work purely from the timestamp, which is the whole point of the fix.
 
         // An OLD request from alice (before the reset) and a NEW one (after).
         let oldReq = FriendRequest(
