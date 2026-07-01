@@ -26,20 +26,6 @@ struct FriendRequestsSection: View {
                         .clipShape(Capsule())
                 }
             }
-            // TEMP DEBUG — remove after diagnosing the ghost-request issue.
-            // Compare each request's sentAt against resetAt:
-            //   sent BEFORE reset  → should have been hidden (real bug)
-            //   sent AFTER reset   → genuinely new request (not a ghost)
-            //   resetAt shows year 0001 → the reset timestamp never saved
-            VStack(alignment: .leading, spacing: 2) {
-                Text("DEBUG resetAt: \(appState.debugAccountResetAt.formatted(date: .abbreviated, time: .standard))")
-                ForEach(requests) { r in
-                    Text("DEBUG \(String(r.fromUserRecordName.suffix(8))) sentAt: \(r.sentAt.formatted(date: .abbreviated, time: .standard))")
-                }
-            }
-            .font(.system(size: 11, design: .monospaced))
-            .foregroundStyle(.orange)
-
             ForEach(requests) { request in
                 FriendRequestRow(request: request)
             }

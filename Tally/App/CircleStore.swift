@@ -289,20 +289,30 @@ final class CircleStore {
         // concurrently with the send still preserves these records.
         for n in names { pendingSaves.insert(n) }
         Task {
-            do {
-                try await dataRepo.save(records, in: circle)
-                // Success: drop from pending so the next refresh can
-                // treat the record as canonical-server.
-                for n in names { pendingSaves.remove(n) }
-                // Clear any prior error if this save succeeded.
-                if lastError != nil { lastError = nil }
-            } catch {
-                // KEEP in pendingSaves so the local copy stays visible,
-                // and surface the error so the user can see something
-                // failed instead of silently losing the message.
-                NSLog("[Tally] persistSave failed: \(error.localizedDescription)")
-                lastError = error.localizedDescription
+            // Retry with a short backoff. The most common failure is CloudKit
+            // eventual consistency: right after accepting a DM invite the
+            // circle's zone hasn't propagated into our sharedDB yet, so the
+            // first save throws "Circle zone not found" — but it appears within
+            // a few seconds. Retrying self-heals the "couldn't send the last
+            // message" error instead of stranding the message. A genuine
+            // failure (network, permission) still surfaces after the retries.
+            var lastErr: Error?
+            for attempt in 0..<5 {
+                do {
+                    try await dataRepo.save(records, in: circle)
+                    for n in names { pendingSaves.remove(n) }
+                    if lastError != nil { lastError = nil }
+                    return
+                } catch {
+                    lastErr = error
+                    NSLog("[Tally] persistSave attempt \(attempt + 1)/5 failed: \(error.localizedDescription)")
+                    if attempt < 4 { try? await Task.sleep(nanoseconds: 2_000_000_000) }
+                }
             }
+            // Exhausted retries — keep the message in pendingSaves (still
+            // visible locally) and surface the error.
+            NSLog("[Tally] persistSave: gave up after retries")
+            lastError = lastErr?.localizedDescription
         }
     }
 }

@@ -213,11 +213,6 @@ final class AppState {
     /// `.distantPast` means "never reset" → suppresses nothing.
     private var accountResetAt: Date = .distantPast
 
-    /// TEMP DEBUG: on-screen readout of the persisted reset timestamp so the
-    /// ghost-friend-request issue is diagnosable from a screenshot (Console
-    /// wasn't surfacing our logs on TestFlight). Remove once verified.
-    var debugAccountResetAt: Date { accountResetAt }
-
     /// Friend-symmetry self-heal bookkeeping. One-way friendships (people I can
     /// see who can't see me) get repaired on launch / foreground via the proven
     /// reciprocal channel. All in-memory and per-session — NEVER persisted — so
@@ -319,12 +314,13 @@ final class AppState {
     func startFriendRequestPolling() {
         guard friendRequestPollTask == nil else { return }
         friendRequestPollTask = Task { @MainActor [weak self] in
-            // 6s cadence balances "feels live" against polling cost. Each
-            // tick is one public-DB query for FriendRequest records keyed
-            // on toUserRecordName == me, plus a follow-up outgoing query
-            // only if reciprocals were found.
+            // 2s cadence so a just-accepted friend (and their reciprocal
+            // share) appears within ~1–2s while both apps are foregrounded —
+            // "feels instant." Slightly more polling cost than the old 6s, but
+            // iOS suspends this Task when backgrounded so it only runs while
+            // the app is actually open.
             while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 6_000_000_000)
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
                 if Task.isCancelled { return }
                 guard let self else { return }
                 // Skip when not signed-in or still onboarding — no point
