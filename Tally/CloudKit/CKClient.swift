@@ -192,6 +192,36 @@ actor CKClient {
         subscription.notificationInfo = info
         _ = try await db.modifySubscriptions(saving: [subscription], deleting: [])
     }
+
+    /// Subscribe to public-DB records addressed to me (friend requests +
+    /// reciprocals, group/DM invites, unfriend notifications), so a silent push
+    /// wakes the app the instant one is written — closing the "they see me but
+    /// I don't see them" lag without waiting for the next poll. Idempotent
+    /// (fixed subscription IDs). Silent (content-available) so no permission
+    /// prompt. Additive: the 2s poll remains the fallback if push doesn't land.
+    ///
+    /// Requires `toUserRecordName` to be Queryable in the CloudKit schema for
+    /// each type (it already is — the inbox polling queries the same field). No
+    /// new schema deploy needed; subscriptions are created at runtime.
+    nonisolated func ensureInboxSubscriptions(userRecordName: String) async throws {
+        let db = container.publicCloudDatabase
+        // Record-type names match the CloudKit schema.
+        let recordTypes = ["FriendRequest", "GroupInvite", "UnfriendNotification"]
+        let predicate = NSPredicate(format: "toUserRecordName == %@", userRecordName)
+        let subscriptions: [CKSubscription] = recordTypes.map { type in
+            let sub = CKQuerySubscription(
+                recordType: type,
+                predicate: predicate,
+                subscriptionID: "tally-inbox-\(type)",
+                options: [.firesOnRecordCreation]
+            )
+            let info = CKSubscription.NotificationInfo()
+            info.shouldSendContentAvailable = true
+            sub.notificationInfo = info
+            return sub
+        }
+        _ = try await db.modifySubscriptions(saving: subscriptions, deleting: [])
+    }
 }
 
 enum CKClientError: LocalizedError {

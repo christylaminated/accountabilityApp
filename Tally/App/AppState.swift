@@ -383,7 +383,20 @@ final class AppState {
                 forName: .tallyRemoteChange, object: nil, queue: nil
             ) { [weak self] _ in
                 Task { @MainActor in
-                    await self?.circleStore.refresh()
+                    guard let self else { return }
+                    // A silent push arrived. It could be a circle change OR an
+                    // inbox record addressed to me (friend request/reciprocal,
+                    // invite, unfriend). We don't know which, so refresh both —
+                    // this is what makes a just-accepted friendship complete
+                    // near-instantly instead of on the next poll tick.
+                    await self.circleStore.refresh()
+                    guard !self.currentUserID.isEmpty,
+                          self.onboardingState == .enteredMainApp else { return }
+                    await self.refreshFriendRequests()
+                    await self.retryPendingReciprocals()
+                    await self.processUnfriendNotifications()
+                    await self.refreshGroupInvites()
+                    await self.reconcileFriendSymmetry(trigger: "push")
                 }
             }
         )
@@ -471,6 +484,12 @@ final class AppState {
                     // and goals from it. activate() preserves cached arrays
                     // on the in-memory store while the server fetch runs.
                     try? await personalRepository.ensurePersonalZone()
+                    // Subscribe to public-DB pushes for things addressed to me
+                    // (friend requests/reciprocals, invites, unfriends) so the
+                    // other side's write wakes this app instantly instead of
+                    // waiting for the poll. Best-effort — polling is the
+                    // fallback.
+                    try? await CKClient.shared.ensureInboxSubscriptions(userRecordName: currentUserID)
                     await personalStore.activate(currentUserID: currentUserID)
                     await handleIncomingShareIfNeeded()
                     await loadCircles()
