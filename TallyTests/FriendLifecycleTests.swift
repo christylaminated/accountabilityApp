@@ -369,6 +369,25 @@ struct FriendLifecycleTests {
         #expect(remaining.contains { $0.toUserRecordName == "carol" })
     }
 
+    // MARK: - Exception shim actually catches at RUNTIME (crash-safety linchpin)
+
+    @Test func exceptionShim_catchesRaisedNSException() {
+        // If the shim did NOT catch it, `.raise()` would tear down the whole
+        // test process — so a passing assertion is genuine runtime proof that
+        // the Obj-C @try/@catch works, not just that it compiles.
+        let caught = ExceptionCatcherProbe.didCatchException {
+            NSException(name: .genericException, reason: "boom", userInfo: nil).raise()
+        }
+        #expect(caught)
+    }
+
+    @Test func exceptionShim_passesThroughNormalBlock() {
+        var ran = false
+        let caught = ExceptionCatcherProbe.didCatchException { ran = true }
+        #expect(ran)
+        #expect(!caught)
+    }
+
     // MARK: - Former-friend requests stay gone after a reset
 
     /// The reported bug: after deleting my account, an OLD friend's request

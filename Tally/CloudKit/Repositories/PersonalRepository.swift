@@ -630,3 +630,25 @@ struct CloudKitPersonalRepository: PersonalRepository {
         _ = try await client.privateDB.save(record)
     }
 }
+
+#if DEBUG
+/// Thin, testable probe over `ExceptionCatcher`. Lives in the app target
+/// because `ExceptionCatcher` is exposed via the app's bridging header, which
+/// the test target can't import directly. Lets a unit test prove — at RUNTIME —
+/// that a raised Objective-C `NSException` is actually caught (and the process
+/// survives), not merely that the shim compiles. This is the crash-safety
+/// linchpin for `leaveFriendShare` / circle-leave on iOS 26. DEBUG-only, so it
+/// never ships in a release build.
+enum ExceptionCatcherProbe {
+    /// Runs `block`; returns true iff it raised an NSException the shim caught,
+    /// false if it completed normally.
+    static func didCatchException(in block: @escaping () -> Void) -> Bool {
+        do {
+            try ExceptionCatcher.catchException(in: block)
+            return false
+        } catch {
+            return true
+        }
+    }
+}
+#endif
