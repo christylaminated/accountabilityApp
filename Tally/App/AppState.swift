@@ -1928,6 +1928,15 @@ final class AppState {
             // otherwise a single hiccup would permanently strand the sender
             // without the recipient's data.
             for r in incoming where r.isReciprocal {
+                // Already consumed this reciprocal on a previous pass? Skip it.
+                // Reciprocals now linger for a few days (they're deleted on a
+                // TTL, not the instant we're friends), so without this a
+                // reciprocal from someone I LATER unfriended would get
+                // reprocessed and silently re-add them. `markRequestDeclined`
+                // records the id the first time we successfully process it, so
+                // this both prevents that resurrection and avoids redundant
+                // re-accepts.
+                if declinedRequestIDs.contains(r.id.uuidString) { continue }
                 NSLog("[Tally] reciprocal: processing from=\(r.fromUserRecordName) id=\(r.id)")
                 // Reject STALE reciprocals — but ONLY genuinely old ones. A
                 // reciprocal from someone hidden (unfriended/erased) with no
