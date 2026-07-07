@@ -328,6 +328,7 @@ final class AppState {
             // "feels instant." Slightly more polling cost than the old 6s, but
             // iOS suspends this Task when backgrounded so it only runs while
             // the app is actually open.
+            var cycle = 0
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 2_000_000_000)
                 if Task.isCancelled { return }
@@ -336,6 +337,14 @@ final class AppState {
                 // hitting CloudKit before currentUserID is populated.
                 guard !self.currentUserID.isEmpty,
                       self.onboardingState == .enteredMainApp else { continue }
+                cycle += 1
+                // Inactive conversations get no push (only the open circle is
+                // subscribed), so the unread dot for a new DM/message would
+                // otherwise never appear while foregrounded. Sweep every 3rd
+                // cycle (~6s) — responsive without a snapshot fetch every 2s.
+                if cycle % 3 == 0 {
+                    await self.refreshAllUnread()
+                }
                 await self.refreshFriendRequests()
                 // Drain the half-completed-accept queue. Each entry is a
                 // sender we acknowledged but never successfully sent our
@@ -401,6 +410,9 @@ final class AppState {
                     await self.circleStore.refresh()
                     guard !self.currentUserID.isEmpty,
                           self.onboardingState == .enteredMainApp else { return }
+                    // A push means something changed — sweep unread so a new
+                    // message on an inactive conversation lights its dot now.
+                    await self.refreshAllUnread()
                     await self.refreshFriendRequests()
                     await self.retryPendingReciprocals()
                     await self.processUnfriendNotifications()
@@ -1092,6 +1104,22 @@ final class AppState {
         }
         // 4. Neutral fallback — never our own name.
         return "Direct message"
+    }
+
+    /// The peer's synced friend record for a DM circle — the only source that
+    /// carries their uploaded photo bytes (CircleMember has just name + symbol).
+    /// Nil until the friendship surfaces in our list.
+    func dmPeerFriend(for circle: TallyCircle) -> Friend? {
+        guard let peerID = circle.dmPeer(forViewer: currentUserID) else { return nil }
+        return personalStore.friend(id: peerID)
+    }
+
+    /// A message sender's uploaded photo, if we have it. Photo bytes only sync
+    /// to us via friend records, so group members we aren't friends with fall
+    /// back to their SF symbol. Own messages use our own profile photo.
+    func senderAvatarData(for senderID: String) -> Data? {
+        if senderID == currentUserID { return ownCloudProfile?.avatarImageData }
+        return personalStore.friend(id: senderID)?.avatarImageData
     }
 
     /// TEMP DIAGNOSTIC: dumps the exact friend-sync state so the asymmetry can
@@ -2643,8 +2671,26 @@ final class AppState {
     func refreshCircleData() async {
         await circleStore.refresh()
         await personalStore.refresh()
+        // The active circle is refreshed above; sweep the rest so an incoming
+        // message on an INACTIVE conversation lights its unread dot too.
+        await refreshAllUnread()
         await refreshFriendRequests()
         await refreshGroupInvites()
+    }
+
+    /// Recompute the unread indicator across ALL conversations, not just the
+    /// active one. `CircleStore.refreshUnreadTimes` only updates a circle's
+    /// last-message time when it's swept here, so the poll / push / foreground
+    /// paths call this — otherwise an incoming message on an inactive circle
+    /// stays invisible until the next `loadCircles()` (create/rename/launch),
+    /// which is the "sometimes the dot shows, sometimes not" bug.
+    ///
+    /// Cost note: `refreshUnreadTimes` currently full-fetches each non-active
+    /// circle's snapshot. Fine at a personal-social friend-graph scale; if the
+    /// conversation count grows this should move to an incremental (token-based)
+    /// fetch. Throttled on the poll path for the same reason.
+    func refreshAllUnread() async {
+        await circleStore.refreshUnreadTimes(for: ownedCircles + joinedCircles)
     }
 }
 

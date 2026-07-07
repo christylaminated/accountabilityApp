@@ -6,18 +6,20 @@ struct MessageBubbleView: View {
     let timestamp: Date
     let isMe: Bool
     let senderSymbol: String
+    /// The sender's uploaded photo, when we have it (friends only). Nil falls
+    /// back to the SF symbol inside AvatarView.
+    var senderImageData: Data? = nil
     let senderName: String
     let showSender: Bool
 
     var body: some View {
         HStack(alignment: .bottom, spacing: 6) {
             if !isMe {
-                Image(systemName: senderSymbol)
-                    .font(.system(size: 13, weight: .medium))
-                    .frame(width: 28, height: 28)
-                    .foregroundStyle(tallyAccent)
-                    .background(tallyAccent.opacity(0.15))
-                    .clipShape(Circle())
+                AvatarView(
+                    symbolName: senderSymbol,
+                    imageData: senderImageData,
+                    size: 28
+                )
             }
 
             VStack(alignment: isMe ? .trailing : .leading, spacing: 2) {

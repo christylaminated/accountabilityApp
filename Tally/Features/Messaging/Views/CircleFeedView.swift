@@ -72,7 +72,15 @@ struct CircleFeedView: View {
                 Button {
                     if shownCircle != nil { showSettings = true }
                 } label: {
-                    HStack(spacing: 4) {
+                    HStack(spacing: 6) {
+                        if let circle = shownCircle, circle.kind == .dm {
+                            let peer = appState.dmPeerFriend(for: circle)
+                            AvatarView(
+                                symbolName: peer?.avatarSymbol ?? "person",
+                                imageData: peer?.avatarImageData,
+                                size: 24
+                            )
+                        }
                         Text(titleText)
                             .font(.body.weight(.semibold))
                             .foregroundStyle(.primary)
@@ -124,6 +132,9 @@ struct CircleFeedView: View {
             timestamp: msg.createdAt,
             isMe: isMe,
             senderSymbol: member?.avatarSymbol ?? "person",
+            // Photo bytes live on friend records, not CircleMember — look the
+            // sender up there so their picture shows on their bubbles.
+            senderImageData: appState.senderAvatarData(for: msg.senderID),
             senderName: member?.displayName ?? "",
             showSender: !isMe
         )

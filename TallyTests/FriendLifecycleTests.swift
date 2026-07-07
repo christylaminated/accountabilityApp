@@ -651,6 +651,28 @@ struct FriendLifecycleTests {
         #expect(claim?.avatarImageData == nil)
     }
 
+    @Test func senderAvatar_resolvesFriendSelfAndStranger() async {
+        let personal = repo(friendOwners: [])
+        let store = PersonalStore(repository: personal)
+        let friendPhoto = Data([0xAA, 0xBB])
+        store.friends = [Friend(userID: "alice", displayName: "Alice",
+                                avatarSymbol: "leaf", avatarImageData: friendPhoto)]
+        let app = appState(personal: personal, store: store,
+                           notifications: MockUnfriendNotificationRepository())
+        let myPhoto = Data([0x01])
+        app.ownCloudProfile = UserProfile(
+            displayName: "Me", avatarSymbol: "leaf",
+            avatarImageData: myPhoto, username: "me", createdAt: Date()
+        )
+
+        // Friend's message → their synced photo.
+        #expect(app.senderAvatarData(for: "alice") == friendPhoto)
+        // Own message (currentUserID == "me") → our own profile photo.
+        #expect(app.senderAvatarData(for: "me") == myPhoto)
+        // Non-friend group member → nil, so AvatarView falls back to the symbol.
+        #expect(app.senderAvatarData(for: "stranger") == nil)
+    }
+
     @Test func avatarSelfHeal_runsAtMostOncePerSession() async throws {
         let username = MockUsernameRepository()
         try await username.claim("me", previousUsername: nil, displayName: "Me",
