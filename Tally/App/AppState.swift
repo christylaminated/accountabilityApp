@@ -2429,8 +2429,15 @@ final class AppState {
             let optimistic = ownedCircles.filter {
                 recentlyCreatedCircleIDs.contains($0.id) && !serverIDs.contains($0.id)
             }
-            self.ownedCircles = serverOwned + optimistic
-            self.joinedCircles = serverJoined
+            // Suppress conversations from BEFORE my last account reset. After a
+            // delete + re-onboard (same iCloud), an old DM/group zone can still
+            // linger in sharedDB (its messages live in the OTHER person's zone,
+            // which we can't delete), and it would reappear as a dead
+            // conversation that also throws "couldn't send". A circle created
+            // after the reset is kept. `accountResetAt` is `.distantPast` for
+            // users who never deleted, so this is a no-op for them.
+            self.ownedCircles = (serverOwned + optimistic).filter { $0.createdAt > accountResetAt }
+            self.joinedCircles = serverJoined.filter { $0.createdAt > accountResetAt }
             // Light up the unread/bold indicator for conversations the user
             // hasn't opened, so an incoming DM/message is visible in the list.
             await circleStore.refreshUnreadTimes(for: ownedCircles + joinedCircles)
