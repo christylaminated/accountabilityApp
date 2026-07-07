@@ -83,6 +83,9 @@ final class AppState {
     let friendRequestRepository: any FriendRequestRepository
     let groupInviteRepository: any GroupInviteRepository
     let unfriendNotificationRepository: any UnfriendNotificationRepository
+    /// Private per-day history notes. Defaulted (not an init parameter) so it
+    /// stays out of every existing construction site; tests swap in a mock.
+    var dayNoteRepository: any DayNoteRepository = CloudKitDayNoteRepository()
     let shareCoordinator: ShareCoordinator
 
     /// Live data for the active Circle — members + chat. Habits and goals
@@ -1120,6 +1123,35 @@ final class AppState {
     func senderAvatarData(for senderID: String) -> Data? {
         if senderID == currentUserID { return ownCloudProfile?.avatarImageData }
         return personalStore.friend(id: senderID)?.avatarImageData
+    }
+
+    // MARK: - Private per-day history notes
+
+    /// The user's private note for `day`, or nil if none. Best-effort read —
+    /// a fetch failure surfaces as "no note" rather than an error in the UI.
+    func dayNote(for day: Date) async -> DayNote? {
+        try? await dayNoteRepository.note(for: day.startOfDay)
+    }
+
+    /// Save (or, when the text is emptied, delete) the user's private note for
+    /// `day`. Returns whether the write succeeded so the view can flag failures.
+    @discardableResult
+    func saveDayNote(_ text: String, for day: Date) async -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let day = day.startOfDay
+        do {
+            if trimmed.isEmpty {
+                try await dayNoteRepository.delete(for: day)
+            } else {
+                try await dayNoteRepository.save(
+                    DayNote(day: day, text: trimmed, updatedAt: .now)
+                )
+            }
+            return true
+        } catch {
+            NSLog("[Tally] saveDayNote failed for \(DayNote.dayKey(day)): \(error.localizedDescription)")
+            return false
+        }
     }
 
     /// TEMP DIAGNOSTIC: dumps the exact friend-sync state so the asymmetry can

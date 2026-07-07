@@ -183,6 +183,23 @@ still update their searchable photo even when the private-DB writes fail.
   (push subscriptions are created at runtime; they query already-indexed fields).
 - **Confirm** `UsernameClaim.avatarImageData` (Bytes) is present in **Production**
   (see Avatar photo sync above) — required for search results to show photos.
+- **NEW (build 55) — deploy `DayNote`.** The per-day history note (below) writes a
+  new record type `DayNote` to the **private DB default zone**. CloudKit
+  auto-creates the record type in **Development** on first save from an Xcode
+  run, but for **TestFlight/Production** you must **deploy it to Production**
+  (CloudKit Dashboard → Deploy Schema Changes) or saves silently fail. Fields:
+  `day` (Date/Time), `text` (String), `updatedAt` (Date/Time).
+
+## Per-day history note (build 55)
+Private, one note per day, visible only to you.
+1. **History → tap a day** (your own history) → a "Note" field appears under the
+   habits. Type a note, tap away → it persists. Reopen the app / the day → the
+   note is still there.
+2. **Clearing** the text and tapping away deletes the note (no blank record).
+3. **Privacy:** open a *friend's* history (from their profile) → there is **no**
+   note field (the note is yours alone, stored in your private zone).
+4. **Cross-device:** the note syncs to your other devices (private DB), but never
+   to friends.
 
 ## Verified in code (not needing this manual run)
 25+ unit tests cover the suppression/erase/cancel logic, the deletion-flag

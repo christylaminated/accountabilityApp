@@ -95,3 +95,55 @@ struct CloudKitProfileRepository: ProfileRepository {
         return profile
     }
 }
+
+// MARK: - DayNote repository
+
+/// CRUD for the user's private per-day history notes. Same storage strategy as
+/// `ProfileRepository`: one record per day at a stable recordName in the private
+/// DB's default zone, so a note is fetched directly by ID (no query) and never
+/// syncs to friends (unlike the shared personal zone).
+protocol DayNoteRepository: Sendable {
+    /// The note for `day`, or nil if none has been written.
+    func note(for day: Date) async throws -> DayNote?
+    /// Create or overwrite the note for `note.day`.
+    func save(_ note: DayNote) async throws
+    /// Remove the note for `day` (used when the user clears the text).
+    func delete(for day: Date) async throws
+}
+
+struct CloudKitDayNoteRepository: DayNoteRepository {
+    let client: CKClient
+
+    init(client: CKClient = .shared) {
+        self.client = client
+    }
+
+    private func recordID(for day: Date) -> CKRecord.ID {
+        CKRecord.ID(recordName: DayNote.recordName(for: day))
+    }
+
+    func note(for day: Date) async throws -> DayNote? {
+        do {
+            let record = try await client.privateDB.record(for: recordID(for: day))
+            return DayNote(record: record)
+        } catch let error as CKError where error.code == .unknownItem {
+            return nil
+        }
+    }
+
+    func save(_ note: DayNote) async throws {
+        let id = recordID(for: note.day)
+        let record: CKRecord
+        do {
+            record = try await client.privateDB.record(for: id)
+        } catch let error as CKError where error.code == .unknownItem {
+            record = CKRecord(recordType: DayNote.recordType, recordID: id)
+        }
+        note.populate(record)
+        _ = try await client.privateDB.save(record)
+    }
+
+    func delete(for day: Date) async throws {
+        _ = try? await client.privateDB.deleteRecord(withID: recordID(for: day))
+    }
+}

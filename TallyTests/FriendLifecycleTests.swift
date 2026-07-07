@@ -651,6 +651,60 @@ struct FriendLifecycleTests {
         #expect(claim?.avatarImageData == nil)
     }
 
+    // MARK: - Private per-day history notes
+
+    private func dayNoteApp(_ repo: MockDayNoteRepository) -> AppState {
+        let personal = self.repo(friendOwners: [])
+        let store = PersonalStore(repository: personal)
+        let app = appState(personal: personal, store: store,
+                           notifications: MockUnfriendNotificationRepository())
+        app.dayNoteRepository = repo
+        return app
+    }
+
+    @Test func dayNote_savesAndReloadsForSameDay() async {
+        let repo = MockDayNoteRepository()
+        let app = dayNoteApp(repo)
+        let day = Date(timeIntervalSince1970: 1_700_000_000)   // fixed instant
+
+        let saved = await app.saveDayNote("  showed up anyway  ", for: day)
+        #expect(saved)
+        // Trimmed on save…
+        let note = await app.dayNote(for: day)
+        #expect(note?.text == "showed up anyway")
+        // …and keyed by day, so a later time on the same day reads it back.
+        let laterSameDay = day.addingTimeInterval(6 * 60 * 60)
+        let sameDayNote = await app.dayNote(for: laterSameDay)
+        #expect(sameDayNote?.text == "showed up anyway")
+    }
+
+    @Test func dayNote_clearingTextDeletesTheNote() async {
+        let repo = MockDayNoteRepository()
+        let app = dayNoteApp(repo)
+        let day = Date(timeIntervalSince1970: 1_700_000_000)
+
+        _ = await app.saveDayNote("temporary", for: day)
+        #expect(await app.dayNote(for: day) != nil)
+
+        // Emptying the text removes the record rather than storing a blank note.
+        _ = await app.saveDayNote("   ", for: day)
+        #expect(await app.dayNote(for: day) == nil)
+        #expect(repo.notes.isEmpty)
+    }
+
+    @Test func dayNote_separateDaysAreIndependent() async {
+        let repo = MockDayNoteRepository()
+        let app = dayNoteApp(repo)
+        let day1 = Date(timeIntervalSince1970: 1_700_000_000)
+        let day2 = day1.addingTimeInterval(48 * 60 * 60)   // two days later
+
+        _ = await app.saveDayNote("day one", for: day1)
+        _ = await app.saveDayNote("day two", for: day2)
+
+        #expect(await app.dayNote(for: day1)?.text == "day one")
+        #expect(await app.dayNote(for: day2)?.text == "day two")
+    }
+
     @Test func senderAvatar_resolvesFriendSelfAndStranger() async {
         let personal = repo(friendOwners: [])
         let store = PersonalStore(repository: personal)

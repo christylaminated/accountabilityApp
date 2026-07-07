@@ -50,3 +50,21 @@ final class MockProfileRepository: ProfileRepository, @unchecked Sendable {
         return profile
     }
 }
+
+/// In-memory `DayNoteRepository` for previews and tests.
+final class MockDayNoteRepository: DayNoteRepository, @unchecked Sendable {
+    /// dayKey → note.
+    var notes: [String: DayNote] = [:]
+
+    func note(for day: Date) async throws -> DayNote? {
+        notes[DayNote.dayKey(day)]
+    }
+
+    func save(_ note: DayNote) async throws {
+        notes[DayNote.dayKey(note.day)] = note
+    }
+
+    func delete(for day: Date) async throws {
+        notes.removeValue(forKey: DayNote.dayKey(day))
+    }
+}
