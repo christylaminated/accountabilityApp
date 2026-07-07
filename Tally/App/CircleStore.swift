@@ -22,6 +22,12 @@ final class CircleStore {
     var circleMessages: [CircleMessage] = []
     var directMessages: [DirectMessage] = []
 
+    /// Observable set of circle IDs with unread messages. Views read THIS (not
+    /// the static `hasUnread`, which reads LocalCache directly and can't trigger
+    /// a SwiftUI redraw) so the dot appears/clears live as messages arrive or a
+    /// chat is opened. Kept in sync with LocalCache via recomputeUnread.
+    var unreadCircleIDs: Set<UUID> = []
+
     var isLoading = false
     var lastError: String?
 
@@ -59,6 +65,7 @@ final class CircleStore {
         members = []
         circleMessages = []
         directMessages = []
+        unreadCircleIDs = []
         token = nil
         pendingSaves = []
         isLoading = false
@@ -94,6 +101,20 @@ final class CircleStore {
         var dict = Self.loadDict(forKey: LocalCacheKey.circleLastReadAt)
         dict[circleID.uuidString] = Date.now.timeIntervalSince1970
         Self.saveDict(dict, forKey: LocalCacheKey.circleLastReadAt)
+        // Clear the dot immediately (observable → SwiftUI redraws the row).
+        unreadCircleIDs.remove(circleID)
+    }
+
+    /// Recompute the observable `unreadCircleIDs` from LocalCache for the given
+    /// circles, so views redraw. The currently-open circle is treated as read.
+    func recomputeUnread(for circles: [TallyCircle]) {
+        for c in circles {
+            if c.id == circle?.id || !Self.hasUnread(circleID: c.id) {
+                unreadCircleIDs.remove(c.id)
+            } else {
+                unreadCircleIDs.insert(c.id)
+            }
+        }
     }
 
     /// True when this circle has a newer message timestamp on record
@@ -218,6 +239,8 @@ final class CircleStore {
                 Self.recordLatestMessage(circleID: c.id, at: latest)
             }
         }
+        // Publish the fresh unread state so an incoming message lights the dot.
+        recomputeUnread(for: circles)
     }
 
     /// Upsert changed records by `recordName`, then drop anything deleted.

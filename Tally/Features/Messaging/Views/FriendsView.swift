@@ -435,7 +435,7 @@ private struct DMRow: View {
     }
 
     private var isUnread: Bool {
-        CircleStore.hasUnread(circleID: circle.id)
+        appState.circleStore.unreadCircleIDs.contains(circle.id)
     }
 
     var body: some View {
@@ -475,7 +475,7 @@ private struct GroupRow: View {
     let group: TallyCircle
 
     private var isUnread: Bool {
-        CircleStore.hasUnread(circleID: group.id)
+        appState.circleStore.unreadCircleIDs.contains(group.id)
     }
 
     var body: some View {
