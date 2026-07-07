@@ -73,6 +73,9 @@ final class CircleStore {
             self.circle = circle
         }
         await load()
+        // Retry any DMs stranded by a crash / failed send now that we're back
+        // in this conversation.
+        retryOutbox()
         // Best-effort: register for live CloudKit pushes on this Circle's zone.
         try? await dataRepo.subscribeToChanges(for: circle)
     }
@@ -269,7 +272,51 @@ final class CircleStore {
             createdAt: .now
         )
         directMessages.append(msg)
+        // Persist to the on-disk outbox BEFORE the network attempt so a crash
+        // or force-quit during the send doesn't lose the message. Removed on a
+        // confirmed save; retried when the conversation is reopened.
+        addToOutbox(msg)
         persistSave([msg])
+    }
+
+    // MARK: - Durable DM outbox
+
+    private func addToOutbox(_ msg: DirectMessage) {
+        var box = Self.loadOutbox()
+        if !box.contains(where: { $0.id == msg.id }) {
+            box.append(msg)
+            Self.saveOutbox(box)
+        }
+    }
+
+    private func removeFromOutbox(recordNames: [String]) {
+        var box = Self.loadOutbox()
+        let filtered = box.filter { !recordNames.contains($0.recordName) }
+        if filtered.count != box.count { Self.saveOutbox(filtered) }
+    }
+
+    /// Re-attempt any unsent DMs for the active circle. Called on `activate`, so
+    /// a message stranded by a crash / failed send goes out when the user
+    /// reopens the conversation.
+    private func retryOutbox() {
+        guard let circle else { return }
+        let pending = Self.loadOutbox().filter {
+            $0.circleID == circle.id && !pendingSaves.contains($0.recordName)
+        }
+        for msg in pending {
+            if !directMessages.contains(where: { $0.id == msg.id }) {
+                directMessages.append(msg)
+            }
+            persistSave([msg])
+        }
+    }
+
+    private static func loadOutbox() -> [DirectMessage] {
+        LocalCache.load([DirectMessage].self, forKey: LocalCacheKey.pendingDirectMessages) ?? []
+    }
+
+    private static func saveOutbox(_ msgs: [DirectMessage]) {
+        LocalCache.save(msgs, forKey: LocalCacheKey.pendingDirectMessages)
     }
 
     /// Count of messages the viewer has received from another member. Mock-era
@@ -301,6 +348,8 @@ final class CircleStore {
                 do {
                     try await dataRepo.save(records, in: circle)
                     for n in names { pendingSaves.remove(n) }
+                    // Confirmed saved — drop from the durable outbox.
+                    removeFromOutbox(recordNames: names)
                     if lastError != nil { lastError = nil }
                     return
                 } catch {

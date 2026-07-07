@@ -119,6 +119,11 @@ enum LocalCacheKey {
     /// the reset still shows, so genuine re-engagement isn't blocked.
     static let accountResetAt = "Tally.cache.accountResetAt"
 
+    /// Direct messages the user has sent that haven't been confirmed saved to
+    /// CloudKit yet (a persisted outbox). Survives app crash / force-quit so an
+    /// unsent DM isn't lost — retried when the conversation is reopened.
+    static let pendingDirectMessages = "Tally.cache.pendingDirectMessages"
+
     /// "circleID|userID" composite keys for group/DM invite writes that
     /// failed and are queued for retry. Same shape/lifecycle as
     /// pendingReciprocalSenders.
@@ -142,7 +147,7 @@ enum LocalCacheKey {
         declinedFriendRequestIDs, declinedGroupInviteIDs,
         locallyUnfriendedIDs, pendingReciprocalSenders,
         processedUnfriendNotificationIDs, pendingUnfriendTargets,
-        pendingGroupInvites, accountResetAt,
+        pendingGroupInvites, accountResetAt, pendingDirectMessages,
         hasSentFirstFriendRequest, inviteBannerDismissCount
     ]
 }

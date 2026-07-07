@@ -369,6 +369,27 @@ struct FriendLifecycleTests {
         #expect(remaining.contains { $0.toUserRecordName == "carol" })
     }
 
+    // MARK: - Crash-durable DM outbox
+
+    @Test func sendDM_persistsToDurableOutboxImmediately() async {
+        let mock = MockCircleDataRepository()
+        mock.saveShouldFail = true                     // the send will fail
+        let store = CircleStore(dataRepo: mock)
+        let dm = TallyCircle(
+            id: UUID(), name: "dm", emoji: nil, ownerID: "me",
+            createdAt: Date(), kind: .dm, dmPeerID: "bob"
+        )
+        await store.activate(dm, currentUserID: "me")
+
+        store.sendDM(body: "hello", senderID: "me", recipientID: "bob")
+
+        // Written to disk synchronously, BEFORE the (failing) network attempt —
+        // so a crash/force-quit right now wouldn't lose the message.
+        let outbox = LocalCache.load([DirectMessage].self,
+                                     forKey: LocalCacheKey.pendingDirectMessages) ?? []
+        #expect(outbox.contains { $0.body == "hello" && $0.circleID == dm.id })
+    }
+
     // MARK: - Exception shim actually catches at RUNTIME (crash-safety linchpin)
 
     @Test func exceptionShim_catchesRaisedNSException() {
