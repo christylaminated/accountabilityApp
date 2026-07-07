@@ -1082,6 +1082,35 @@ final class AppState {
         return "Direct message"
     }
 
+    /// TEMP DIAGNOSTIC: dumps the exact friend-sync state so the asymmetry can
+    /// be pinpointed from a screenshot on each phone (Console wasn't surfacing
+    /// our logs). Remove once the reciprocal issue is understood.
+    func debugFriendSyncReport() async -> String {
+        var lines: [String] = []
+        func s(_ id: String) -> String { String(id.suffix(6)) }
+        lines.append("me=\(s(currentUserID))")
+        lines.append("reset=\(accountResetAt == .distantPast ? "none" : accountResetAt.formatted(date: .omitted, time: .standard))")
+        lines.append("friends=[\(personalStore.friends.map { s($0.userID) }.joined(separator: ","))]")
+        lines.append("iRequested_pending=[\(outgoingRequestTargetIDs.map(s).joined(separator: ","))]")
+        lines.append("iOweReciprocal=[\(pendingReciprocalSenders.map(s).joined(separator: ","))]")
+        if let incoming = try? await friendRequestRepository.incoming(for: currentUserID) {
+            lines.append("incoming(\(incoming.count)):")
+            for r in incoming {
+                lines.append("  from=\(s(r.fromUserRecordName)) recip=\(r.isReciprocal ? "Y" : "N") declined=\(declinedRequestIDs.contains(r.id.uuidString) ? "Y" : "N")")
+            }
+        } else { lines.append("incoming: FETCH FAILED") }
+        if let outgoing = try? await friendRequestRepository.outgoing(for: currentUserID) {
+            lines.append("outgoing(\(outgoing.count)):")
+            for r in outgoing {
+                lines.append("  to=\(s(r.toUserRecordName)) recip=\(r.isReciprocal ? "Y" : "N")")
+            }
+        } else { lines.append("outgoing: FETCH FAILED") }
+        if let participants = try? await personalRepository.personalShareParticipantIDs() {
+            lines.append("canSeeMe=[\(participants.map(s).joined(separator: ","))]")
+        } else { lines.append("canSeeMe: FETCH FAILED") }
+        return lines.joined(separator: "\n")
+    }
+
     /// Recipient accepts an incoming friend request.
     ///
     /// 1. Fetch the sender's share metadata from the URL embedded in the
