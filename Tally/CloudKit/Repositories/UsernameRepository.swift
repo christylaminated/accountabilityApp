@@ -1,0 +1,245 @@
+import CloudKit
+import Foundation
+
+/// One row of the global username directory — found by `UsernameRepository`.
+/// `avatarImageData` is optional JPEG bytes a user uploaded as their photo.
+/// Stored on the public-DB UsernameClaim record so search results can render
+/// the photo even when the searcher isn't already a friend (and therefore
+/// doesn't have sharedDB access to the user's PersonalRoot).
+struct UserSearchResult: Hashable, Identifiable {
+    /// The normalized username (lowercase, alphanumeric + underscore).
+    var username: String
+    var displayName: String
+    var avatarSymbol: String
+    var avatarImageData: Data?
+    var userRecordName: String
+
+    var id: String { username }
+}
+
+enum UsernameError: LocalizedError {
+    case invalid
+    case alreadyTaken
+
+    var errorDescription: String? {
+        switch self {
+        case .invalid:      return "Username must be 3–20 characters: letters, numbers, or underscores."
+        case .alreadyTaken: return "That username is already taken."
+        }
+    }
+}
+
+/// Global username directory backed by CloudKit's *public* database. The
+/// `recordName` of each `UsernameClaim` record IS the normalized username,
+/// so CloudKit enforces uniqueness for us (you can't save two records with
+/// the same name in the same zone).
+///
+/// Lookups are by direct fetch (`db.record(for:)`) so no Queryable index is
+/// needed in the CloudKit Dashboard.
+///
+/// CloudKit Dashboard schema setup (one-time, then Deploy Schema → Production):
+///   - Record Type: `UsernameClaim`
+///   - Fields:
+///       • `displayName`     (String)
+///       • `avatarSymbol`    (String)
+///       • `avatarImageData` (Bytes)        ← **REQUIRED for friend-search avatars**
+///   - The Bytes field stores the user's uploaded JPEG so search results
+///     can render the photo even when the searcher isn't already a friend.
+///   - **If the `avatarImageData` field is missing from Production schema,**
+///     **writes silently succeed but the bytes are dropped** — the photo
+///     never propagates and friend-search cards show the SF Symbol fallback.
+///     This is the most common cause of "photo doesn't show up to friends."
+protocol UsernameRepository: Sendable {
+    /// Normalize and validate a raw username input.
+    /// Returns nil if the input doesn't satisfy the rules
+    /// (3–20 chars, letters / digits / underscore).
+    func normalize(_ raw: String) -> String?
+
+    /// Check whether `normalized` is claimable by the current user. True if
+    /// nobody owns it, or the current user already owns it.
+    func isAvailable(_ normalized: String) async throws -> Bool
+
+    /// Claim `normalized` for the current user. Frees `previousUsername` (if
+    /// different) before claiming. Throws `UsernameError.alreadyTaken` if
+    /// someone else owns it. `avatarImageData` is optional photo bytes
+    /// stored on the public-DB record so search results can show the photo
+    /// to users who aren't already friends.
+    func claim(
+        _ normalized: String,
+        previousUsername: String?,
+        displayName: String,
+        avatarSymbol: String,
+        avatarImageData: Data?
+    ) async throws
+
+    /// Release the user's username (e.g., if they delete their account). No-op
+    /// if there's nothing to release.
+    func release(_ normalized: String) async throws
+
+    /// Look up a user by exact username. Returns nil if no claim exists.
+    func lookup(_ normalized: String) async throws -> UserSearchResult?
+}
+
+// MARK: - CloudKit implementation
+
+struct CloudKitUsernameRepository: UsernameRepository {
+    let client: CKClient
+    static let recordType = "UsernameClaim"
+
+    init(client: CKClient = .shared) {
+        self.client = client
+    }
+
+    private var publicDB: CKDatabase { client.container.publicCloudDatabase }
+
+    private static let allowedChars: CharacterSet = CharacterSet.lowercaseLetters
+        .union(.decimalDigits)
+        .union(CharacterSet(charactersIn: "_"))
+
+    func normalize(_ raw: String) -> String? {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard (3...20).contains(trimmed.count) else { return nil }
+        // Reject if any character is outside the allowed set.
+        if trimmed.unicodeScalars.contains(where: { !Self.allowedChars.contains($0) }) {
+            return nil
+        }
+        return trimmed
+    }
+
+    func isAvailable(_ normalized: String) async throws -> Bool {
+        let recordID = CKRecord.ID(recordName: normalized)
+        do {
+            let existing = try await publicDB.record(for: recordID)
+            // Available if it's already mine.
+            return try await isCreatedByMe(existing)
+        } catch let error as CKError where error.code == .unknownItem {
+            return true
+        }
+    }
+
+    func claim(
+        _ normalized: String,
+        previousUsername: String?,
+        displayName: String,
+        avatarSymbol: String,
+        avatarImageData: Data?
+    ) async throws {
+        // Release the old claim first (so re-naming "alice" → "alyce" frees
+        // "alice" for someone else). Best-effort: ignore any delete failure.
+        if let prev = previousUsername, prev != normalized {
+            _ = try? await publicDB.deleteRecord(withID: CKRecord.ID(recordName: prev))
+        }
+
+        let recordID = CKRecord.ID(recordName: normalized)
+        let inSize = avatarImageData?.count ?? 0
+        NSLog("[Tally] usernameRepository.claim: \(normalized) avatarImageData=\(inSize) bytes")
+        do {
+            let existing = try await publicDB.record(for: recordID)
+            // Someone has this name — has to be me to update it.
+            guard try await isCreatedByMe(existing) else {
+                throw UsernameError.alreadyTaken
+            }
+            existing["displayName"] = displayName
+            existing["avatarSymbol"] = avatarSymbol
+            existing["avatarImageData"] = avatarImageData
+            let saved = try await publicDB.save(existing)
+            verifyAvatarPersisted(
+                saved,
+                expectedBytes: inSize,
+                normalized: normalized,
+                path: "update-existing"
+            )
+        } catch let error as CKError where error.code == .unknownItem {
+            // Unclaimed — claim it fresh.
+            let record = CKRecord(recordType: Self.recordType, recordID: recordID)
+            record["displayName"] = displayName
+            record["avatarSymbol"] = avatarSymbol
+            record["avatarImageData"] = avatarImageData
+            let saved = try await publicDB.save(record)
+            verifyAvatarPersisted(
+                saved,
+                expectedBytes: inSize,
+                normalized: normalized,
+                path: "create-fresh"
+            )
+        }
+    }
+
+    /// Re-read the saved record's `avatarImageData` field and warn loudly
+    /// in the console if it's missing despite us having passed bytes. The
+    /// near-certain cause is the field not being defined on the
+    /// `UsernameClaim` record type in CloudKit Dashboard → Production
+    /// (which silently drops the field on save). Without this check the
+    /// failure is invisible: the save call returns success, no error is
+    /// thrown, but the photo never propagates.
+    private func verifyAvatarPersisted(
+        _ saved: CKRecord,
+        expectedBytes: Int,
+        normalized: String,
+        path: String
+    ) {
+        guard expectedBytes > 0 else {
+            NSLog("[Tally] usernameRepository.claim(\(path)): \(normalized) no photo to save (expected=0)")
+            return
+        }
+        let savedBytes = (saved["avatarImageData"] as? Data)?.count ?? 0
+        if savedBytes == 0 {
+            NSLog("[Tally] ⚠️ usernameRepository.claim(\(path)): \(normalized) wrote \(expectedBytes) bytes but read back 0 — CloudKit Dashboard is likely missing the `avatarImageData` Bytes field on UsernameClaim record type. Add the field and deploy schema to production.")
+        } else {
+            NSLog("[Tally] usernameRepository.claim(\(path)): \(normalized) persisted \(savedBytes) bytes")
+        }
+    }
+
+    func release(_ normalized: String) async throws {
+        _ = try? await publicDB.deleteRecord(withID: CKRecord.ID(recordName: normalized))
+    }
+
+    func lookup(_ normalized: String) async throws -> UserSearchResult? {
+        let recordID = CKRecord.ID(recordName: normalized)
+        do {
+            let record = try await publicDB.record(for: recordID)
+            guard
+                let displayName = record["displayName"] as? String,
+                let avatarSymbol = record["avatarSymbol"] as? String,
+                let creatorID = record.creatorUserRecordID
+            else { return nil }
+            let avatarBytes = record["avatarImageData"] as? Data
+            NSLog("[Tally] usernameRepository.lookup: \(normalized) avatarImageData=\(avatarBytes?.count ?? 0) bytes")
+            return UserSearchResult(
+                username: normalized,
+                displayName: displayName,
+                avatarSymbol: avatarSymbol,
+                avatarImageData: avatarBytes,
+                userRecordName: try await resolveCreatorRecordName(creatorID)
+            )
+        } catch let error as CKError where error.code == .unknownItem {
+            return nil
+        }
+    }
+
+    /// Did the *current* iCloud user create this record?
+    ///
+    /// CloudKit returns the `CKCurrentUserDefaultName` sentinel ("__defaultOwner__")
+    /// for `creatorUserRecordID` when the current user is the creator — comparing
+    /// directly to `client.userRecordID()` would give a false negative because
+    /// the sentinel doesn't match the actual record ID string. Treat the sentinel
+    /// as a yes, otherwise compare to our real ID.
+    private func isCreatedByMe(_ record: CKRecord) async throws -> Bool {
+        guard let creatorID = record.creatorUserRecordID else { return false }
+        if creatorID.recordName == CKCurrentUserDefaultName { return true }
+        let myUserID = try await client.userRecordID()
+        return creatorID == myUserID
+    }
+
+    /// Same sentinel quirk as above but for the *outbound* path — `lookup` returns
+    /// a record name that other code uses as a recipient ID. Substitute our real
+    /// user record ID when the lookup hits our own record, so downstream
+    /// equality checks (e.g., FriendRequest.toUserRecordName == currentUserID)
+    /// actually match.
+    private func resolveCreatorRecordName(_ creatorID: CKRecord.ID) async throws -> String {
+        if creatorID.recordName == CKCurrentUserDefaultName {
+            return try await client.userRecordID().recordName
+        }
+        return creatorID.recordName
+    }
+}

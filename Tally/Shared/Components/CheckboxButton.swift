@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct CheckboxButton: View {
+    @Environment(\.tallyAccent) private var tallyAccent
     let isChecked: Bool
     let isEditable: Bool
     let action: () -> Void
@@ -15,7 +16,7 @@ struct CheckboxButton: View {
         }) {
             Image(systemName: isChecked ? "checkmark.circle.fill" : "circle")
                 .font(.title2)
-                .foregroundStyle(isChecked ? Color.tallyAccent : .secondary)
+                .foregroundStyle(isChecked ? tallyAccent : .secondary)
                 .symbolEffect(.bounce, value: isChecked)
         }
         .buttonStyle(.plain)

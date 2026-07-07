@@ -3,13 +3,39 @@ import SwiftUI
 struct CircleFeedView: View {
     @Environment(AppState.self) private var appState
     @State private var composerText: String = ""
+    @State private var showSettings = false
 
     private var messages: [CircleMessage] {
-        appState.messageStore.feed(circleID: appState.activeCircleID)
+        appState.circleStore.feed
+    }
+
+    /// The Circle whose chat is currently displayed. Reads from `CircleStore`
+    /// (the chat-room scope), NOT from `appState.activeCircle` — those can
+    /// disagree: `activeCircle` is the user's primary/first-owned Circle for
+    /// dashboard purposes, while `circleStore.circle` is whichever Circle the
+    /// user navigated into (a Group, a DM, etc).
+    private var shownCircle: TallyCircle? {
+        appState.circleStore.circle
+    }
+
+    /// Title shown in the toolbar. For DMs, prefer the peer's live display name
+    /// (from PersonalStore) so a rename on the friend's side shows up here
+    /// without us having to rewrite the Circle's `name` field every time.
+    private var titleText: String {
+        guard let circle = shownCircle else { return "Circle" }
+        if circle.kind == .dm {
+            // Resilient to the friend not being in our list yet, and never
+            // falls back to our own name (see AppState.dmPeerDisplayName).
+            return appState.dmPeerDisplayName(for: circle)
+        }
+        return circle.name
     }
 
     var body: some View {
         VStack(spacing: 0) {
+            if let err = appState.circleStore.lastError {
+                chatErrorBanner(err)
+            }
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 4) {
@@ -40,19 +66,65 @@ struct CircleFeedView: View {
             MessageComposerView(text: $composerText) { send() }
         }
         .background(Color.tallyCanvas)
-        .navigationTitle(appState.activeCircle.name)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Button {
+                    if shownCircle != nil { showSettings = true }
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(titleText)
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(.primary)
+                        Image(systemName: "chevron.down")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .sheet(isPresented: $showSettings) {
+            if let circle = shownCircle {
+                CircleSettingsView(circle: circle)
+            }
+        }
+    }
+
+    /// Surface chat-save errors so a failed send isn't silent. Tap to dismiss;
+    /// CircleStore re-clears the error on the next successful save anyway.
+    private func chatErrorBanner(_ message: String) -> some View {
+        Button {
+            appState.circleStore.lastError = nil
+        } label: {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(Color.tallyDestructive)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Couldn't send the last message")
+                        .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                    Text(message)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.leading)
+                }
+                Spacer()
+            }
+            .padding(12)
+            .background(Color.tallyDestructive.opacity(0.10))
+        }
+        .buttonStyle(.plain)
     }
 
     private func bubble(for msg: CircleMessage) -> some View {
         let isMe = msg.senderID == appState.currentUserID
-        let profile = appState.profileStore.profile(id: msg.senderID)
+        let member = appState.circleStore.member(id: msg.senderID)
         return MessageBubbleView(
             text: msg.body,
             timestamp: msg.createdAt,
             isMe: isMe,
-            senderSymbol: profile?.avatarSymbol ?? "person",
-            senderName: profile?.displayName ?? "",
+            senderSymbol: member?.avatarSymbol ?? "person",
+            senderName: member?.displayName ?? "",
             showSender: !isMe
         )
     }
@@ -63,9 +135,8 @@ struct CircleFeedView: View {
         #if canImport(UIKit)
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
         #endif
-        appState.messageStore.sendCircle(
+        appState.circleStore.sendCircleMessage(
             body: body,
-            circleID: appState.activeCircleID,
             senderID: appState.currentUserID
         )
         composerText = ""

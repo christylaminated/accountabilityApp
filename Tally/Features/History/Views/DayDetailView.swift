@@ -1,12 +1,13 @@
 import SwiftUI
 
 struct DayDetailView: View {
+    @Environment(\.tallyAccent) private var tallyAccent
     @Environment(AppState.self) private var appState
     let date: Date
-    let userID: UUID
+    let userID: String
 
     private var habits: [Habit] {
-        appState.habitStore.habits(for: userID).filter {
+        appState.personalStore.habits(for: userID).filter {
             $0.createdAt.startOfDay <= date.startOfDay
         }
     }
@@ -23,10 +24,10 @@ struct DayDetailView: View {
             } else {
                 ForEach(habits) { habit in
                     HStack(spacing: 10) {
-                        Image(systemName: appState.habitStore.isCompleted(habit: habit, on: date)
+                        Image(systemName: appState.personalStore.isCompleted(habit: habit, on: date)
                               ? "checkmark.circle.fill" : "circle")
-                            .foregroundStyle(appState.habitStore.isCompleted(habit: habit, on: date)
-                                             ? Color.tallyAccent : .secondary)
+                            .foregroundStyle(appState.personalStore.isCompleted(habit: habit, on: date)
+                                             ? tallyAccent : .secondary)
                         Text(habit.title)
                         Spacer()
                     }

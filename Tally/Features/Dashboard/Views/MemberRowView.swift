@@ -1,17 +1,18 @@
 import SwiftUI
 
 struct MemberRowView: View {
+    @Environment(\.tallyAccent) private var tallyAccent
     @Environment(AppState.self) private var appState
-    let profile: Profile
+    let member: Friend
 
-    private var isMe: Bool { profile.id == appState.currentUserID }
+    private var isMe: Bool { member.userID == appState.currentUserID }
 
     private var todayHabits: [Habit] {
-        appState.habitStore.habits(for: profile.id)
+        appState.personalStore.habits(for: member.userID)
     }
 
     private var completedCount: Int {
-        todayHabits.filter { appState.habitStore.isCompleted(habit: $0, on: .now) }.count
+        todayHabits.filter { appState.personalStore.isCompleted(habit: $0, on: .now) }.count
     }
 
     private var allDone: Bool {
@@ -21,23 +22,23 @@ struct MemberRowView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
-                AvatarView(symbolName: profile.avatarSymbol, size: 44)
+                AvatarView(symbolName: member.avatarSymbol, size: 44)
                 HStack(spacing: 6) {
-                    Text(profile.displayName)
+                    Text(member.displayName)
                         .font(.system(.headline, design: .rounded, weight: .semibold))
                     if isMe {
                         Text("you")
                             .font(.caption2.weight(.semibold))
                             .padding(.horizontal, 6).padding(.vertical, 2)
-                            .background(Color.tallyAccent.opacity(0.15))
-                            .foregroundStyle(Color.tallyAccent)
+                            .background(tallyAccent.opacity(0.15))
+                            .foregroundStyle(tallyAccent)
                             .clipShape(Capsule())
                     }
                 }
                 Spacer()
                 Text("\(completedCount)/\(todayHabits.count)")
                     .font(.system(.subheadline, design: .rounded, weight: .semibold).monospacedDigit())
-                    .foregroundStyle(allDone ? Color.tallyAccent : .secondary)
+                    .foregroundStyle(allDone ? tallyAccent : .secondary)
             }
 
             if todayHabits.isEmpty {
@@ -65,12 +66,13 @@ struct MemberRowView: View {
 }
 
 private struct HabitPill: View {
+    @Environment(\.tallyAccent) private var tallyAccent
     @Environment(AppState.self) private var appState
     let habit: Habit
     let isEditable: Bool
 
     private var isDone: Bool {
-        appState.habitStore.isCompleted(habit: habit, on: .now)
+        appState.personalStore.isCompleted(habit: habit, on: .now)
     }
 
     var body: some View {
@@ -79,7 +81,7 @@ private struct HabitPill: View {
             #if canImport(UIKit)
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
             #endif
-            _ = appState.habitStore.toggle(habit: habit, on: .now)
+            _ = appState.personalStore.toggle(habit: habit, on: .now)
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: isDone ? "checkmark.circle.fill" : "circle")
@@ -91,8 +93,8 @@ private struct HabitPill: View {
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
-            .background(isDone ? Color.tallyAccent.opacity(0.18) : Color.tallyCanvas)
-            .foregroundStyle(isDone ? Color.tallyAccent : .primary)
+            .background(isDone ? tallyAccent.opacity(0.18) : Color.tallyCanvas)
+            .foregroundStyle(isDone ? tallyAccent : .primary)
             .clipShape(RoundedRectangle(cornerRadius: 10))
         }
         .buttonStyle(.plain)

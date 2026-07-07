@@ -104,6 +104,124 @@ actor CKClient {
         let joinedTagged = try await joined.map { ($0, CKDatabase.Scope.shared)  }
         return ownedTagged + joinedTagged
     }
+
+    // MARK: - Zone changes
+
+    /// The delta returned by `fetchZoneChanges`. On a first (nil-token) fetch this
+    /// is the full contents of the zone; on later fetches, only what changed.
+    struct ZoneChanges {
+        var changedRecords: [CKRecord] = []
+        var deletedRecordIDs: [CKRecord.ID] = []
+        var token: CKServerChangeToken?
+    }
+
+    /// Fetch all records in a zone (token == nil) or just what changed since a
+    /// prior token. This is query-free — no CloudKit Dashboard indexes required —
+    /// which is why every Circle record type loads without schema setup.
+    /// Pages internally until CloudKit reports no more changes.
+    nonisolated func fetchZoneChanges(
+        zoneID: CKRecordZone.ID,
+        in db: CKDatabase,
+        since startToken: CKServerChangeToken?
+    ) async throws -> ZoneChanges {
+        var result = ZoneChanges(token: startToken)
+        var moreComing = true
+        while moreComing {
+            let page = try await fetchZoneChangesPage(zoneID: zoneID, in: db, since: result.token)
+            result.changedRecords += page.changedRecords
+            result.deletedRecordIDs += page.deletedRecordIDs
+            result.token = page.token
+            moreComing = page.moreComing
+        }
+        return result
+    }
+
+    private nonisolated func fetchZoneChangesPage(
+        zoneID: CKRecordZone.ID,
+        in db: CKDatabase,
+        since startToken: CKServerChangeToken?
+    ) async throws -> (changedRecords: [CKRecord], deletedRecordIDs: [CKRecord.ID], token: CKServerChangeToken?, moreComing: Bool) {
+        try await withCheckedThrowingContinuation { continuation in
+            var changed: [CKRecord] = []
+            var deleted: [CKRecord.ID] = []
+            var token: CKServerChangeToken? = startToken
+            var moreComing = false
+
+            let config = CKFetchRecordZoneChangesOperation.ZoneConfiguration()
+            config.previousServerChangeToken = startToken
+            let op = CKFetchRecordZoneChangesOperation(
+                recordZoneIDs: [zoneID],
+                configurationsByRecordZoneID: [zoneID: config]
+            )
+            op.recordWasChangedBlock = { _, recordResult in
+                if case .success(let record) = recordResult { changed.append(record) }
+            }
+            op.recordWithIDWasDeletedBlock = { recordID, _ in
+                deleted.append(recordID)
+            }
+            op.recordZoneFetchResultBlock = { _, zoneResult in
+                if case .success(let success) = zoneResult {
+                    token = success.serverChangeToken
+                    moreComing = success.moreComing
+                }
+            }
+            op.fetchRecordZoneChangesResultBlock = { overall in
+                switch overall {
+                case .success:
+                    continuation.resume(returning: (changed, deleted, token, moreComing))
+                case .failure(let error):
+                    continuation.resume(throwing: error)
+                }
+            }
+            db.add(op)
+        }
+    }
+
+    // MARK: - Subscriptions
+
+    /// Register a silent-push subscription for a zone so CloudKit notifies this
+    /// device whenever a friend changes anything in the Circle. Idempotent —
+    /// re-saving an existing subscription just updates it.
+    nonisolated func ensureZoneSubscription(zoneID: CKRecordZone.ID, in db: CKDatabase) async throws {
+        let subscription = CKRecordZoneSubscription(
+            zoneID: zoneID,
+            subscriptionID: "tally-zone-\(zoneID.zoneName)"
+        )
+        let info = CKSubscription.NotificationInfo()
+        info.shouldSendContentAvailable = true // silent push — no alert, no permission prompt
+        subscription.notificationInfo = info
+        _ = try await db.modifySubscriptions(saving: [subscription], deleting: [])
+    }
+
+    /// Subscribe to public-DB records addressed to me (friend requests +
+    /// reciprocals, group/DM invites, unfriend notifications), so a silent push
+    /// wakes the app the instant one is written — closing the "they see me but
+    /// I don't see them" lag without waiting for the next poll. Idempotent
+    /// (fixed subscription IDs). Silent (content-available) so no permission
+    /// prompt. Additive: the 2s poll remains the fallback if push doesn't land.
+    ///
+    /// Requires `toUserRecordName` to be Queryable in the CloudKit schema for
+    /// each type (it already is — the inbox polling queries the same field). No
+    /// new schema deploy needed; subscriptions are created at runtime.
+    nonisolated func ensureInboxSubscriptions(userRecordName: String) async throws {
+        let db = container.publicCloudDatabase
+        // Record-type names match the CloudKit schema.
+        let recordTypes = ["FriendRequest", "GroupInvite", "UnfriendNotification"]
+        let predicate = NSPredicate(format: "toUserRecordName == %@", userRecordName)
+        let subscriptions: [CKSubscription] = recordTypes.map { type in
+            let sub = CKQuerySubscription(
+                recordType: type,
+                predicate: predicate,
+                subscriptionID: "tally-inbox-\(type)",
+                options: [.firesOnRecordCreation]
+            )
+            let info = CKSubscription.NotificationInfo()
+            info.shouldSendContentAvailable = true
+            sub.notificationInfo = info
+            return sub
+        }
+        _ = try await db.modifySubscriptions(saving: subscriptions, deleting: [])
+    }
 }
 
 enum CKClientError: LocalizedError {

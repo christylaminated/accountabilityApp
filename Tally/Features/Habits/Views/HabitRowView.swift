@@ -1,23 +1,24 @@
 import SwiftUI
 
 struct HabitRowView: View {
+    @Environment(\.tallyAccent) private var tallyAccent
     @Environment(AppState.self) private var appState
     let habit: Habit
 
     private var isDone: Bool {
-        appState.habitStore.isCompleted(habit: habit, on: .now)
+        appState.personalStore.isCompleted(habit: habit, on: .now)
     }
 
     private var streak: Int {
         StreakCalculator.currentStreak(
-            completions: appState.habitStore.completionDates(habit: habit),
+            completions: appState.personalStore.completionDates(habit: habit),
             habitCreatedAt: habit.createdAt
         )
     }
 
     private var longest: Int {
         StreakCalculator.longestStreak(
-            completions: appState.habitStore.completionDates(habit: habit),
+            completions: appState.personalStore.completionDates(habit: habit),
             habitCreatedAt: habit.createdAt
         )
     }
@@ -25,14 +26,23 @@ struct HabitRowView: View {
     var body: some View {
         HStack(spacing: 12) {
             CheckboxButton(isChecked: isDone, isEditable: true) {
-                _ = appState.habitStore.toggle(habit: habit, on: .now)
+                _ = appState.personalStore.toggle(habit: habit, on: .now)
             }
             VStack(alignment: .leading, spacing: 4) {
-                Text(habit.title).font(.body.weight(.medium))
+                HStack(spacing: 6) {
+                    Text(habit.title).font(.body.weight(.medium))
+                    if habit.privacy == .private {
+                        Image(systemName: "lock.fill")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
                 HStack(spacing: 12) {
                     Label("\(streak)", systemImage: "flame.fill")
-                        .foregroundStyle(streak > 0 ? Color.tallyAccent : .secondary)
+                        .symbolRenderingMode(.monochrome)
+                        .foregroundStyle(streak > 0 ? tallyAccent : .secondary)
                     Label("\(longest)", systemImage: "trophy.fill")
+                        .symbolRenderingMode(.monochrome)
                         .foregroundStyle(.secondary)
                 }
                 .font(.caption.monospacedDigit())
@@ -44,12 +54,12 @@ struct HabitRowView: View {
         .clipShape(RoundedRectangle(cornerRadius: 14))
         .contextMenu {
             Button(role: .destructive) {
-                appState.habitStore.delete(habit: habit)
+                appState.personalStore.delete(habit: habit)
             } label: {
                 Label("Delete", systemImage: "trash")
             }
             Button {
-                appState.habitStore.archive(habit: habit)
+                appState.personalStore.archive(habit: habit)
             } label: {
                 Label("Archive", systemImage: "archivebox")
             }

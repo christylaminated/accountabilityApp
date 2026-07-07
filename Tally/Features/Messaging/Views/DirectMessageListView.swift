@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct DirectMessageListView: View {
+    @Environment(\.tallyAccent) private var tallyAccent
     @Environment(AppState.self) private var appState
 
     var body: some View {
@@ -14,7 +15,7 @@ struct DirectMessageListView: View {
                     }
                     .buttonStyle(.plain)
 
-                    if !appState.otherMembers.isEmpty {
+                    if !appState.circleStore.otherMembers.isEmpty {
                         Text("DIRECT MESSAGES")
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(.secondary)
@@ -23,11 +24,11 @@ struct DirectMessageListView: View {
                             .padding(.horizontal, 4)
                     }
 
-                    ForEach(appState.otherMembers) { profile in
+                    ForEach(appState.circleStore.otherMembers) { member in
                         NavigationLink {
-                            DirectMessageThreadView(otherUserID: profile.id)
+                            DirectMessageThreadView(otherUserID: member.userID)
                         } label: {
-                            DMThreadRow(otherUser: profile)
+                            DMThreadRow(otherUser: member)
                         }
                         .buttonStyle(.plain)
                     }
@@ -36,12 +37,14 @@ struct DirectMessageListView: View {
                 .padding(.top, 8)
             }
             .background(Color.tallyCanvas)
+            .refreshable { await appState.refreshCircleData() }
             .navigationTitle("Messages")
         }
     }
 }
 
 private struct FeedRow: View {
+    @Environment(\.tallyAccent) private var tallyAccent
     @Environment(AppState.self) private var appState
 
     var body: some View {
@@ -49,15 +52,14 @@ private struct FeedRow: View {
             Image(systemName: "bubble.left.and.bubble.right.fill")
                 .font(.system(size: 18, weight: .medium))
                 .frame(width: 44, height: 44)
-                .foregroundStyle(Color.tallyAccent)
-                .background(Color.tallyAccent.opacity(0.15))
+                .foregroundStyle(tallyAccent)
+                .background(tallyAccent.opacity(0.15))
                 .clipShape(Circle())
             VStack(alignment: .leading, spacing: 2) {
                 Text("Circle feed")
                     .font(.body.weight(.semibold))
                     .foregroundStyle(.primary)
-                let last = appState.messageStore.feed(circleID: appState.activeCircleID).last
-                Text(last?.body ?? "No messages yet")
+                Text(appState.circleStore.feed.last?.body ?? "No messages yet")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -74,22 +76,21 @@ private struct FeedRow: View {
 }
 
 private struct DMThreadRow: View {
+    @Environment(\.tallyAccent) private var tallyAccent
     @Environment(AppState.self) private var appState
-    let otherUser: Profile
+    let otherUser: CircleMember
 
     private var unread: Int {
-        appState.messageStore.unreadDMCount(
+        appState.circleStore.unreadDMCount(
             for: appState.currentUserID,
-            fromUser: otherUser.id,
-            circleID: appState.activeCircleID
+            fromUser: otherUser.userID
         )
     }
 
     private var lastMessage: DirectMessage? {
-        appState.messageStore.dmThread(
-            circleID: appState.activeCircleID,
+        appState.circleStore.dmThread(
             between: appState.currentUserID,
-            and: otherUser.id
+            and: otherUser.userID
         ).last
     }
 
@@ -117,9 +118,9 @@ private struct DMThreadRow: View {
                     if unread > 0 {
                         Text("\(unread)")
                             .font(.caption.weight(.bold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Color.tallyOnAccent)
                             .padding(.horizontal, 7).padding(.vertical, 2)
-                            .background(Color.tallyAccent)
+                            .background(tallyAccent)
                             .clipShape(Capsule())
                     }
                 }

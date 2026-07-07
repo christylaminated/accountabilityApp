@@ -5,6 +5,7 @@ import SwiftUI
 /// dropped on submit. "Continue" is always enabled — submitting zero habits is
 /// the same as skipping (user can add later from the Habits tab).
 struct HabitsSetupView: View {
+    @Environment(\.tallyAccent) private var tallyAccent
     /// Invoked when the user taps Continue. Receives the entered titles in order.
     let onContinue: ([String]) async -> Void
 
@@ -40,7 +41,7 @@ struct HabitsSetupView: View {
             Text("What do you want to track?")
                 .font(.system(.largeTitle, design: .rounded, weight: .bold))
                 .multilineTextAlignment(.center)
-            Text("Add a few daily habits to start. You can edit, archive, or add more anytime.")
+            Text("If you were the person you want to be, what would you do daily? You can edit or add more anytime.")
                 .font(.system(.body, design: .rounded))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -53,7 +54,7 @@ struct HabitsSetupView: View {
             ForEach(titles.indices, id: \.self) { i in
                 HStack(spacing: 10) {
                     Image(systemName: "circle")
-                        .foregroundStyle(Color.tallyAccent.opacity(0.6))
+                        .foregroundStyle(tallyAccent.opacity(0.6))
                         .font(.title3)
                     TextField(placeholder(for: i), text: $titles[i])
                         .focused($focusedIndex, equals: i)
@@ -88,7 +89,7 @@ struct HabitsSetupView: View {
         } label: {
             Label("Add another habit", systemImage: "plus")
                 .font(.system(.subheadline, design: .rounded, weight: .medium))
-                .foregroundStyle(Color.tallyAccent)
+                .foregroundStyle(tallyAccent)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 4)
         }
@@ -103,14 +104,14 @@ struct HabitsSetupView: View {
                 if isSubmitting {
                     ProgressView()
                         .progressViewStyle(.circular)
-                        .tint(.white)
+                        .tint(Color.tallyOnAccent)
                 }
                 Text(nonEmpty.isEmpty ? "Skip for now" : "Continue")
                     .font(.system(.body, design: .rounded, weight: .semibold))
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 16)
-            .background(nonEmpty.isEmpty ? Color.tallyCard : Color.tallyAccent)
+            .background(nonEmpty.isEmpty ? Color.tallyCard : tallyAccent)
             .foregroundStyle(nonEmpty.isEmpty ? Color.primary : .white)
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }

@@ -34,3 +34,11 @@ extension CKRecordConvertible {
         return record
     }
 }
+
+/// A record that lives *inside a Circle's CloudKit zone* — habits, completions,
+/// goals, messages, members. `recordName` is its stable identifier within that
+/// zone. All such records parent to the Circle root so they ride the CKShare and
+/// stay visible to every participant.
+protocol ZoneRecord: CKRecordConvertible {
+    var recordName: String { get }
+}

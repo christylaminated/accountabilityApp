@@ -13,11 +13,6 @@ settings:
   base:
     SWIFT_VERSION: "5.9"
     IPHONEOS_DEPLOYMENT_TARGET: "17.0"
-    GENERATE_INFOPLIST_FILE: YES
-    INFOPLIST_KEY_UILaunchScreen_Generation: YES
-    INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
-    INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
-    INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: "UIInterfaceOrientationPortrait"
     TARGETED_DEVICE_FAMILY: "1,2"
 
 targets:
@@ -26,6 +21,33 @@ targets:
     platform: iOS
     sources:
       - path: Tally
+    # Explicit Info.plist (XcodeGen auto-disables GENERATE_INFOPLIST_FILE when
+    # `info` is set). This way we can guarantee top-level CFBundleIconName,
+    # which App Store Connect requires for asset-catalog icons but Xcode's
+    # auto-generator nests inside CFBundleIcons.
+    info:
+      path: Tally/Info.plist
+      properties:
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        CFBundleIconName: AppIcon
+        LSRequiresIPhoneOS: YES
+        UILaunchScreen: {}
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: NO
+        UIApplicationSupportsIndirectInputEvents: YES
+        # Portrait-only on both devices — the UI is phone-shaped. Setting
+        # UIRequiresFullScreen lets us declare fewer than all four orientations
+        # on iPad without Xcode warning; trade-off is no Split View on iPad.
+        UIRequiresFullScreen: YES
+        UISupportedInterfaceOrientations~iphone:
+          - UIInterfaceOrientationPortrait
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+        # Wakes the app for silent CloudKit pushes so friends' changes
+        # sync in the background.
+        UIBackgroundModes:
+          - remote-notification
     entitlements:
       path: Tally/Tally.entitlements
       properties:
@@ -33,12 +55,26 @@ targets:
           - iCloud.com.christylam.tally
         com.apple.developer.icloud-services:
           - CloudKit
+        # Required for CloudKit push subscriptions (live updates between friends).
+        aps-environment: development
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.christylam.tally
         PRODUCT_NAME: Tally
         ENABLE_PREVIEWS: YES
         SWIFT_EMIT_LOC_STRINGS: YES
+        DEVELOPMENT_TEAM: 2UM67KP3T9
+        # Required by TestFlight / App Store Connect.
+        # MARKETING_VERSION       → CFBundleShortVersionString ("1.0")
+        # CURRENT_PROJECT_VERSION → CFBundleVersion (build number; bump each upload)
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        # App icon — single 1024x1024 PNG in Assets.xcassets/AppIcon.appiconset;
+        # Xcode 14+ auto-generates 120/152/76/etc. sizes from it. The two
+        # build settings below tell the asset compiler which set is THE app
+        # icon and emit CFBundleIconName into the generated Info.plist.
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        INFOPLIST_KEY_CFBundleIconName: AppIcon
 
   TallyTests:
     type: bundle.unit-test
@@ -51,3 +87,4 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.christylam.tally.tests
         GENERATE_INFOPLIST_FILE: YES
+        DEVELOPMENT_TEAM: 2UM67KP3T9

@@ -1,33 +1,100 @@
 import SwiftUI
-#if canImport(UIKit)
-import UIKit
-#endif
+
+// MARK: - Themed color accessors
 
 extension Color {
-    /// Soft dusty pink — primary accent.
-    static let tallyAccent = Color(red: 245/255, green: 166/255, blue: 193/255)
+    /// Accent color from the currently-selected theme.
+    static var tallyAccent: Color {
+        ThemeManager.shared.current.accent
+    }
 
-    #if canImport(UIKit)
-    /// Page background. Adapts to light/dark via system color.
-    static let tallyCanvas = Color(UIColor.systemGroupedBackground)
+    /// Page background. Theme-aware — pure white in Classic, warm cream in
+    /// Sage, etc. Replaces the system-grouped-background look from earlier.
+    static var tallyCanvas: Color {
+        ThemeManager.shared.current.background
+    }
 
-    /// Card / surface inside the canvas.
-    static let tallyCard = Color(UIColor.secondarySystemGroupedBackground)
+    /// Surface used for cards, rows, and elevated content. Theme-aware.
+    static var tallyCard: Color {
+        ThemeManager.shared.current.card
+    }
 
-    /// Subtle separator.
-    static let tallyDivider = Color(UIColor.separator)
+    /// Subtle separator color. Derived from theme's secondary text at low
+    /// opacity so it always reads as a quiet hairline against the canvas.
+    static var tallyDivider: Color {
+        ThemeManager.shared.current.textSecondary.opacity(0.10)
+    }
 
-    static let tallyHeat0 = Color(UIColor.tertiarySystemFill)
-    #else
-    static let tallyCanvas = Color.gray.opacity(0.08)
-    static let tallyCard = Color.white
-    static let tallyDivider = Color.gray.opacity(0.3)
-    static let tallyHeat0 = Color.gray.opacity(0.1)
-    #endif
+    /// Primary content color (habit names, friend names, the user's name).
+    static var tallyTextPrimary: Color {
+        ThemeManager.shared.current.textPrimary
+    }
 
-    // Heatmap (history calendar): accent pink with increasing opacity.
-    static let tallyHeat1 = Color(red: 245/255, green: 166/255, blue: 193/255).opacity(0.25)
-    static let tallyHeat2 = Color(red: 245/255, green: 166/255, blue: 193/255).opacity(0.50)
-    static let tallyHeat3 = Color(red: 245/255, green: 166/255, blue: 193/255).opacity(0.75)
-    static let tallyHeat4 = Color(red: 245/255, green: 166/255, blue: 193/255)
+    /// Secondary content color (timestamps, helper text, section headers).
+    static var tallyTextSecondary: Color {
+        ThemeManager.shared.current.textSecondary
+    }
+
+    /// Errors, warnings, overdue badges. Consistent across all themes.
+    static var tallyDestructive: Color {
+        ThemeManager.shared.current.destructive
+    }
+
+    /// Foreground color to render ON TOP of an accent-colored surface
+    /// (message bubble for current user, accent-filled buttons, heatmap
+    /// high-completion cells). Flips luminance with the accent in Classic
+    /// so the text stays readable in both light and dark mode.
+    static var tallyOnAccent: Color {
+        ThemeManager.shared.current.onAccent
+    }
+
+    /// Color applied to a completed item (checkbox fill, completed-state
+    /// tint). Distinct from accent so themes can vary (e.g., classic uses
+    /// the same near-black for both, sage uses sage green).
+    static var tallyCompleted: Color {
+        ThemeManager.shared.current.completed
+    }
+
+    /// Streak emphasis color. Slightly deeper than accent in colored themes;
+    /// identical to accent in Classic.
+    static var tallyStreak: Color {
+        ThemeManager.shared.current.streak
+    }
+
+    // Heatmap (history calendar): derived from the current accent so they
+    // follow the theme too.
+    static var tallyHeat0: Color { tallyCard }
+    static var tallyHeat1: Color { tallyAccent.opacity(0.25) }
+    static var tallyHeat2: Color { tallyAccent.opacity(0.50) }
+    static var tallyHeat3: Color { tallyAccent.opacity(0.75) }
+    static var tallyHeat4: Color { tallyAccent }
+}
+
+// MARK: - SwiftUI environment plumbing
+
+/// Carries the whole current `TallyTheme` so views can pattern-match on
+/// it (e.g., to conditionally render mini-previews in different palettes).
+/// Most views should just read the `Color.tally*` statics — they observe
+/// `ThemeManager.shared` and re-render automatically.
+private struct TallyThemeEnvironmentKey: EnvironmentKey {
+    static let defaultValue: TallyTheme = .classic
+}
+
+/// Kept for back-compat with the many views that already read
+/// `@Environment(\.tallyAccent)`. New code can also read it; both stay in
+/// sync because we inject it from the same `ThemeManager.current.accent`.
+private struct TallyAccentEnvironmentKey: EnvironmentKey {
+    static let defaultValue: Color = TallyTheme.classic.accent
+}
+
+extension EnvironmentValues {
+    var tallyTheme: TallyTheme {
+        get { self[TallyThemeEnvironmentKey.self] }
+        set { self[TallyThemeEnvironmentKey.self] = newValue }
+    }
+
+    var tallyAccent: Color {
+        get { self[TallyAccentEnvironmentKey.self] }
+        set { self[TallyAccentEnvironmentKey.self] = newValue }
+    }
 }

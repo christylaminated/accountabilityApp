@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct MessageComposerView: View {
+    @Environment(\.tallyAccent) private var tallyAccent
     @Binding var text: String
     let onSend: () -> Void
 
@@ -21,8 +22,8 @@ struct MessageComposerView: View {
                 Image(systemName: "arrow.up")
                     .font(.body.weight(.semibold))
                     .frame(width: 36, height: 36)
-                    .background(disabled ? Color.gray.opacity(0.3) : Color.tallyAccent)
-                    .foregroundStyle(.white)
+                    .background(disabled ? Color.tallyTextSecondary.opacity(0.3) : tallyAccent)
+                    .foregroundStyle(Color.tallyOnAccent)
                     .clipShape(Circle())
             }
             .disabled(disabled)

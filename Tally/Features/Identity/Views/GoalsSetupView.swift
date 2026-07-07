@@ -1,8 +1,11 @@
 import SwiftUI
 
-/// Third step of onboarding: weekly goals.
+/// Third step of onboarding: today's to-do list.
 /// Same UX pattern as HabitsSetupView. Empty fields are skipped on submit.
+/// Entries are persisted as `.day`-period goals dated to today, so they
+/// land directly in the dashboard's "TO DO TODAY" section.
 struct GoalsSetupView: View {
+    @Environment(\.tallyAccent) private var tallyAccent
     let onContinue: ([String]) async -> Void
 
     @State private var titles: [String] = ["", ""]
@@ -34,10 +37,10 @@ struct GoalsSetupView: View {
 
     private var header: some View {
         VStack(spacing: 10) {
-            Text("And this week?")
+            Text("What's on your plate today?")
                 .font(.system(.largeTitle, design: .rounded, weight: .bold))
                 .multilineTextAlignment(.center)
-            Text("One-off intentions for the next seven days. Resets every Monday.")
+            Text("Add a few to-dos to get done today. You can edit or add more anytime.")
                 .font(.system(.body, design: .rounded))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -50,7 +53,7 @@ struct GoalsSetupView: View {
             ForEach(titles.indices, id: \.self) { i in
                 HStack(spacing: 10) {
                     Image(systemName: "flag")
-                        .foregroundStyle(Color.tallyAccent.opacity(0.6))
+                        .foregroundStyle(tallyAccent.opacity(0.6))
                         .font(.title3)
                     TextField(placeholder(for: i), text: $titles[i], axis: .vertical)
                         .lineLimit(1...3)
@@ -76,9 +79,9 @@ struct GoalsSetupView: View {
         Button {
             appendField()
         } label: {
-            Label("Add another goal", systemImage: "plus")
+            Label("Add another", systemImage: "plus")
                 .font(.system(.subheadline, design: .rounded, weight: .medium))
-                .foregroundStyle(Color.tallyAccent)
+                .foregroundStyle(tallyAccent)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 4)
         }
@@ -93,14 +96,14 @@ struct GoalsSetupView: View {
                 if isSubmitting {
                     ProgressView()
                         .progressViewStyle(.circular)
-                        .tint(.white)
+                        .tint(Color.tallyOnAccent)
                 }
                 Text(nonEmpty.isEmpty ? "Skip for now" : "Done")
                     .font(.system(.body, design: .rounded, weight: .semibold))
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 16)
-            .background(nonEmpty.isEmpty ? Color.tallyCard : Color.tallyAccent)
+            .background(nonEmpty.isEmpty ? Color.tallyCard : tallyAccent)
             .foregroundStyle(nonEmpty.isEmpty ? Color.primary : .white)
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
@@ -125,7 +128,7 @@ struct GoalsSetupView: View {
     // MARK: -
 
     private func placeholder(for i: Int) -> String {
-        let examples = ["Finish reading 'Atomic Habits'", "Call Mom", "Plan weekend hike", "Sign up for the 10k"]
+        let examples = ["Reply to Alex", "Buy groceries", "30 min deep work", "Plan tomorrow"]
         return examples[i % examples.count]
     }
 

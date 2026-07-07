@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct MessageBubbleView: View {
+    @Environment(\.tallyAccent) private var tallyAccent
     let text: String
     let timestamp: Date
     let isMe: Bool
@@ -14,8 +15,8 @@ struct MessageBubbleView: View {
                 Image(systemName: senderSymbol)
                     .font(.system(size: 13, weight: .medium))
                     .frame(width: 28, height: 28)
-                    .foregroundStyle(Color.tallyAccent)
-                    .background(Color.tallyAccent.opacity(0.15))
+                    .foregroundStyle(tallyAccent)
+                    .background(tallyAccent.opacity(0.15))
                     .clipShape(Circle())
             }
 
@@ -29,8 +30,12 @@ struct MessageBubbleView: View {
                 Text(text)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
-                    .background(isMe ? Color.tallyAccent : Color.tallyCard)
-                    .foregroundStyle(isMe ? .white : .primary)
+                    .background(isMe ? tallyAccent : Color.tallyCard)
+                    // `tallyOnAccent` (not literal .white) so the text
+                    // contrasts with the bubble in both light AND dark mode
+                    // — Classic's accent flips to near-white in dark mode,
+                    // which made white-on-white invisible.
+                    .foregroundStyle(isMe ? Color.tallyOnAccent : Color.tallyTextPrimary)
                     .clipShape(RoundedRectangle(cornerRadius: 16))
                 Text(timestamp, format: .dateTime.hour().minute())
                     .font(.caption2)
