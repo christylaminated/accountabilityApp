@@ -279,17 +279,23 @@ struct FriendLifecycleTests {
     /// can't delete. After delete + re-onboard (same iCloud) that stale
     /// reciprocal must NOT be auto-accepted, because I never re-requested them.
     @Test func staleReciprocalFromHiddenFriend_isNotResurrected() async {
+        // Scenario: I deleted my account (resetAt), and a leftover reciprocal
+        // from a former friend predates that reset.
+        let resetAt = Date()
+        LocalCache.save(resetAt, forKey: LocalCacheKey.accountResetAt)
+
         let personal = repo(friendOwners: [])      // their zone already gone from view
         let store = PersonalStore(repository: personal)
         await store.activate(currentUserID: "me")
         store.dropFriendLocally(userID: "alice")   // alice is hidden (removed)
         #expect(store.isLocallyUnfriended(userID: "alice"))
 
-        // A leftover reciprocal from alice, with NO outgoing request from me.
+        // A leftover reciprocal from alice, sent BEFORE my reset, no outgoing req.
         let stale = FriendRequest(
             id: UUID(), fromUserRecordName: "alice", toUserRecordName: "me",
             shareURL: "https://www.icloud.com/share/stale", fromDisplayName: "Alice",
-            fromUsername: "alice", fromAvatarSymbol: "leaf", sentAt: Date(), isReciprocal: true
+            fromUsername: "alice", fromAvatarSymbol: "leaf",
+            sentAt: resetAt.addingTimeInterval(-3600), isReciprocal: true
         )
         let app = appState(
             personal: personal, store: store,

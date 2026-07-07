@@ -151,7 +151,8 @@ enum LocalCacheKey {
         declinedFriendRequestIDs, declinedGroupInviteIDs,
         locallyUnfriendedIDs, pendingReciprocalSenders,
         processedUnfriendNotificationIDs, pendingUnfriendTargets,
-        pendingGroupInvites, accountResetAt, pendingDirectMessages,
+        pendingGroupInvites, accountResetAt,
+        pendingDirectMessages, pendingCircleMessages,
         hasSentFirstFriendRequest, inviteBannerDismissCount
     ]
 }

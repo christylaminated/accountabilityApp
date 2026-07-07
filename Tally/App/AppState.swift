@@ -1057,6 +1057,31 @@ final class AppState {
         await refreshFriendRequests()
     }
 
+    /// Display name for the OTHER person in a DM, resilient to the friend not
+    /// yet being in our friends list (the asymmetry window). Crucially it never
+    /// returns our OWN name: `circle.name` is the peer's name only when WE
+    /// created the DM — for the recipient it's their own name, which is the
+    /// "it shows my name instead of the sender's" bug.
+    func dmPeerDisplayName(for circle: TallyCircle) -> String {
+        let peerID = circle.dmPeer(forViewer: currentUserID)
+        // 1. Live friend profile — best source.
+        if let peerID, let friend = personalStore.friend(id: peerID) {
+            return friend.displayName
+        }
+        // 2. The active circle's member records carry both participants' names,
+        //    so this works even before the friendship is symmetric.
+        if let peerID, let member = circleStore.members.first(where: { $0.userID == peerID }) {
+            return member.displayName
+        }
+        // 3. Only trust `circle.name` when WE own the DM (then it's the peer's
+        //    name we set at creation). Never for the recipient.
+        if currentUserID == circle.ownerID {
+            return circle.name
+        }
+        // 4. Neutral fallback — never our own name.
+        return "Direct message"
+    }
+
     /// Recipient accepts an incoming friend request.
     ///
     /// 1. Fetch the sender's share metadata from the URL embedded in the
@@ -1875,17 +1900,20 @@ final class AppState {
             // without the recipient's data.
             for r in incoming where r.isReciprocal {
                 NSLog("[Tally] reciprocal: processing from=\(r.fromUserRecordName) id=\(r.id)")
-                // Reject STALE reciprocals. A reciprocal from someone who is
-                // currently hidden (unfriended, or erased on account deletion)
-                // is only legitimate if I've actually re-requested them — i.e.
-                // they're in `myRequestTargets`. With no matching outgoing
-                // request, this is a leftover from a prior friendship; auto-
-                // accepting it (and clearing their hide below) would resurrect
-                // a friend I removed — exactly the "old friends come back after
-                // I delete my account" bug. Decline it so we stop reprocessing.
+                // Reject STALE reciprocals — but ONLY genuinely old ones. A
+                // reciprocal from someone hidden (unfriended/erased) with no
+                // matching outgoing request is suspicious, BUT if it was sent
+                // AFTER my last account reset it's part of a fresh handshake
+                // (e.g. they re-sent a request and I accepted), and suppressing
+                // it is the "I accepted them but they never see me / it stays
+                // pending on their end" bug. So only decline reciprocals that
+                // PREDATE my reset — those are the true leftovers from a prior
+                // friendship. `accountResetAt` is `.distantPast` for users who
+                // never deleted, so this never fires for them.
                 if personalStore.isLocallyUnfriended(userID: r.fromUserRecordName),
-                   !myRequestTargets.contains(r.fromUserRecordName) {
-                    NSLog("[Tally] reciprocal: stale reciprocal from hidden \(r.fromUserRecordName) with no outgoing request — declining, not resurrecting")
+                   !myRequestTargets.contains(r.fromUserRecordName),
+                   r.sentAt <= accountResetAt {
+                    NSLog("[Tally] reciprocal: stale pre-reset reciprocal from hidden \(r.fromUserRecordName) — declining, not resurrecting")
                     markRequestDeclined(r)
                     continue
                 }

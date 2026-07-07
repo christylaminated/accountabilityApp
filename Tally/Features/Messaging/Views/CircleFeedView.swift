@@ -23,10 +23,10 @@ struct CircleFeedView: View {
     /// without us having to rewrite the Circle's `name` field every time.
     private var titleText: String {
         guard let circle = shownCircle else { return "Circle" }
-        if circle.kind == .dm,
-           let peerID = circle.dmPeer(forViewer: appState.currentUserID),
-           let peer = appState.personalStore.friend(id: peerID) {
-            return peer.displayName
+        if circle.kind == .dm {
+            // Resilient to the friend not being in our list yet, and never
+            // falls back to our own name (see AppState.dmPeerDisplayName).
+            return appState.dmPeerDisplayName(for: circle)
         }
         return circle.name
     }

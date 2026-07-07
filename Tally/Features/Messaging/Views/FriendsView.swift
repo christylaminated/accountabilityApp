@@ -425,7 +425,7 @@ private struct DMRow: View {
                 size: 44
             )
             VStack(alignment: .leading, spacing: 2) {
-                Text(peer?.displayName ?? circle.name)
+                Text(peer?.displayName ?? appState.dmPeerDisplayName(for: circle))
                     .font(.body.weight(isUnread ? .bold : .semibold))
                     .foregroundStyle(.primary)
                 Text(isUnread ? "New message" : "Direct message")
