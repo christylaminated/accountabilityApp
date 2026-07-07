@@ -1,155 +1,171 @@
-# Smoke test: friend lifecycle (manual, two accounts)
+# Smoke test: friends, messaging & account lifecycle (manual, two accounts)
 
-These flows depend on real CloudKit sharing across two iCloud users and cannot
-be exercised by the unit tests (which use in-memory mocks). Run this checklist
-on a real build before shipping changes to friending, unfriend, or account
-deletion.
+These flows depend on real CloudKit sharing across two iCloud users and can't be
+exercised by the unit tests (which use in-memory mocks). Run this on a real build
+before shipping changes to friending, messaging, unfriend, or account deletion.
 
 ## Setup
 
-- **Two devices/simulators**, each signed into a **different iCloud account**.
-  - Device **A** → iCloud user **Alice**
-  - Device **B** → iCloud user **Bob**
-- Build **40+** installed on both. Same CloudKit environment on both
-  (Development for a dev build, or Production via TestFlight).
-- **Watch the console** (`[Tally]` logs) on both devices — every step below logs
-  what it did, which is the fastest way to see where a flow stalls.
+- **Two real phones** (best — CloudKit sharing is flaky on simulators), each
+  signed into a **different iCloud account**.
+  - Phone **A** → iCloud user **Alice**
+  - Phone **B** → iCloud user **Bob**
+- **Build 46+** installed on both, from the **same** environment:
+  - **Xcode Run** = Development CloudKit.
+  - **TestFlight** = Production CloudKit. Your existing friends live wherever you
+    made them — test in that environment.
+- Optional but useful: watch `[Tally]` logs in **Console.app** (Mac → Console →
+  pick the phone → filter `Tally`). Works for TestFlight builds too.
 
-> CloudKit is eventually-consistent. "after sync" below means: give it up to
-> ~30s, and foreground each app at least once (background → foreground) to force
-> a refresh. The 6s poll also drives most updates while foregrounded.
-
----
-
-## 1. Add a friend — both directions must see it
-
-1. On **A (Alice)**, send a friend request to **Bob**.
-2. On **B (Bob)**, the request appears. Accept it.
-3. **Expect (B):** Alice appears in Bob's friends list / leaderboard.
-4. **Expect (A):** within ~30s (foreground A if needed), Bob appears in Alice's
-   friends list too.
-
-✅ Pass: **both** see each other.
-❌ Fail: only one side sees the other after a minute of both apps foregrounded
-(if so, capture both consoles — look for `sendReciprocalShareBack` /
-`reconcileFriendSymmetry` lines).
+> **Timing.** The app polls every ~2s while foregrounded, and a silent **push**
+> should make friend/DM updates near-instant even backgrounded. "after sync"
+> below means: give it a few seconds; if nothing, foreground each app once.
 
 ---
 
-## 2. Unfriend — both apps drop the friendship
+## 1. Add a friend — both sides see each other (fast)
 
-Precondition: Alice & Bob are mutual friends (from test 1).
+1. On **A**, send Bob a friend request.
+2. On **B**, the request appears → Accept.
+3. **Expect (B):** Alice appears in Bob's friends list.
+4. **Expect (A):** Bob appears in Alice's list within ~1–2s (near-instant if push
+   fired; a foreground forces it).
 
-1. On **A (Alice)**, unfriend Bob.
-2. **Expect (A):** Bob disappears from Alice's list immediately.
-3. **Expect (B):** within ~30s (foreground B), Alice disappears from Bob's list.
-4. **Expect:** neither can see the other's data. Console on A shows
-   `unfriend: left friend's share server-side`; console on B shows
-   `processUnfriendNotifications: applying unfriend`.
-
-✅ Pass: both lists no longer show the other, and neither side reappears on a
-later foreground.
-❌ Fail: Bob still sees Alice after a minute foregrounded, or Alice reappears.
+✅ Pass: **both** see each other, quickly.
+❌ Fail: only one side sees the other after both apps are foregrounded ~30s.
 
 ---
 
-## 3. Delete account + reinstall — clean slate, no ghost friends
+## 2. Cancel (retract) a friend request
 
-This is the important one. Precondition: Alice has at least one friend (Bob)
-**and** is a member of at least one circle owned by Bob.
+1. On **A**, send Bob a request but **do not** accept on B.
+2. On **A**, open **Find a friend** → search Bob → the card shows **"Request
+   pending"** with a **Cancel request** button → tap it.
+3. **Expect (A):** the card flips back to **"Send friend request."**
+4. **Expect (B):** within a few seconds, the request **disappears** from Bob's
+   friend-requests inbox.
 
-1. On **B (Bob)**, create a circle and invite **Alice**; Alice accepts so she's a
-   member of Bob's circle.
-2. On **A (Alice)**, **delete account** (Settings → delete).
-3. **Expect (B):** within ~30s, Alice disappears from Bob's friends list **and**
-   from Bob's circle's member list.
-4. On **A**, **delete the app entirely**, then **reinstall** and sign in with the
-   **same** iCloud account (Alice). Complete onboarding.
-5. **Expect (A):** Alice's friends list is **empty** — Bob does **not** reappear.
-   No ghost friends, no leftover circles.
-
-✅ Pass: reinstalled Alice has zero friends and zero old circles.
-❌ Fail: Bob (or any old friend) reappears after reinstall — capture A's console
-during onboarding and the `deleteAccount` logs from step 2.
-
-> Why this can still lag: a friend's zone leaves Alice's sharedDB only once the
-> server processes the `leaveFriendShare` removal. If you reinstall within a
-> second or two of deleting, give it a moment and relaunch.
+✅ Pass: the request is gone on both sides.
 
 ---
 
-## 4. Self-heal — repair a one-way friendship without going overboard
+## 3. Unfriend — both apps drop it, mutually
 
-Goal: force the "only one of us sees it" state, then confirm the self-heal fixes
-it on launch/foreground — and that it does **not** re-friend someone unfriended.
+Precondition: Alice & Bob are mutual friends.
 
-**Force a half-failed state:** the easiest reproduction is to interrupt the
-reciprocal. On **B (Bob)**, accept Alice's request, then immediately kill the app
-(swipe-close) before it finishes syncing, while toggling Airplane Mode on briefly
-so the reciprocal write fails. Result you want: **Bob sees Alice, Alice does NOT
-see Bob.**
+1. On **A**, unfriend Bob.
+2. **Expect (A):** Bob disappears immediately.
+3. **Expect (B):** within a few seconds, Alice disappears from Bob's list.
+4. **Expect:** neither can see the other's data, and neither reappears on a later
+   foreground. (Console A: `unfriend: left friend's share server-side`;
+   Console B: `processUnfriendNotifications: applying unfriend`.)
+5. **iOS 26 crash check:** the unfriend must **not crash** the app (this is what
+   the exception shim guards — it's runtime-tested, but confirm on-device).
 
-1. Confirm the asymmetry: Bob's list shows Alice; Alice's list does **not** show
-   Bob (give it a minute to rule out plain lag).
-2. On **B (Bob)**, background then foreground the app (or relaunch).
-3. **Expect:** console shows `reconcileFriendSymmetry(...): one-way friend ...
-   re-sending my share` then `repaired ...`.
-4. **Expect (A):** within ~30s, Bob now appears in Alice's list. Symmetric.
+✅ Pass: both lists drop the other, no crash, no reappearance.
+
+---
+
+## 4. Direct messages — auto-appear, send, and survive a crash
+
+Precondition: Alice & Bob are **mutual** friends.
+
+1. On **A**, open Bob's profile → **Message** → send "hi".
+2. **Expect (B):** the DM shows up **in Direct Messages** — **not** as a "request"
+   to accept. (If it shows as a request, the friendship is one-way → see test 6.)
+3. **Expect:** "hi" arrives on B; no **"couldn't send the last message"** error.
+4. **Crash-durability:** on **A**, type a message and hit send, then
+   **immediately force-quit** the app (swipe up) before it confirms. Reopen A and
+   the DM thread → the message should still be there and **go out** (not lost).
+
+✅ Pass: DM lands in Messages (not requests), sends cleanly, and a mid-send
+force-quit doesn't lose it.
+
+---
+
+## 5. Group chat — send and survive a crash
+
+1. On **A**, create a group circle and invite Bob; Bob accepts.
+2. On **A**, send a group message → **Expect (B):** it arrives, no send error.
+3. **Crash-durability:** send a group message on **A**, force-quit before it
+   confirms, reopen → the message should still send.
+
+✅ Pass: group messages send, and a mid-send force-quit doesn't lose them.
+
+---
+
+## 6. Self-heal — repair a one-way friendship, conservatively
+
+Goal: force "only one of us sees it," then confirm it self-corrects.
+
+**Force it:** on **B**, accept Alice's request, then immediately kill the app
+(swipe-close) while briefly toggling Airplane Mode so the reciprocal write fails.
+Target state: **Bob sees Alice, Alice does NOT see Bob.**
+
+1. Confirm the asymmetry (give it a minute to rule out plain lag).
+2. Foreground **both** apps (this is required — each phone repairs only the
+   direction it can see; push should trigger it automatically).
+3. **Expect (A):** Bob now appears within a few seconds.
+   (Console B: `reconcileFriendSymmetry(...): one-way friend ... re-sending`.)
 
 **Do-not-overdo-it checks:**
-- Foreground B several more times. **Expect:** no repeated repair for the same
-  friend in the same session (console logs at most one `repaired` per friend per
-  session). No duplicate/phantom friends appear.
-- Unfriend someone, then foreground. **Expect:** the self-heal does **not**
-  re-add them (console never logs a repair for a hide-listed user).
+- Foreground B several more times → **no** repeated repair for the same friend in
+  a session, no duplicate/phantom friends.
+- Unfriend someone, then foreground → the self-heal must **not** re-add them.
 
-✅ Pass: the one-way friendship becomes mutual after a foreground, with no
-repeated/again-and-again repairs and no resurrection of unfriended people.
+✅ Pass: becomes mutual after both foreground, with no over-repair and no
+resurrection of unfriended people.
 
 ---
 
-## Notes / things beyond this change's scope
+## 7. Delete account — clean slate on re-setup AND reinstall
 
-- **CloudKit schema (action required before TestFlight/Prod):** account deletion
-  now writes `UnfriendNotification.isAccountDeletion` (Int64). Deploy the schema
-  to **Production** in the CloudKit Dashboard before a production build, or those
-  writes fail. (Dev auto-creates the field on first save.)
-- **Self-heal only fixes the direction it can see.** Each device repairs
-  "people I can see who can't see me." The opposite direction is repaired by the
-  *other* device running the same self-heal. So a fully one-way friendship
-  becomes symmetric only after **both** users foreground the app at least once.
-  This is by design (conservative — a device never acts on data it can't see),
-  but worth knowing when diagnosing.
-- **Reinstall cleanliness depends on `leaveFriendShare` landing.** It's now
-  crash-safe (Obj-C exception shim) and best-effort per friend. In the normal
-  case `removeParticipant` succeeds and the zone leaves the sharedDB. Two ways a
-  single friend's zone can still linger (the others are unaffected):
-  network failure on the save, or `removeParticipant` raising an NSException
-  that the shim catches (rare corrupt-share state) — in both cases the removal
-  is skipped and there is **no retry on the delete path** (the account is going
-  away). That one zone would then reappear after a reinstall. If we need to
-  close this fully, the fix is a server-side cleanup the friend's own app runs
-  on receiving the account-deletion signal (it already revokes our access; it
-  would also need to drop our participant slot). Flagging, not fixing, here.
-- **Leftover friend requests are cleaned from both sides.** On delete, your app
-  marks every incoming request/invite addressed to you as dismissed (so they
-  don't resurface in *your* inbox on a same-install re-setup). And when a friend's
-  app processes your unfriend/deletion signal, it deletes the request/invite
-  records *it* created addressed to you — actually removing them from the public
-  DB, so they're gone even if you later fully reinstall. Caveat: that second half
-  needs the other person's app to foreground and process the signal, and it only
-  covers people you were *friends* with (who get notified). A pending request from
-  someone you never befriended could still reappear after a *full reinstall*,
-  because they're never notified to clean it up — flagged as a remaining edge.
-- **Self-heal now only counts `.accepted` participants** as "can see me"
-  (a `.pending`, added-but-not-yet-accepted participant is treated as still
-  needing repair). This is correct but means a friend mid-accept may get one
-  extra reciprocal re-send during the brief pending window — harmless (their app
-  auto-accepts), but expected in logs.
-- **The exception shim can't be unit-tested** (it's behind the app bridging
-  header). Its whole purpose is to stop an iOS 26 crash on
-  `CKShare.removeParticipant`, so verify on a real iOS 26 device that unfriend
-  (test 2) and delete (test 3) never crash mid-operation.
-- **Potential follow-up (not done here):** `deleteAccount` still calls
-  `CKClient.shared` directly, so it has no unit-test coverage. Abstracting
-  `CKClient` behind a protocol would let us test the deletion orchestration.
+Precondition: Alice has ≥1 friend (Bob) and is a member of a circle Bob owns.
+
+1. On **A**, **delete account** (Settings → delete).
+2. **Expect (B):** within a few seconds (foreground B), Alice disappears from
+   Bob's friends list **and** from Bob's circle members.
+3. On **A**, **set up again** with the **same** iCloud account (do **not** delete
+   the app). Complete onboarding.
+4. **Expect (A):** friends list **empty**; **no old friend requests** in the
+   inbox; no ghost circles.
+5. **Reinstall variant:** delete the **app**, reinstall, sign in as Alice.
+   **Expect (A):** still a clean slate (see caveats for the timing dependency).
+
+✅ Pass: after delete + re-setup, Alice has zero friends, zero old requests, zero
+old circles — and the same after a full reinstall (given the other device has
+processed the deletion signal).
+
+---
+
+## Status of known limitations (read before interpreting a "fail")
+
+- **Push delivery is unverified off-device.** The subscriptions are created at
+  runtime and no schema deploy is needed, but whether a silent push actually
+  wakes the app is exactly what test 1/4/6 confirm. It's **additive** — if push
+  doesn't fire, the 2s poll still syncs (just not backgrounded/instant), so it
+  can't make anything worse than polling.
+- **Self-heal needs both devices to foreground** for a fully one-way friendship
+  to become mutual — each phone only repairs the direction it can see. By design.
+- **Reinstall cleanliness depends on the other side processing the signal.** On
+  delete, Alice leaves each friend's share server-side (crash-safe shim) AND asks
+  each friend's app to drop her. If a friend's app hasn't foregrounded yet, its
+  cleanup is pending — so a reinstall in that window can briefly show a stale
+  friend/request until the friend's app catches up.
+- **Pending requests from non-friends** (someone who requested you but never
+  became a friend) aren't notified on delete, so on a *full reinstall* one could
+  still reappear. Same-install re-setup is covered (timestamp suppression).
+- **Crash-durable messages cover the message body**, retried on reopen. If a send
+  fails permanently (not just eventual-consistency lag), the message stays in the
+  local outbox and retries when you reopen the conversation.
+
+## CloudKit schema
+- Already deployed: `UnfriendNotification.isAccountDeletion` (Int64) in
+  Production. **No further schema changes are needed** for anything in build 46
+  (push subscriptions are created at runtime; they query already-indexed fields).
+
+## Verified in code (not needing this manual run)
+25+ unit tests cover the suppression/erase/cancel logic, the deletion-flag
+CloudKit round-trip, the exception shim **at runtime** (proves the iOS 26 crash
+is caught), and the crash-durable message outbox. Green tests prove the logic;
+this checklist proves the live two-device behavior.
