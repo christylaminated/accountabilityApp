@@ -39,6 +39,10 @@ final class CircleStore {
     /// can see something's wrong via `lastError`.
     private var pendingSaves: Set<String> = []
 
+    /// Backoff between message-save retry attempts. Overridable so unit tests
+    /// can drive the retry loop without real-time delays.
+    static var messageSaveRetryDelayNanos: UInt64 = 2_000_000_000
+
     init(dataRepo: any CircleDataRepository = CloudKitCircleDataRepository()) {
         self.dataRepo = dataRepo
     }
@@ -248,6 +252,9 @@ final class CircleStore {
             createdAt: .now
         )
         circleMessages.append(msg)
+        // Persist to the durable outbox before the network attempt so a crash
+        // during send doesn't lose it (same as DMs).
+        addToCircleOutbox(msg)
         persistSave([msg])
     }
 
@@ -289,25 +296,45 @@ final class CircleStore {
         }
     }
 
+    /// Drop confirmed-saved records from BOTH outboxes (DM + group) by name.
     private func removeFromOutbox(recordNames: [String]) {
-        var box = Self.loadOutbox()
-        let filtered = box.filter { !recordNames.contains($0.recordName) }
-        if filtered.count != box.count { Self.saveOutbox(filtered) }
+        let dm = Self.loadOutbox()
+        let dmFiltered = dm.filter { !recordNames.contains($0.recordName) }
+        if dmFiltered.count != dm.count { Self.saveOutbox(dmFiltered) }
+
+        let cm = Self.loadCircleOutbox()
+        let cmFiltered = cm.filter { !recordNames.contains($0.recordName) }
+        if cmFiltered.count != cm.count { Self.saveCircleOutbox(cmFiltered) }
     }
 
-    /// Re-attempt any unsent DMs for the active circle. Called on `activate`, so
-    /// a message stranded by a crash / failed send goes out when the user
-    /// reopens the conversation.
+    /// Re-attempt any unsent DMs AND group messages for the active circle.
+    /// Called on `activate`, so a message stranded by a crash / failed send
+    /// goes out when the user reopens the conversation.
     private func retryOutbox() {
         guard let circle else { return }
-        let pending = Self.loadOutbox().filter {
+        for msg in Self.loadOutbox().filter({
             $0.circleID == circle.id && !pendingSaves.contains($0.recordName)
-        }
-        for msg in pending {
+        }) {
             if !directMessages.contains(where: { $0.id == msg.id }) {
                 directMessages.append(msg)
             }
             persistSave([msg])
+        }
+        for msg in Self.loadCircleOutbox().filter({
+            $0.circleID == circle.id && !pendingSaves.contains($0.recordName)
+        }) {
+            if !circleMessages.contains(where: { $0.id == msg.id }) {
+                circleMessages.append(msg)
+            }
+            persistSave([msg])
+        }
+    }
+
+    private func addToCircleOutbox(_ msg: CircleMessage) {
+        var box = Self.loadCircleOutbox()
+        if !box.contains(where: { $0.id == msg.id }) {
+            box.append(msg)
+            Self.saveCircleOutbox(box)
         }
     }
 
@@ -317,6 +344,14 @@ final class CircleStore {
 
     private static func saveOutbox(_ msgs: [DirectMessage]) {
         LocalCache.save(msgs, forKey: LocalCacheKey.pendingDirectMessages)
+    }
+
+    private static func loadCircleOutbox() -> [CircleMessage] {
+        LocalCache.load([CircleMessage].self, forKey: LocalCacheKey.pendingCircleMessages) ?? []
+    }
+
+    private static func saveCircleOutbox(_ msgs: [CircleMessage]) {
+        LocalCache.save(msgs, forKey: LocalCacheKey.pendingCircleMessages)
     }
 
     /// Count of messages the viewer has received from another member. Mock-era
@@ -355,7 +390,7 @@ final class CircleStore {
                 } catch {
                     lastErr = error
                     NSLog("[Tally] persistSave attempt \(attempt + 1)/5 failed: \(error.localizedDescription)")
-                    if attempt < 4 { try? await Task.sleep(nanoseconds: 2_000_000_000) }
+                    if attempt < 4 { try? await Task.sleep(nanoseconds: Self.messageSaveRetryDelayNanos) }
                 }
             }
             // Exhausted retries — keep the message in pendingSaves (still

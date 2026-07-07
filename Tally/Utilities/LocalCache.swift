@@ -124,6 +124,10 @@ enum LocalCacheKey {
     /// unsent DM isn't lost — retried when the conversation is reopened.
     static let pendingDirectMessages = "Tally.cache.pendingDirectMessages"
 
+    /// Group-chat messages awaiting a confirmed CloudKit save (durable outbox,
+    /// same lifecycle as pendingDirectMessages).
+    static let pendingCircleMessages = "Tally.cache.pendingCircleMessages"
+
     /// "circleID|userID" composite keys for group/DM invite writes that
     /// failed and are queued for retry. Same shape/lifecycle as
     /// pendingReciprocalSenders.

@@ -21,6 +21,8 @@ struct FriendLifecycleTests {
 
     init() {
         LocalCache.clearAll()
+        // Keep message-save retry loops from running in real time in tests.
+        CircleStore.messageSaveRetryDelayNanos = 1_000
     }
 
     // MARK: - Helpers
@@ -388,6 +390,23 @@ struct FriendLifecycleTests {
         let outbox = LocalCache.load([DirectMessage].self,
                                      forKey: LocalCacheKey.pendingDirectMessages) ?? []
         #expect(outbox.contains { $0.body == "hello" && $0.circleID == dm.id })
+    }
+
+    @Test func sendCircleMessage_persistsToDurableOutboxImmediately() async {
+        let mock = MockCircleDataRepository()
+        mock.saveShouldFail = true
+        let store = CircleStore(dataRepo: mock)
+        let group = TallyCircle(
+            id: UUID(), name: "group", emoji: nil, ownerID: "me",
+            createdAt: Date(), kind: .group, dmPeerID: nil
+        )
+        await store.activate(group, currentUserID: "me")
+
+        store.sendCircleMessage(body: "gm", senderID: "me")
+
+        let outbox = LocalCache.load([CircleMessage].self,
+                                     forKey: LocalCacheKey.pendingCircleMessages) ?? []
+        #expect(outbox.contains { $0.body == "gm" && $0.circleID == group.id })
     }
 
     // MARK: - Exception shim actually catches at RUNTIME (crash-safety linchpin)
