@@ -225,6 +225,15 @@ final class AppState {
     private var isReconcilingFriendSymmetry = false
     private static let maxFriendSymmetryRepairsPerSession = 50
 
+    /// Self-heal for the searchable avatar photo. A `UsernameClaim` written
+    /// before the `avatarImageData` Bytes field was deployed to the Production
+    /// CloudKit schema (or during a quota-interrupted save) can end up without
+    /// the photo even though the local profile has it — so friends searching by
+    /// username see no picture. Once per session we re-read our own claim and,
+    /// if it lacks the photo we hold locally, re-publish it. Guarded to run at
+    /// most once per session and only WRITE on genuine drift.
+    private var didReconcileAvatarClaimThisSession = false
+
     /// Group/DM invites whose `GroupInvite` write failed and needs retry.
     /// Same `Set<String>` / `[String]` shape as `pendingReciprocalSenders`,
     /// but each entry is a composite `"circleID|userID"` key because an
@@ -502,6 +511,9 @@ final class AppState {
                     // see me). Runs here so it fires on both launch and
                     // foreground, never on the poll timer.
                     await reconcileFriendSymmetry(trigger: "refreshAccountState")
+                    // Ensure our searchable claim carries the avatar photo we
+                    // hold locally (fixes friends seeing no picture on search).
+                    await reconcileAvatarClaim(trigger: "refreshAccountState")
                     // Resume at whichever step is persisted, or fall through
                     // to the main app for a build-37 legacy user.
                     if let circle = activeCircle {
@@ -1353,6 +1365,54 @@ final class AppState {
         if repaired > 0 {
             await personalStore.refresh()
             NSLog("[Tally] reconcileFriendSymmetry(\(trigger)): repaired \(repaired) one-way friendship(s)")
+        }
+    }
+
+    /// Ensure the searchable `UsernameClaim` carries the avatar photo we hold
+    /// locally. Fixes the case where friends search us by username and see no
+    /// picture even though we've set one — typically because our claim was last
+    /// written before the `avatarImageData` field existed in the Production
+    /// schema, or a quota-interrupted save never reached the public write.
+    ///
+    /// Conservative by design: runs at most once per session, does a single
+    /// read, and re-publishes ONLY when the local photo is present but the
+    /// claim's photo is missing. Best-effort throughout — never throws into the
+    /// launch/foreground path.
+    func reconcileAvatarClaim(trigger: String) async {
+        guard onboardingState == .enteredMainApp else { return }
+        guard !didReconcileAvatarClaimThisSession else { return }
+        didReconcileAvatarClaimThisSession = true
+
+        guard
+            let profile = ownCloudProfile,
+            let username = profile.username,
+            let localPhoto = profile.avatarImageData,
+            !localPhoto.isEmpty
+        else { return }
+
+        // Read our own claim. If we can't read it, bail (don't blindly write).
+        guard let claim = try? await usernameRepository.lookup(username) else {
+            NSLog("[Tally] reconcileAvatarClaim(\(trigger)): couldn't read own claim '\(username)' — skipping")
+            return
+        }
+
+        let claimBytes = claim.avatarImageData?.count ?? 0
+        guard claimBytes == 0 else { return }  // already carries a photo — nothing to do
+
+        NSLog("[Tally] reconcileAvatarClaim(\(trigger)): local has \(localPhoto.count) bytes but claim '\(username)' has 0 — re-publishing")
+        do {
+            // previousUsername == username: same name, so claim() won't delete
+            // the old record — it updates in place with the photo.
+            try await usernameRepository.claim(
+                username,
+                previousUsername: username,
+                displayName: profile.displayName,
+                avatarSymbol: profile.avatarSymbol,
+                avatarImageData: localPhoto
+            )
+            NSLog("[Tally] reconcileAvatarClaim(\(trigger)): re-published photo to claim '\(username)'")
+        } catch {
+            NSLog("[Tally] reconcileAvatarClaim(\(trigger)): re-publish failed for '\(username)': \(error.localizedDescription)")
         }
     }
 

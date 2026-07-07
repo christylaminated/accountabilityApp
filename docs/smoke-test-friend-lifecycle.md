@@ -159,10 +159,30 @@ processed the deletion signal).
   fails permanently (not just eventual-consistency lag), the message stays in the
   local outbox and retries when you reopen the conversation.
 
+## Avatar photo sync (build 53)
+Friends who search you by username should see your uploaded photo.
+1. **You:** set a profile photo. On another account, search you by username →
+   your photo shows in the result. Do the reverse (they set a photo, you search
+   them).
+2. **Pre-existing claim self-heal:** if your searchable photo was missing (a
+   claim written before the schema field was deployed, or a quota-interrupted
+   save), it re-publishes automatically on next cold launch — verify the friend
+   sees your photo after you relaunch the app once.
+
+**Requires (verify in CloudKit Dashboard → Production):** the `UsernameClaim`
+record type must have an `avatarImageData` field of type **Bytes** deployed to
+**Production**. Without it, CloudKit silently drops the photo on save (no error)
+and search shows no picture — the app logs a ⚠️ `verifyAvatarPersisted` warning
+when this happens. Note: the public `UsernameClaim` write does *not* count
+against a user's personal iCloud storage quota, so a friend low on storage can
+still update their searchable photo even when the private-DB writes fail.
+
 ## CloudKit schema
 - Already deployed: `UnfriendNotification.isAccountDeletion` (Int64) in
   Production. **No further schema changes are needed** for anything in build 46
   (push subscriptions are created at runtime; they query already-indexed fields).
+- **Confirm** `UsernameClaim.avatarImageData` (Bytes) is present in **Production**
+  (see Avatar photo sync above) — required for search results to show photos.
 
 ## Verified in code (not needing this manual run)
 25+ unit tests cover the suppression/erase/cancel logic, the deletion-flag

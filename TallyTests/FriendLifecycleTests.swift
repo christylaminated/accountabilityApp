@@ -576,4 +576,95 @@ struct FriendLifecycleTests {
         // URL-less share, but the repair path ran — which is what we assert.)
         #expect(personal.friends.contains { $0.recordName == "alice" })
     }
+
+    // MARK: - Avatar claim self-heal
+
+    /// An AppState wired for the avatar self-heal, exposing the passed-in
+    /// username repo so the test can seed/inspect the public `UsernameClaim`.
+    private func avatarApp(username: MockUsernameRepository) -> AppState {
+        let personal = repo(friendOwners: [])
+        let store = PersonalStore(repository: personal)
+        let app = AppState(
+            profileRepository: MockProfileRepository(),
+            circleRepository: MockCircleRepository(),
+            personalRepository: personal,
+            usernameRepository: username,
+            friendRequestRepository: MockFriendRequestRepository(),
+            groupInviteRepository: MockGroupInviteRepository(),
+            unfriendNotificationRepository: MockUnfriendNotificationRepository(),
+            personalStore: store
+        )
+        app.stopFriendRequestPolling()
+        app.currentUserID = "me"
+        app.onboardingState = .enteredMainApp
+        return app
+    }
+
+    private func profile(photo: Data?) -> UserProfile {
+        UserProfile(
+            displayName: "Me", avatarSymbol: "leaf",
+            avatarImageData: photo, username: "me", createdAt: Date()
+        )
+    }
+
+    @Test func avatarSelfHeal_republishesWhenClaimMissingPhoto() async throws {
+        let username = MockUsernameRepository()
+        // Claim exists but carries NO photo (pre-deploy / quota-interrupted drift).
+        try await username.claim("me", previousUsername: nil, displayName: "Me",
+                                 avatarSymbol: "leaf", avatarImageData: nil)
+        let app = avatarApp(username: username)
+        let photo = Data([0x01, 0x02, 0x03])
+        app.ownCloudProfile = profile(photo: photo)
+
+        await app.reconcileAvatarClaim(trigger: "test")
+
+        // The searchable claim now carries the local photo.
+        let claim = try await username.lookup("me")
+        #expect(claim?.avatarImageData == photo)
+    }
+
+    @Test func avatarSelfHeal_leavesExistingClaimPhotoUntouched() async throws {
+        let username = MockUsernameRepository()
+        let existing = Data([0x09, 0x09])
+        try await username.claim("me", previousUsername: nil, displayName: "Me",
+                                 avatarSymbol: "leaf", avatarImageData: existing)
+        let app = avatarApp(username: username)
+        app.ownCloudProfile = profile(photo: Data([0x01, 0x02, 0x03]))
+
+        await app.reconcileAvatarClaim(trigger: "test")
+
+        // Claim already had a photo → no overwrite (guard skips on claimBytes>0).
+        let claim = try await username.lookup("me")
+        #expect(claim?.avatarImageData == existing)
+    }
+
+    @Test func avatarSelfHeal_noWriteWhenNoLocalPhoto() async throws {
+        let username = MockUsernameRepository()
+        try await username.claim("me", previousUsername: nil, displayName: "Me",
+                                 avatarSymbol: "leaf", avatarImageData: nil)
+        let app = avatarApp(username: username)
+        app.ownCloudProfile = profile(photo: nil)   // nothing to publish
+
+        await app.reconcileAvatarClaim(trigger: "test")
+
+        let claim = try await username.lookup("me")
+        #expect(claim?.avatarImageData == nil)
+    }
+
+    @Test func avatarSelfHeal_runsAtMostOncePerSession() async throws {
+        let username = MockUsernameRepository()
+        try await username.claim("me", previousUsername: nil, displayName: "Me",
+                                 avatarSymbol: "leaf", avatarImageData: nil)
+        let app = avatarApp(username: username)
+        app.ownCloudProfile = profile(photo: Data([0x01, 0x02, 0x03]))
+
+        await app.reconcileAvatarClaim(trigger: "first")   // repairs
+        // Simulate the claim drifting back to no-photo, then run again.
+        try await username.claim("me", previousUsername: "me", displayName: "Me",
+                                 avatarSymbol: "leaf", avatarImageData: nil)
+        await app.reconcileAvatarClaim(trigger: "second")  // guarded — no-op
+
+        let claim = try await username.lookup("me")
+        #expect(claim?.avatarImageData == nil)   // second run did not re-repair
+    }
 }
