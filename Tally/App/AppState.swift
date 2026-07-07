@@ -2030,12 +2030,26 @@ final class AppState {
                 NSLog("[Tally] refreshFriendRequests: SHOWING from=\(r.fromUserRecordName) id=\(r.id) sentAt=\(r.sentAt) resetAt=\(accountResetAt)")
             }
 
-            // Cleanup pass: delete any of MY outgoing requests where the
-            // target is now a confirmed friend — the request has served
-            // its purpose and only pollutes the public DB otherwise.
-            // (`outgoing` was fetched once up top and is reused here.)
-            for r in outgoing where friendIDs.contains(r.toUserRecordName) {
-                try? await friendRequestRepository.delete(r)
+            // Cleanup pass (`outgoing` fetched once up top).
+            //   • NON-reciprocal request → delete once the target is my friend;
+            //     it has served its purpose.
+            //   • RECIPROCAL → do NOT delete on the friend condition. A
+            //     reciprocal is what lets the OTHER person see ME, but they
+            //     become "my friend" the instant I accept THEIR request — long
+            //     before their app processes my reciprocal. Deleting it here
+            //     removed it before they could consume it, so they never joined
+            //     my share and stayed stuck on "request pending" — the core
+            //     asymmetry bug. Reciprocals are instead aged out after a
+            //     generous window (the recipient's poll consumes them within
+            //     seconds when online; reconcileFriendSymmetry re-creates them
+            //     if they're ever lost).
+            let reciprocalTTL = Date.now.addingTimeInterval(-3 * 24 * 60 * 60)
+            for r in outgoing {
+                if !r.isReciprocal, friendIDs.contains(r.toUserRecordName) {
+                    try? await friendRequestRepository.delete(r)
+                } else if r.isReciprocal, r.sentAt < reciprocalTTL {
+                    try? await friendRequestRepository.delete(r)
+                }
             }
             // Publish remaining outgoing-pending targets so FriendSearchView
             // can show "Request pending" instead of "Send" for people I've
