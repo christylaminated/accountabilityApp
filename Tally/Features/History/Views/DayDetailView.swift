@@ -12,9 +12,15 @@ struct DayDetailView: View {
     @State private var noteText: String = ""
     @State private var loadedNoteText: String = ""
     @State private var noteSaveFailed = false
+    @State private var showSaved = false
     @FocusState private var noteFocused: Bool
 
     private var isOwnHistory: Bool { userID == appState.currentUserID }
+
+    /// True when the field holds edits not yet written — drives the Save button.
+    private var noteChanged: Bool {
+        noteText.trimmingCharacters(in: .whitespacesAndNewlines) != loadedNoteText
+    }
 
     private var habits: [Habit] {
         appState.personalStore.habits(for: userID).filter {
@@ -60,17 +66,17 @@ struct DayDetailView: View {
             noteText = text
             loadedNoteText = text
             noteSaveFailed = false
+            showSaved = false
         }
-        // Persist when the field loses focus (keyboard dismissed / tapped away).
-        .onChange(of: noteFocused) { _, focused in
-            if !focused { persistNoteIfChanged() }
-        }
-        // Safety net: also persist if the detail disappears while still edited.
+        // Safety net only: persist unsaved edits if the detail disappears. The
+        // Save button is the primary path (focus-loss isn't reliable with a
+        // hardware keyboard, where Return inserts a newline instead of ending
+        // editing).
         .onDisappear { persistNoteIfChanged() }
     }
 
     private var noteSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
             Divider().padding(.vertical, 4)
             HStack(spacing: 6) {
                 Image(systemName: "note.text")
@@ -83,29 +89,59 @@ struct DayDetailView: View {
                     Text("Not saved")
                         .font(.caption2.weight(.semibold))
                         .foregroundStyle(Color.tallyDestructive)
+                } else if showSaved {
+                    Label("Saved", systemImage: "checkmark")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
                 }
             }
             TextField("Write a note for this day…", text: $noteText, axis: .vertical)
-                .lineLimit(1...6)
+                .lineLimit(5...14)
                 .focused($noteFocused)
                 .font(.subheadline)
+                .frame(minHeight: 120, alignment: .topLeading)
                 .padding(10)
                 .background(Color.tallyCanvas)
                 .clipShape(RoundedRectangle(cornerRadius: 10))
+                // Any edit clears the "Saved"/"Not saved" flags.
+                .onChange(of: noteText) { _, _ in
+                    showSaved = false
+                    noteSaveFailed = false
+                }
+
+            Button {
+                noteFocused = false
+                persistNoteIfChanged(confirm: true)
+            } label: {
+                Text("Save note")
+                    .font(.subheadline.weight(.semibold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 11)
+                    .foregroundStyle(noteChanged ? Color.tallyOnAccent : Color.tallyTextSecondary)
+                    .background(noteChanged ? tallyAccent : Color.tallyCanvas)
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+            }
+            .buttonStyle(.plain)
+            .disabled(!noteChanged)
         }
     }
 
     /// Save only when the text actually changed, so re-selecting a day or
-    /// losing focus without edits doesn't hit CloudKit needlessly.
-    private func persistNoteIfChanged() {
+    /// leaving without edits doesn't hit CloudKit needlessly. `confirm` shows
+    /// the "Saved" acknowledgement (used by the explicit Save button).
+    private func persistNoteIfChanged(confirm: Bool = false) {
         guard isOwnHistory else { return }
         let trimmed = noteText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed != loadedNoteText else { return }
+        guard trimmed != loadedNoteText else {
+            if confirm { showSaved = true }
+            return
+        }
         loadedNoteText = trimmed
         let day = date
         Task {
             let ok = await appState.saveDayNote(trimmed, for: day)
             noteSaveFailed = !ok
+            if ok && confirm { showSaved = true }
         }
     }
 }
