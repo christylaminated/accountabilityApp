@@ -2408,6 +2408,9 @@ final class AppState {
             }
             self.ownedCircles = serverOwned + optimistic
             self.joinedCircles = serverJoined
+            // Light up the unread/bold indicator for conversations the user
+            // hasn't opened, so an incoming DM/message is visible in the list.
+            await circleStore.refreshUnreadTimes(for: ownedCircles + joinedCircles)
         } catch {
             circleActionError = error.localizedDescription
         }

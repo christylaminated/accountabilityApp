@@ -151,9 +151,12 @@ final class CircleStore {
             members = snap.members
             circleMessages = Self.spliceIn(pendingCircleMsgs, into: snap.circleMessages)
             directMessages = Self.spliceIn(pendingDirectMsgs, into: snap.directMessages)
-            // Record the latest observed message timestamp for this
-            // circle so FriendsView's unread indicator has fresh data.
-            if let latest = circleMessages.map(\.createdAt).max() {
+            // Record the latest observed message timestamp for this circle so
+            // FriendsView's unread indicator has fresh data. Must include
+            // directMessages — a DM has ONLY direct messages, so looking at
+            // circleMessages alone left DM conversations never marked unread.
+            let latestTimes = circleMessages.map(\.createdAt) + directMessages.map(\.createdAt)
+            if let latest = latestTimes.max() {
                 Self.recordLatestMessage(circleID: circle.id, at: latest)
             }
         } catch {
@@ -195,8 +198,25 @@ final class CircleStore {
         Self.merge(snap.members, deleted: deleted, into: &members)
         Self.merge(snap.circleMessages, deleted: deleted, into: &circleMessages)
         Self.merge(snap.directMessages, deleted: deleted, into: &directMessages)
-        if let id = circle?.id, let latest = circleMessages.map(\.createdAt).max() {
-            Self.recordLatestMessage(circleID: id, at: latest)
+        if let id = circle?.id {
+            let latestTimes = circleMessages.map(\.createdAt) + directMessages.map(\.createdAt)
+            if let latest = latestTimes.max() {
+                Self.recordLatestMessage(circleID: id, at: latest)
+            }
+        }
+    }
+
+    /// Refresh the "latest message" timestamp for circles the user may NOT
+    /// have open, so the unread/bold indicator lights up for an incoming DM or
+    /// group message without them first opening the conversation. Best-effort
+    /// per circle; called from `AppState.loadCircles`.
+    func refreshUnreadTimes(for circles: [TallyCircle]) async {
+        for c in circles where c.id != circle?.id {   // active circle already fresh
+            guard let snap = try? await dataRepo.snapshot(for: c, since: nil) else { continue }
+            let times = snap.circleMessages.map(\.createdAt) + snap.directMessages.map(\.createdAt)
+            if let latest = times.max() {
+                Self.recordLatestMessage(circleID: c.id, at: latest)
+            }
         }
     }
 
@@ -252,6 +272,8 @@ final class CircleStore {
             createdAt: .now
         )
         circleMessages.append(msg)
+        // My own send shouldn't flag the conversation as unread.
+        markCircleRead(circleID: circle.id)
         // Persist to the durable outbox before the network attempt so a crash
         // during send doesn't lose it (same as DMs).
         addToCircleOutbox(msg)
@@ -279,6 +301,8 @@ final class CircleStore {
             createdAt: .now
         )
         directMessages.append(msg)
+        // My own send shouldn't flag the conversation as unread.
+        markCircleRead(circleID: circle.id)
         // Persist to the on-disk outbox BEFORE the network attempt so a crash
         // or force-quit during the send doesn't lose the message. Removed on a
         // confirmed save; retried when the conversation is reopened.
