@@ -577,6 +577,38 @@ struct FriendLifecycleTests {
         #expect(personal.friends.contains { $0.recordName == "alice" })
     }
 
+    @Test func selfHeal_reSharesToSeenFriend_afterRecentReset() async {
+        // I deleted my account moments ago → my zone/share are brand new.
+        LocalCache.save(Date.now, forKey: LocalCacheKey.accountResetAt)
+        let personal = repo(friendOwners: ["alice"])
+        // Alice APPEARS to already see me… but her acceptance is of my old,
+        // destroyed share, so she actually can't (the reported bug).
+        personal.personalShareParticipants = ["alice"]
+        let store = PersonalStore(repository: personal)
+        await store.activate(currentUserID: "me")
+        let app = reconcileApp(personal: personal, store: store)
+
+        await app.reconcileFriendSymmetry(trigger: "test")
+
+        // Post-reset we don't trust the stale participant list → re-send my
+        // share so she can re-accept my new zone.
+        #expect(personal.friends.contains { $0.recordName == "alice" })
+    }
+
+    @Test func selfHeal_skipsSeenFriend_whenNoRecentReset() async {
+        // No reset (clean LocalCache) → steady-state behaviour: a friend who
+        // already sees me is NOT re-shared to.
+        let personal = repo(friendOwners: ["alice"])
+        personal.personalShareParticipants = ["alice"]
+        let store = PersonalStore(repository: personal)
+        await store.activate(currentUserID: "me")
+        let app = reconcileApp(personal: personal, store: store)
+
+        await app.reconcileFriendSymmetry(trigger: "test")
+
+        #expect(!personal.friends.contains { $0.recordName == "alice" })
+    }
+
     // MARK: - Avatar claim self-heal
 
     /// An AppState wired for the avatar self-heal, exposing the passed-in

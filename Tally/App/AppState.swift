@@ -1458,6 +1458,17 @@ final class AppState {
             return
         }
 
+        // Right after an account deletion my personal zone + CKShare are BRAND
+        // NEW, so a friend showing as an `.accepted` participant may have only
+        // accepted my OLD (now-destroyed) share and can't actually see my new
+        // zone. During a recovery window after a reset we therefore DON'T trust
+        // the participant list — we re-send my share to every visible friend
+        // once so they re-accept the new zone. `reconciledFriendIDsThisSession`
+        // still bounds this to one re-send per friend per session, and the
+        // window closes after 24h so steady-state behavior is unchanged.
+        let recentlyReset = accountResetAt != .distantPast
+            && Date.now.timeIntervalSince(accountResetAt) < 24 * 60 * 60
+
         var repaired = 0
         for friend in visible {
             let id = friend.userID
@@ -1465,12 +1476,15 @@ final class AppState {
             if personalStore.isLocallyUnfriended(userID: id) { continue }  // never re-friend the unfriended
             if reconciledFriendIDsThisSession.contains(id) { continue }    // once per session
             if pendingReciprocalSenders.contains(id) { continue }          // normal retry already owns it
-            if whoCanSeeMe.contains(id) { continue }                       // already symmetric — they see me
+            // Normally skip friends who already see me. Exception: in the
+            // post-reset window, their acceptance may be of my destroyed share.
+            if whoCanSeeMe.contains(id) && !recentlyReset { continue }
 
-            // Asymmetric: I can see them, but they're not on my share, so they
-            // can't see me. Repair via the same path acceptFriendRequest uses.
+            // Either they're not on my share (classic one-way), or I just reset
+            // and need them to re-accept my new zone. Repair via the same path
+            // acceptFriendRequest uses.
             reconciledFriendIDsThisSession.insert(id)
-            NSLog("[Tally] reconcileFriendSymmetry(\(trigger)): one-way friend \(id) — re-sending my share")
+            NSLog("[Tally] reconcileFriendSymmetry(\(trigger)): re-sending my share to \(id) (recentlyReset=\(recentlyReset), theySeeMe=\(whoCanSeeMe.contains(id)))")
             pendingReciprocalSenders.insert(id)
             persistPendingReciprocalSenders()
             do {
