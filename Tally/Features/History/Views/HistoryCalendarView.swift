@@ -6,6 +6,10 @@ struct HistoryCalendarView: View {
     private let explicitTargetID: String?
     @State private var displayedMonth: Date = .now.startOfMonth
     @State private var selectedDay: Date?
+    // Tapping the month/year header opens a picker to jump to any month/year.
+    @State private var showMonthPicker = false
+    @State private var pickerMonth = 1
+    @State private var pickerYear = 2000
 
     init(targetUserID: String? = nil) {
         self.explicitTargetID = targetUserID
@@ -14,6 +18,11 @@ struct HistoryCalendarView: View {
     private var targetUserID: String {
         explicitTargetID ?? appState.currentUserID
     }
+
+    /// Earliest year the jump-picker offers. Generous so old months are
+    /// reachable even though there's no habit data that far back.
+    private static let earliestYear = 2000
+    private var currentYear: Int { Date.local.component(.year, from: .now) }
 
     private var member: CircleMember? {
         appState.circleStore.member(id: targetUserID)
@@ -37,6 +46,9 @@ struct HistoryCalendarView: View {
         .background(Color.tallyCanvas)
         .navigationTitle(navTitle)
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showMonthPicker) {
+            monthYearPicker
+        }
     }
 
     private var navTitle: String {
@@ -55,8 +67,21 @@ struct HistoryCalendarView: View {
                     .frame(width: 36, height: 36)
             }
             Spacer()
-            Text(displayedMonth, format: .dateTime.month(.wide).year())
-                .font(.title3.weight(.semibold))
+            Button {
+                let comps = Date.local.dateComponents([.year, .month], from: displayedMonth)
+                pickerMonth = comps.month ?? 1
+                pickerYear = comps.year ?? currentYear
+                showMonthPicker = true
+            } label: {
+                HStack(spacing: 4) {
+                    Text(displayedMonth, format: .dateTime.month(.wide).year())
+                        .font(.title3.weight(.semibold))
+                    Image(systemName: "chevron.down")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .buttonStyle(.plain)
             Spacer()
             Button {
                 let next = displayedMonth.adding(days: 35).startOfMonth
@@ -120,6 +145,63 @@ struct HistoryCalendarView: View {
         }
         while slots.count % 7 != 0 { slots.append(nil) }
         return slots
+    }
+
+    // MARK: - Jump-to-month picker
+
+    private var monthYearPicker: some View {
+        NavigationStack {
+            HStack(spacing: 0) {
+                Picker("Month", selection: $pickerMonth) {
+                    ForEach(1...12, id: \.self) { m in
+                        Text(monthName(m)).tag(m)
+                    }
+                }
+                .pickerStyle(.wheel)
+                Picker("Year", selection: $pickerYear) {
+                    // Plain String avoids the locale thousands separator ("2,026").
+                    ForEach(Self.earliestYear...currentYear, id: \.self) { y in
+                        Text(String(y)).tag(y)
+                    }
+                }
+                .pickerStyle(.wheel)
+            }
+            .padding(.horizontal)
+            .navigationTitle("Jump to month")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { showMonthPicker = false }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { applyMonthPicker() }
+                }
+            }
+            .presentationDetents([.medium])
+        }
+    }
+
+    private func monthName(_ month: Int) -> String {
+        var comps = DateComponents()
+        comps.year = 2000
+        comps.month = month
+        comps.day = 1
+        guard let date = Date.local.date(from: comps) else { return "\(month)" }
+        return date.formatted(.dateTime.month(.wide))
+    }
+
+    private func applyMonthPicker() {
+        var comps = DateComponents()
+        comps.year = pickerYear
+        comps.month = pickerMonth
+        comps.day = 1
+        if let date = Date.local.date(from: comps) {
+            // Clamp to the current month — the calendar never shows the future
+            // (matches the disabled "next" chevron).
+            displayedMonth = min(date.startOfMonth, Date.now.startOfMonth)
+            selectedDay = nil
+        }
+        showMonthPicker = false
     }
 }
 
