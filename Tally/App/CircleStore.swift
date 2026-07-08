@@ -106,13 +106,18 @@ final class CircleStore {
     }
 
     /// Recompute the observable `unreadCircleIDs` from LocalCache for the given
-    /// circles, so views redraw. The currently-open circle is treated as read.
+    /// circles, so views redraw. Unread is purely `lastMessage > lastRead`, so
+    /// the ONLY thing that clears a dot is `markCircleRead` (opening the
+    /// conversation). We deliberately do NOT treat the store's "active" circle
+    /// as read — it stays pointed at the last-opened conversation even after the
+    /// user navigates back to the list, so treating it as read let a plain
+    /// refresh wrongly clear an unopened DM's dot.
     func recomputeUnread(for circles: [TallyCircle]) {
         for c in circles {
-            if c.id == circle?.id || !Self.hasUnread(circleID: c.id) {
-                unreadCircleIDs.remove(c.id)
-            } else {
+            if Self.hasUnread(circleID: c.id) {
                 unreadCircleIDs.insert(c.id)
+            } else {
+                unreadCircleIDs.remove(c.id)
             }
         }
     }
@@ -232,7 +237,11 @@ final class CircleStore {
     /// group message without them first opening the conversation. Best-effort
     /// per circle; called from `AppState.loadCircles`.
     func refreshUnreadTimes(for circles: [TallyCircle]) async {
-        for c in circles where c.id != circle?.id {   // active circle already fresh
+        // Sweep EVERY circle, including the store's "active" one — while the user
+        // sits on the friends list, the active circle isn't being refreshed by
+        // its own view, so an incoming message on it would otherwise never
+        // update its last-message time (and never light its dot).
+        for c in circles {
             guard let snap = try? await dataRepo.snapshot(for: c, since: nil) else { continue }
             let times = snap.circleMessages.map(\.createdAt) + snap.directMessages.map(\.createdAt)
             if let latest = times.max() {

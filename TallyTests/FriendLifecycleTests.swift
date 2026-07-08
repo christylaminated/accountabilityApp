@@ -651,6 +651,40 @@ struct FriendLifecycleTests {
         #expect(claim?.avatarImageData == nil)
     }
 
+    // MARK: - Unread indicator: only opening a conversation clears it
+
+    @Test func unread_activeCircleStaysUnread_untilOpened() async {
+        // A DM with an incoming message. Fresh UUID → no stale read state.
+        let dm = TallyCircle(
+            id: UUID(), name: "dm", emoji: nil, ownerID: "me",
+            createdAt: Date(), kind: .dm, dmPeerID: "bob"
+        )
+        let incoming = CircleMessage(
+            id: UUID(), circleID: dm.id, senderID: "bob",
+            body: "hi", createdAt: Date()
+        )
+        let mock = MockCircleDataRepository(
+            snapshot: CircleSnapshot(circleMessages: [incoming])
+        )
+        let store = CircleStore(dataRepo: mock)
+        // Activating makes `dm` the store's "active" circle AND records its
+        // latest-message time (via load()). The user has NOT opened the thread.
+        await store.activate(dm, currentUserID: "me")
+
+        // A plain refresh (what pull-to-refresh triggers) must NOT clear the dot
+        // for a conversation the user never opened — even though it's "active".
+        store.recomputeUnread(for: [dm])
+        #expect(store.unreadCircleIDs.contains(dm.id))
+
+        // Only opening the conversation (markCircleRead) clears it.
+        store.markCircleRead(circleID: dm.id)
+        #expect(!store.unreadCircleIDs.contains(dm.id))
+
+        // And it stays clear across a subsequent refresh.
+        store.recomputeUnread(for: [dm])
+        #expect(!store.unreadCircleIDs.contains(dm.id))
+    }
+
     // MARK: - Private per-day history notes
 
     private func dayNoteApp(_ repo: MockDayNoteRepository) -> AppState {

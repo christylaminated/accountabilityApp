@@ -61,6 +61,18 @@ struct CircleFeedView: View {
                 .onAppear {
                     proxy.scrollTo("bottom", anchor: .bottom)
                 }
+                // Staying in a conversation as new messages arrive keeps it
+                // read — otherwise a message that lands while you're viewing
+                // would light the unread dot the moment you leave. Covers both
+                // group (circleMessages) and DM (directMessages) traffic.
+                .onChange(
+                    of: appState.circleStore.circleMessages.count
+                        + appState.circleStore.directMessages.count
+                ) { _, _ in
+                    if let id = shownCircle?.id {
+                        appState.circleStore.markCircleRead(circleID: id)
+                    }
+                }
             }
 
             MessageComposerView(text: $composerText) { send() }
