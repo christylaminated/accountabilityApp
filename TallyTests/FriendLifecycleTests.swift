@@ -685,6 +685,84 @@ struct FriendLifecycleTests {
         #expect(!store.unreadCircleIDs.contains(dm.id))
     }
 
+    // MARK: - Removing a DM when the peer deletes their account
+
+    private func conversationApp(circleRepo: MockCircleRepository) -> AppState {
+        let personal = repo(friendOwners: [])
+        let store = PersonalStore(repository: personal)
+        let app = AppState(
+            profileRepository: MockProfileRepository(),
+            circleRepository: circleRepo,
+            personalRepository: personal,
+            usernameRepository: MockUsernameRepository(),
+            friendRequestRepository: MockFriendRequestRepository(),
+            groupInviteRepository: MockGroupInviteRepository(),
+            unfriendNotificationRepository: MockUnfriendNotificationRepository(),
+            personalStore: store
+        )
+        app.stopFriendRequestPolling()
+        app.currentUserID = "me"
+        return app
+    }
+
+    @Test func removeConversations_deletesOwnedDMAndPersistsHide() async {
+        // A DM we own with bob (messages live in OUR zone).
+        let dm = TallyCircle(
+            id: UUID(), name: "bob", emoji: nil, ownerID: "me",
+            createdAt: Date(), kind: .dm, dmPeerID: "bob"
+        )
+        let circleRepo = MockCircleRepository(owned: [dm])
+        let app = conversationApp(circleRepo: circleRepo)
+        app.ownedCircles = [dm]
+
+        await app.removeConversations(withPeer: "bob")
+
+        // Dropped from the list…
+        #expect(!app.ownedCircles.contains { $0.id == dm.id })
+        // …the owned zone is deleted server-side (messages gone for both)…
+        #expect(!circleRepo.owned.contains { $0.id == dm.id })
+        // …and the hide is persisted so a lagging reload can't resurrect it.
+        let persisted = LocalCache.load([String].self, forKey: LocalCacheKey.removedCircleIDs) ?? []
+        #expect(persisted.contains(dm.id.uuidString))
+    }
+
+    @Test func removeConversations_dropsPeerOwnedDMLocally() async {
+        // A DM bob owns (we're a participant) — we can't delete bob's zone, but
+        // we still drop it locally + persist the hide.
+        let dm = TallyCircle(
+            id: UUID(), name: "bob", emoji: nil, ownerID: "bob",
+            createdAt: Date(), kind: .dm, dmPeerID: "me"
+        )
+        let circleRepo = MockCircleRepository(joined: [dm])
+        let app = conversationApp(circleRepo: circleRepo)
+        app.joinedCircles = [dm]
+
+        await app.removeConversations(withPeer: "bob")
+
+        #expect(!app.joinedCircles.contains { $0.id == dm.id })
+        let persisted = LocalCache.load([String].self, forKey: LocalCacheKey.removedCircleIDs) ?? []
+        #expect(persisted.contains(dm.id.uuidString))
+    }
+
+    @Test func removeConversations_leavesUnrelatedCirclesAlone() async {
+        // A group (not a DM) and a DM with someone else must be untouched.
+        let group = TallyCircle(
+            id: UUID(), name: "grp", emoji: nil, ownerID: "me",
+            createdAt: Date(), kind: .group, dmPeerID: nil
+        )
+        let otherDM = TallyCircle(
+            id: UUID(), name: "carol", emoji: nil, ownerID: "me",
+            createdAt: Date(), kind: .dm, dmPeerID: "carol"
+        )
+        let app = conversationApp(circleRepo: MockCircleRepository(owned: [group, otherDM]))
+        app.ownedCircles = [group, otherDM]
+
+        await app.removeConversations(withPeer: "bob")
+
+        #expect(app.ownedCircles.contains { $0.id == group.id })
+        #expect(app.ownedCircles.contains { $0.id == otherDM.id })
+    }
+
     // MARK: - Private per-day history notes
 
     private func dayNoteApp(_ repo: MockDayNoteRepository) -> AppState {
@@ -753,12 +831,13 @@ struct FriendLifecycleTests {
             avatarImageData: myPhoto, username: "me", createdAt: Date()
         )
 
-        // Friend's message → their synced photo.
-        #expect(app.senderAvatarData(for: "alice") == friendPhoto)
+        // Friend's message → their synced photo + current symbol.
+        #expect(app.senderAvatar(for: "alice").imageData == friendPhoto)
+        #expect(app.senderAvatar(for: "alice").symbol == "leaf")
         // Own message (currentUserID == "me") → our own profile photo.
-        #expect(app.senderAvatarData(for: "me") == myPhoto)
-        // Non-friend group member → nil, so AvatarView falls back to the symbol.
-        #expect(app.senderAvatarData(for: "stranger") == nil)
+        #expect(app.senderAvatar(for: "me").imageData == myPhoto)
+        // Non-friend group member → nil photo, so AvatarView shows the symbol.
+        #expect(app.senderAvatar(for: "stranger").imageData == nil)
     }
 
     @Test func avatarSelfHeal_runsAtMostOncePerSession() async throws {

@@ -201,6 +201,10 @@ final class AppState {
     /// hide-list mutation every 6s (idempotent in practice, but we still
     /// want to skip the work).
     private var processedUnfriendNotificationIDs: Set<String> = []
+    /// Circle IDs removed on our side because the peer deleted their account
+    /// (or we otherwise tore down the conversation). Filtered out of the circle
+    /// list so a dead DM can't reappear. Persisted (userScoped).
+    private var removedCircleIDs: Set<String> = []
 
     /// Target userIDs whose `UnfriendNotification` write failed and needs
     /// retry. Exact mirror of `pendingReciprocalSenders`: a `Set<String>`
@@ -279,6 +283,9 @@ final class AppState {
         )
         self.processedUnfriendNotificationIDs = Set(
             LocalCache.load([String].self, forKey: LocalCacheKey.processedUnfriendNotificationIDs) ?? []
+        )
+        self.removedCircleIDs = Set(
+            LocalCache.load([String].self, forKey: LocalCacheKey.removedCircleIDs) ?? []
         )
         self.accountResetAt = LocalCache.load(Date.self, forKey: LocalCacheKey.accountResetAt) ?? .distantPast
         self.pendingUnfriendTargets = Set(
@@ -851,6 +858,51 @@ final class AppState {
         }
     }
 
+    /// Tear down any DM conversation with `peerID` — used when that person
+    /// deletes their account (or unfriends us) so the dead thread and its
+    /// messages don't linger. If we own the DM's zone we delete it, which
+    /// removes the messages for BOTH sides; if the peer owned it, their delete
+    /// removes the zone and we just drop it locally. Either way the circle ID is
+    /// persisted to `removedCircleIDs` so a lagging `loadCircles` can't resurrect
+    /// it. Best-effort throughout.
+    func removeConversations(withPeer peerID: String) async {
+        let dmCircles = (ownedCircles + joinedCircles).filter {
+            $0.kind == .dm && $0.dmPeer(forViewer: currentUserID) == peerID
+        }
+        guard !dmCircles.isEmpty else { return }
+
+        let removedIDs = Set(dmCircles.map(\.id))
+        for circle in dmCircles {
+            // Persist the hide BEFORE the (async) zone delete so a concurrent
+            // loadCircles can't race the conversation back onto the list.
+            removedCircleIDs.insert(circle.id.uuidString)
+            if circle.ownerID == currentUserID {
+                // We own the zone → deleting it cascades away every message, so
+                // the peer's copy disappears too.
+                do {
+                    try await circleRepository.deleteCircle(circle)
+                    NSLog("[Tally] removeConversations: deleted owned DM zone with \(peerID)")
+                } catch {
+                    NSLog("[Tally] removeConversations: delete owned DM failed (non-fatal): \(error.localizedDescription)")
+                }
+            }
+            Self.removeCachedCircleEntries(circleID: circle.id)
+            circleStore.unreadCircleIDs.remove(circle.id)
+            if circleStore.circle?.id == circle.id {
+                circleStore.reset()
+            }
+        }
+        persistRemovedCircleIDs()
+
+        // Drop from the in-memory lists so the row vanishes immediately.
+        ownedCircles.removeAll { removedIDs.contains($0.id) }
+        joinedCircles.removeAll { removedIDs.contains($0.id) }
+    }
+
+    private func persistRemovedCircleIDs() {
+        LocalCache.save(Array(removedCircleIDs), forKey: LocalCacheKey.removedCircleIDs)
+    }
+
     /// Rename a Group. Any participant can do this — CKShare grants .readWrite
     /// on the root record. Reloads the Circle list so the header updates.
     func renameCircle(_ circle: TallyCircle, to newName: String) async throws {
@@ -1117,12 +1169,23 @@ final class AppState {
         return personalStore.friend(id: peerID)
     }
 
-    /// A message sender's uploaded photo, if we have it. Photo bytes only sync
-    /// to us via friend records, so group members we aren't friends with fall
-    /// back to their SF symbol. Own messages use our own profile photo.
-    func senderAvatarData(for senderID: String) -> Data? {
-        if senderID == currentUserID { return ownCloudProfile?.avatarImageData }
-        return personalStore.friend(id: senderID)?.avatarImageData
+    /// A message sender's CURRENT avatar (symbol + optional photo) for chat
+    /// bubbles. Resolves from the freshest source: our own profile for our
+    /// messages, the live friend record otherwise. `CircleMember` is only a
+    /// last-resort symbol fallback for non-friend group members — its avatar is
+    /// frozen at circle-creation time, so reading it directly showed a stale
+    /// picture after someone changed their avatar.
+    func senderAvatar(for senderID: String) -> (symbol: String, imageData: Data?) {
+        if senderID == currentUserID {
+            return (ownCloudProfile?.avatarSymbol ?? "person", ownCloudProfile?.avatarImageData)
+        }
+        if let friend = personalStore.friend(id: senderID) {
+            return (friend.avatarSymbol, friend.avatarImageData)
+        }
+        if let member = circleStore.member(id: senderID) {
+            return (member.avatarSymbol, nil)
+        }
+        return ("person", nil)
     }
 
     // MARK: - Private per-day history notes
@@ -1503,6 +1566,10 @@ final class AppState {
                     // server-side, so the departed-zone path keeps them gone
                     // and a session guard covers the propagation window.
                     personalStore.eraseDeletedFriend(userID: notif.fromUserRecordName)
+                    // Also tear down our DM with them so the old messages don't
+                    // linger — deletes our copy (and the peer's, if we own the
+                    // zone). Their own delete already removed any zone they own.
+                    await removeConversations(withPeer: notif.fromUserRecordName)
                 } else {
                     // Plain unfriend — their zone still exists, so persist
                     // the hide. `dropFriendLocally` adds to locallyUnfriendedIDs,
@@ -1989,6 +2056,7 @@ final class AppState {
         outgoingRequestTargetIDs = []
         pendingReciprocalSenders = []
         processedUnfriendNotificationIDs = []
+        removedCircleIDs = []
         pendingUnfriendTargets = []
         pendingGroupInvites = []
         lastCloudShareError = nil
@@ -2556,8 +2624,14 @@ final class AppState {
             // conversation that also throws "couldn't send". A circle created
             // after the reset is kept. `accountResetAt` is `.distantPast` for
             // users who never deleted, so this is a no-op for them.
-            self.ownedCircles = (serverOwned + optimistic).filter { $0.createdAt > accountResetAt }
-            self.joinedCircles = serverJoined.filter { $0.createdAt > accountResetAt }
+            // Also drop conversations we've explicitly removed because the peer
+            // deleted their account — a zone we don't own (or a lagging fetch)
+            // would otherwise resurface the dead DM.
+            func keep(_ c: TallyCircle) -> Bool {
+                c.createdAt > accountResetAt && !removedCircleIDs.contains(c.id.uuidString)
+            }
+            self.ownedCircles = (serverOwned + optimistic).filter(keep)
+            self.joinedCircles = serverJoined.filter(keep)
             // Light up the unread/bold indicator for conversations the user
             // hasn't opened, so an incoming DM/message is visible in the list.
             await circleStore.refreshUnreadTimes(for: ownedCircles + joinedCircles)

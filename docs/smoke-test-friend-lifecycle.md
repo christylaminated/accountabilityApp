@@ -159,6 +159,21 @@ processed the deletion signal).
   fails permanently (not just eventual-consistency lag), the message stays in the
   local outbox and retries when you reopen the conversation.
 
+## Account-deletion clears the DM (build 59)
+When someone deletes their account, the DM conversation between you should be
+gone for BOTH people.
+1. A and B are friends with a DM history. **A deletes their account.**
+2. On **B's** device (foreground it so it processes the deletion): the DM with A
+   disappears from the list, and its messages are gone — whether A or B created
+   the DM (if B owned the zone, B's app deletes it; if A owned it, A's delete
+   removed it). It stays gone across a pull-to-refresh and relaunch.
+3. Unrelated DMs (with other people) and group chats are untouched.
+
+## Chat avatars show the current picture (build 59)
+Open a DM/group → each message bubble and the header show the sender's CURRENT
+avatar (photo or icon), even if they changed it after the conversation started.
+Previously bubbles showed the avatar frozen at circle-creation time.
+
 ## Avatar photo sync (build 53)
 Friends who search you by username should see your uploaded photo.
 1. **You:** set a profile photo. On another account, search you by username →

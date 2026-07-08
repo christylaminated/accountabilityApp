@@ -145,6 +145,12 @@ enum LocalCacheKey {
     /// user has already activated at least once.
     static let circleLastMessageAt = "Tally.cache.circleLastMessageAt"
 
+    /// Circle IDs we've permanently removed on the receiving side — e.g. a DM
+    /// whose peer deleted their account. Filtered out of `loadCircles` so a
+    /// lagging server fetch (or a zone we don't own) can't resurrect the dead
+    /// conversation.
+    static let removedCircleIDs = "Tally.cache.removedCircleIDs"
+
     /// Cache keys cleared on iCloud account switch.
     static let userScoped: [String] = [
         currentUserID, ownProfile, personalStore, hasOnboarded, onboardingStep,
@@ -153,6 +159,7 @@ enum LocalCacheKey {
         processedUnfriendNotificationIDs, pendingUnfriendTargets,
         pendingGroupInvites, accountResetAt,
         pendingDirectMessages, pendingCircleMessages,
-        hasSentFirstFriendRequest, inviteBannerDismissCount
+        hasSentFirstFriendRequest, inviteBannerDismissCount,
+        removedCircleIDs
     ]
 }

@@ -139,14 +139,15 @@ struct CircleFeedView: View {
     private func bubble(for msg: CircleMessage) -> some View {
         let isMe = msg.senderID == appState.currentUserID
         let member = appState.circleStore.member(id: msg.senderID)
+        // Resolve the CURRENT avatar (symbol + photo) from the live friend/own
+        // profile — not the stale CircleMember frozen at circle creation.
+        let avatar = appState.senderAvatar(for: msg.senderID)
         return MessageBubbleView(
             text: msg.body,
             timestamp: msg.createdAt,
             isMe: isMe,
-            senderSymbol: member?.avatarSymbol ?? "person",
-            // Photo bytes live on friend records, not CircleMember — look the
-            // sender up there so their picture shows on their bubbles.
-            senderImageData: appState.senderAvatarData(for: msg.senderID),
+            senderSymbol: avatar.symbol,
+            senderImageData: avatar.imageData,
             senderName: member?.displayName ?? "",
             showSender: !isMe
         )
