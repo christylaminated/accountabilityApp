@@ -1458,17 +1458,6 @@ final class AppState {
             return
         }
 
-        // Right after an account deletion my personal zone + CKShare are BRAND
-        // NEW, so a friend showing as an `.accepted` participant may have only
-        // accepted my OLD (now-destroyed) share and can't actually see my new
-        // zone. During a recovery window after a reset we therefore DON'T trust
-        // the participant list — we re-send my share to every visible friend
-        // once so they re-accept the new zone. `reconciledFriendIDsThisSession`
-        // still bounds this to one re-send per friend per session, and the
-        // window closes after 24h so steady-state behavior is unchanged.
-        let recentlyReset = accountResetAt != .distantPast
-            && Date.now.timeIntervalSince(accountResetAt) < 24 * 60 * 60
-
         var repaired = 0
         for friend in visible {
             let id = friend.userID
@@ -1476,15 +1465,15 @@ final class AppState {
             if personalStore.isLocallyUnfriended(userID: id) { continue }  // never re-friend the unfriended
             if reconciledFriendIDsThisSession.contains(id) { continue }    // once per session
             if pendingReciprocalSenders.contains(id) { continue }          // normal retry already owns it
-            // Normally skip friends who already see me. Exception: in the
-            // post-reset window, their acceptance may be of my destroyed share.
-            if whoCanSeeMe.contains(id) && !recentlyReset { continue }
+            if whoCanSeeMe.contains(id) { continue }                       // already symmetric — they see me
 
-            // Either they're not on my share (classic one-way), or I just reset
-            // and need them to re-accept my new zone. Repair via the same path
-            // acceptFriendRequest uses.
+            // Asymmetric: I can see them, but they're not on my share, so they
+            // can't see me. Repair via the same path acceptFriendRequest uses.
+            // NOTE: this only ever fixes a genuinely one-way FRESH friendship.
+            // It does NOT resurrect friends after an account deletion — those
+            // are severed and require a fresh request (clean-slate model).
             reconciledFriendIDsThisSession.insert(id)
-            NSLog("[Tally] reconcileFriendSymmetry(\(trigger)): re-sending my share to \(id) (recentlyReset=\(recentlyReset), theySeeMe=\(whoCanSeeMe.contains(id)))")
+            NSLog("[Tally] reconcileFriendSymmetry(\(trigger)): one-way friend \(id) — re-sending my share")
             pendingReciprocalSenders.insert(id)
             persistPendingReciprocalSenders()
             do {
@@ -2140,20 +2129,21 @@ final class AppState {
                 // re-accepts.
                 if declinedRequestIDs.contains(r.id.uuidString) { continue }
                 NSLog("[Tally] reciprocal: processing from=\(r.fromUserRecordName) id=\(r.id)")
-                // Reject STALE reciprocals — but ONLY genuinely old ones. A
-                // reciprocal from someone hidden (unfriended/erased) with no
-                // matching outgoing request is suspicious, BUT if it was sent
-                // AFTER my last account reset it's part of a fresh handshake
-                // (e.g. they re-sent a request and I accepted), and suppressing
-                // it is the "I accepted them but they never see me / it stays
-                // pending on their end" bug. So only decline reciprocals that
-                // PREDATE my reset — those are the true leftovers from a prior
-                // friendship. `accountResetAt` is `.distantPast` for users who
-                // never deleted, so this never fires for them.
+                // CLEAN-SLATE RULE: a reciprocal from a severed former friend
+                // must never silently reconnect us — no matter when it was sent.
+                // Account deletion adds every friend to `locallyUnfriendedIDs`,
+                // so this covers "I deleted my account and re-onboarded." The
+                // ONLY way back is a FRESH request I send them after the reset,
+                // which lands them in `myRequestTargets` (so their answering
+                // reciprocal is legitimately processed). Without that, decline.
+                // A normal fresh handshake is unaffected: whoever RECEIVES a
+                // reciprocal is always someone they first sent a request to, so
+                // `myRequestTargets` covers them. `isLocallyUnfriended` is empty
+                // for users who never deleted/unfriended, so this never fires
+                // for them.
                 if personalStore.isLocallyUnfriended(userID: r.fromUserRecordName),
-                   !myRequestTargets.contains(r.fromUserRecordName),
-                   r.sentAt <= accountResetAt {
-                    NSLog("[Tally] reciprocal: stale pre-reset reciprocal from hidden \(r.fromUserRecordName) — declining, not resurrecting")
+                   !myRequestTargets.contains(r.fromUserRecordName) {
+                    NSLog("[Tally] reciprocal: severed former friend \(r.fromUserRecordName) — declining (clean slate, needs a fresh request)")
                     markRequestDeclined(r)
                     continue
                 }

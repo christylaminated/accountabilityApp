@@ -310,6 +310,40 @@ struct FriendLifecycleTests {
         #expect(!hasFriend(store, "alice"))
     }
 
+    @Test func cleanSlate_postResetReciprocalFromFormerFriend_isDeclined() async {
+        // Clean-slate model: even a reciprocal sent AFTER my reset must not
+        // silently reconnect a severed former friend. (This is the exact gap
+        // that let a deleted-then-re-onboarded account auto-reconnect one-way.)
+        let resetAt = Date()
+        LocalCache.save(resetAt, forKey: LocalCacheKey.accountResetAt)
+
+        let personal = repo(friendOwners: [])
+        let store = PersonalStore(repository: personal)
+        await store.activate(currentUserID: "me")
+        store.dropFriendLocally(userID: "alice")   // severed on delete
+        #expect(store.isLocallyUnfriended(userID: "alice"))
+
+        // Alice's reciprocal, sent AFTER my reset — and I never sent her a fresh
+        // request, so there's no legitimate handshake to answer.
+        let recip = FriendRequest(
+            id: UUID(), fromUserRecordName: "alice", toUserRecordName: "me",
+            shareURL: "https://www.icloud.com/share/post", fromDisplayName: "Alice",
+            fromUsername: "alice", fromAvatarSymbol: "leaf",
+            sentAt: resetAt.addingTimeInterval(3600), isReciprocal: true
+        )
+        let app = appState(
+            personal: personal, store: store,
+            notifications: MockUnfriendNotificationRepository(),
+            friendRequests: MockFriendRequestRepository(requests: [recip])
+        )
+
+        await app.refreshFriendRequests()
+
+        // No auto-reconnect: alice stays hidden and does not become a friend.
+        #expect(store.isLocallyUnfriended(userID: "alice"))
+        #expect(!hasFriend(store, "alice"))
+    }
+
     /// After delete, every incoming request addressed to me is captured into
     /// the declined list (persisted). On re-setup it must NOT show in the inbox
     /// — "I deleted my account, it shouldn't still say they sent me a request."
@@ -575,38 +609,6 @@ struct FriendLifecycleTests {
         // share. (The reciprocal send can't fully complete against the mock's
         // URL-less share, but the repair path ran — which is what we assert.)
         #expect(personal.friends.contains { $0.recordName == "alice" })
-    }
-
-    @Test func selfHeal_reSharesToSeenFriend_afterRecentReset() async {
-        // I deleted my account moments ago → my zone/share are brand new.
-        LocalCache.save(Date.now, forKey: LocalCacheKey.accountResetAt)
-        let personal = repo(friendOwners: ["alice"])
-        // Alice APPEARS to already see me… but her acceptance is of my old,
-        // destroyed share, so she actually can't (the reported bug).
-        personal.personalShareParticipants = ["alice"]
-        let store = PersonalStore(repository: personal)
-        await store.activate(currentUserID: "me")
-        let app = reconcileApp(personal: personal, store: store)
-
-        await app.reconcileFriendSymmetry(trigger: "test")
-
-        // Post-reset we don't trust the stale participant list → re-send my
-        // share so she can re-accept my new zone.
-        #expect(personal.friends.contains { $0.recordName == "alice" })
-    }
-
-    @Test func selfHeal_skipsSeenFriend_whenNoRecentReset() async {
-        // No reset (clean LocalCache) → steady-state behaviour: a friend who
-        // already sees me is NOT re-shared to.
-        let personal = repo(friendOwners: ["alice"])
-        personal.personalShareParticipants = ["alice"]
-        let store = PersonalStore(repository: personal)
-        await store.activate(currentUserID: "me")
-        let app = reconcileApp(personal: personal, store: store)
-
-        await app.reconcileFriendSymmetry(trigger: "test")
-
-        #expect(!personal.friends.contains { $0.recordName == "alice" })
     }
 
     // MARK: - Avatar claim self-heal

@@ -131,10 +131,17 @@ Precondition: Alice has ≥1 friend (Bob) and is a member of a circle Bob owns.
    inbox; no ghost circles.
 5. **Reinstall variant:** delete the **app**, reinstall, sign in as Alice.
    **Expect (A):** still a clean slate (see caveats for the timing dependency).
+6. **Clean-slate / no auto-reconnect (build 61):** leave both apps open for a
+   minute after re-setup. **Expect:** Alice and Bob do **NOT** silently
+   reconnect — Alice stays at zero friends, Bob does not get Alice back. The
+   ONLY way back is a **fresh** friend request (step 7).
+7. **Re-friend from scratch:** on **A**, send Bob a new request → Bob accepts →
+   **both** see each other again (a clean two-way friendship).
 
-✅ Pass: after delete + re-setup, Alice has zero friends, zero old requests, zero
-old circles — and the same after a full reinstall (given the other device has
-processed the deletion signal).
+✅ Pass: after delete + re-setup, Alice has zero friends and stays that way until
+someone sends a fresh request. Deletion is final — re-onboarding never
+auto-restores old friendships (that "welcome back" behaviour was the source of
+the one-way-friend bugs and has been removed).
 
 ---
 
