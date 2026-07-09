@@ -109,6 +109,9 @@ protocol DayNoteRepository: Sendable {
     func save(_ note: DayNote) async throws
     /// Remove the note for `day` (used when the user clears the text).
     func delete(for day: Date) async throws
+    /// Delete ALL of the user's day notes — used by account deletion so no
+    /// private journal entries survive in CloudKit.
+    func deleteAll() async throws
 }
 
 struct CloudKitDayNoteRepository: DayNoteRepository {
@@ -145,5 +148,22 @@ struct CloudKitDayNoteRepository: DayNoteRepository {
 
     func delete(for day: Date) async throws {
         _ = try? await client.privateDB.deleteRecord(withID: recordID(for: day))
+    }
+
+    func deleteAll() async throws {
+        // Query every DayNote in the private default zone and delete them. The
+        // default zone supports queries in the private DB, so no per-day
+        // enumeration is needed. Best-effort per record.
+        let query = CKQuery(recordType: DayNote.recordType, predicate: NSPredicate(value: true))
+        let results: [(CKRecord.ID, Result<CKRecord, Error>)]
+        do {
+            (results, _) = try await client.privateDB.records(matching: query)
+        } catch let error as CKError where error.code == .unknownItem {
+            // No DayNote record type has ever been created — nothing to delete.
+            return
+        }
+        for (id, _) in results {
+            _ = try? await client.privateDB.deleteRecord(withID: id)
+        }
     }
 }

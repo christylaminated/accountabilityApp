@@ -851,6 +851,23 @@ struct FriendLifecycleTests {
         #expect(await app.dayNote(for: day2)?.text == "day two")
     }
 
+    @Test func dayNote_deleteAllRemovesEveryNote() async {
+        let repo = MockDayNoteRepository()
+        let app = dayNoteApp(repo)
+        let day1 = Date(timeIntervalSince1970: 1_700_000_000)
+        let day2 = day1.addingTimeInterval(48 * 60 * 60)
+        _ = await app.saveDayNote("one", for: day1)
+        _ = await app.saveDayNote("two", for: day2)
+        #expect(!repo.notes.isEmpty)
+
+        // Account deletion wipes every private note (no journal survives).
+        try? await repo.deleteAll()
+
+        #expect(repo.notes.isEmpty)
+        #expect(await app.dayNote(for: day1) == nil)
+        #expect(await app.dayNote(for: day2) == nil)
+    }
+
     @Test func senderAvatar_resolvesFriendSelfAndStranger() async {
         let personal = repo(friendOwners: [])
         let store = PersonalStore(repository: personal)

@@ -1972,6 +1972,17 @@ final class AppState {
         _ = try? await CKClient.shared.privateDB.deleteRecord(withID: profileID)
         NSLog("[Tally] deleteAccount: deleted UserProfile record")
 
+        // 5b. Delete the private per-day history notes (default zone, so they
+        //     aren't covered by the personal-zone deletion above). Without this
+        //     old journal notes survive in CloudKit and reappear on old dates
+        //     after a same-iCloud re-onboard.
+        do {
+            try await dayNoteRepository.deleteAll()
+            NSLog("[Tally] deleteAccount: deleted all day notes")
+        } catch {
+            NSLog("[Tally] deleteAccount: day-note deletion failed (non-fatal): \(error.localizedDescription)")
+        }
+
         // 6. Snapshot the post-resignup hide-lists BEFORE clearAll.
         //    `deleteAccount` is most often "delete then immediately
         //    re-onboard with the same iCloud account" — same iCloud means

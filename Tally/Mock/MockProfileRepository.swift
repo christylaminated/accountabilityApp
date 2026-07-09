@@ -67,4 +67,8 @@ final class MockDayNoteRepository: DayNoteRepository, @unchecked Sendable {
     func delete(for day: Date) async throws {
         notes.removeValue(forKey: DayNote.dayKey(day))
     }
+
+    func deleteAll() async throws {
+        notes.removeAll()
+    }
 }
