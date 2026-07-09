@@ -326,7 +326,14 @@ struct MemberDetailView: View {
                 await appState.activateCircle(circle)
                 dmCircle = circle
             } catch {
-                dmError = error.localizedDescription
+                // Starting a DM creates a new zone in YOUR iCloud, so a full
+                // account fails here with a raw "Quota exceeded". Show what's
+                // actually wrong instead of the CloudKit dump.
+                if ICloudErrorDetection.isQuotaExceeded(error) {
+                    dmError = "Your iCloud storage is full, so a new message couldn't be created. Free up space in Settings → [Your Name] → iCloud, then try again."
+                } else {
+                    dmError = error.localizedDescription
+                }
             }
         }
     }
