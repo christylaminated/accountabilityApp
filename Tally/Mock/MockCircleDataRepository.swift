@@ -9,6 +9,8 @@ final class MockCircleDataRepository: CircleDataRepository, @unchecked Sendable 
     var saveShouldFail = false
     /// Record names successfully saved, for test assertions.
     var savedRecordNames: [String] = []
+    /// Record names passed to `delete`, for test assertions.
+    var deletedRecordNames: [String] = []
 
     init(snapshot: CircleSnapshot = CircleSnapshot()) {
         self.snapshot = snapshot
@@ -26,7 +28,9 @@ final class MockCircleDataRepository: CircleDataRepository, @unchecked Sendable 
         savedRecordNames.append(contentsOf: records.map(\.recordName))
     }
 
-    func delete(recordNames: [String], in circle: TallyCircle) async throws {}
+    func delete(recordNames: [String], in circle: TallyCircle) async throws {
+        deletedRecordNames.append(contentsOf: recordNames)
+    }
 
     func subscribeToChanges(for circle: TallyCircle) async throws {}
 }

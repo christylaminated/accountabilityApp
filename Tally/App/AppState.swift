@@ -86,6 +86,9 @@ final class AppState {
     /// Private per-day history notes. Defaulted (not an init parameter) so it
     /// stays out of every existing construction site; tests swap in a mock.
     var dayNoteRepository: any DayNoteRepository = CloudKitDayNoteRepository()
+    /// Direct access to circle-zone data (messages), used by account deletion to
+    /// purge my messages from friend-owned DM zones. Defaulted like above.
+    var circleDataRepository: any CircleDataRepository = CloudKitCircleDataRepository()
     let shareCoordinator: ShareCoordinator
 
     /// Live data for the active Circle — members + chat. Habits and goals
@@ -901,6 +904,29 @@ final class AppState {
 
     private func persistRemovedCircleIDs() {
         LocalCache.save(Array(removedCircleIDs), forKey: LocalCacheKey.removedCircleIDs)
+    }
+
+    /// Delete the messages in every friend-owned (joined) DM zone during account
+    /// deletion, so a friend can't keep seeing our conversation. DMs I OWN are
+    /// removed wholesale by the owned-zone deletion; but for a DM the FRIEND
+    /// owns, my messages physically live in THEIR zone, and merely leaving the
+    /// share only drops my access — the messages would stay visible to them.
+    /// While I still have write access I delete the whole thread's messages.
+    /// Best-effort per DM. (Groups are intentionally left alone — deleting your
+    /// account shouldn't wipe a shared group's history for everyone else.)
+    func purgeJoinedDirectMessages() async {
+        for circle in joinedCircles where circle.kind == .dm {
+            do {
+                let snap = try await circleDataRepository.snapshot(for: circle, since: nil)
+                let names = snap.circleMessages.map(\.recordName)
+                    + snap.directMessages.map(\.recordName)
+                guard !names.isEmpty else { continue }
+                try await circleDataRepository.delete(recordNames: names, in: circle)
+                NSLog("[Tally] purgeJoinedDirectMessages: deleted \(names.count) message(s) from DM \(circle.id)")
+            } catch {
+                NSLog("[Tally] purgeJoinedDirectMessages: failed for \(circle.id) (non-fatal): \(error.localizedDescription)")
+            }
+        }
     }
 
     /// Rename a Group. Any participant can do this — CKShare grants .readWrite
@@ -1919,6 +1945,12 @@ final class AppState {
             }
             NSLog("[Tally] deleteAccount: processed server-side cleanup for \(canonicalFriendIDs.count) friends")
         }
+
+        // 2.55. Delete my messages from friend-owned DM zones BEFORE leaving
+        //       them (below). Leaving only drops my access; my messages would
+        //       stay in the friend's zone and remain visible to them. I still
+        //       have write access here, so wipe the DM's messages outright.
+        await purgeJoinedDirectMessages()
 
         // 2.6. Leave every joined-but-not-owned circle. Enumerate the joined
         //      circle zones from CloudKit rather than the in-memory

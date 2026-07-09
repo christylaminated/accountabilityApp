@@ -778,6 +778,52 @@ struct FriendLifecycleTests {
         #expect(persisted.contains(dm.id.uuidString))
     }
 
+    @Test func purgeJoinedDMs_deletesMyMessagesFromFriendOwnedDM() async {
+        // A DM bob owns; my messages physically live in bob's zone. On account
+        // deletion I must delete them so bob can't keep seeing our thread.
+        let dm = TallyCircle(
+            id: UUID(), name: "bob", emoji: nil, ownerID: "bob",
+            createdAt: Date(), kind: .dm, dmPeerID: "me"
+        )
+        let mine = CircleMessage(id: UUID(), circleID: dm.id, senderID: "me",
+                                 body: "secret", createdAt: Date())
+        let theirs = CircleMessage(id: UUID(), circleID: dm.id, senderID: "bob",
+                                   body: "reply", createdAt: Date())
+        let dataRepo = MockCircleDataRepository(
+            snapshot: CircleSnapshot(circleMessages: [mine, theirs])
+        )
+        let app = conversationApp(circleRepo: MockCircleRepository(joined: [dm]))
+        app.circleDataRepository = dataRepo
+        app.joinedCircles = [dm]
+
+        await app.purgeJoinedDirectMessages()
+
+        // Both messages in the thread are deleted from bob's zone.
+        #expect(dataRepo.deletedRecordNames.contains(mine.recordName))
+        #expect(dataRepo.deletedRecordNames.contains(theirs.recordName))
+    }
+
+    @Test func purgeJoinedDMs_leavesGroupsAlone() async {
+        // A group bob owns — my account deletion must NOT wipe shared group
+        // history for everyone else.
+        let group = TallyCircle(
+            id: UUID(), name: "grp", emoji: nil, ownerID: "bob",
+            createdAt: Date(), kind: .group, dmPeerID: nil
+        )
+        let msg = CircleMessage(id: UUID(), circleID: group.id, senderID: "me",
+                                body: "hi all", createdAt: Date())
+        let dataRepo = MockCircleDataRepository(
+            snapshot: CircleSnapshot(circleMessages: [msg])
+        )
+        let app = conversationApp(circleRepo: MockCircleRepository(joined: [group]))
+        app.circleDataRepository = dataRepo
+        app.joinedCircles = [group]
+
+        await app.purgeJoinedDirectMessages()
+
+        #expect(dataRepo.deletedRecordNames.isEmpty)
+    }
+
     @Test func removeConversations_leavesUnrelatedCirclesAlone() async {
         // A group (not a DM) and a DM with someone else must be untouched.
         let group = TallyCircle(
