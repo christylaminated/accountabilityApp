@@ -12,26 +12,6 @@ struct FriendsView: View {
     @State private var groupToLeave: TallyCircle?
     @State private var friendToUnfriend: Friend?
     @State private var unfriendError: String?
-    // TEMP DIAGNOSTIC — remove after the friend-sync issue is understood.
-    @State private var debugReport = "(tap Debug sync)"
-
-    private var debugSyncPanel: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Button("🔍 Debug sync") {
-                Task { debugReport = await appState.debugFriendSyncReport() }
-            }
-            .font(.system(size: 12, weight: .semibold, design: .monospaced))
-            .foregroundStyle(.orange)
-            Text(debugReport)
-                .font(.system(size: 10, design: .monospaced))
-                .foregroundStyle(.orange)
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .padding(8)
-        .background(Color.orange.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-    }
 
     private var friends: [Friend] {
         appState.personalStore.friends
@@ -53,7 +33,6 @@ struct FriendsView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    debugSyncPanel
                     findByUsernameButton
 
                     if let err = appState.lastFriendRequestError {
