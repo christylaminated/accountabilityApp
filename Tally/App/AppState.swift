@@ -89,6 +89,10 @@ final class AppState {
     /// Direct access to circle-zone data (messages), used by account deletion to
     /// purge my messages from friend-owned DM zones. Defaulted like above.
     var circleDataRepository: any CircleDataRepository = CloudKitCircleDataRepository()
+    /// DEBUG screenshot/demo mode: when true the app boots straight into a
+    /// pre-seeded main screen and all CloudKit refresh/poll paths are skipped so
+    /// the seeded data isn't overwritten. Always false in production.
+    let isDemoMode: Bool
     let shareCoordinator: ShareCoordinator
 
     /// Live data for the active Circle — members + chat. Habits and goals
@@ -263,8 +267,10 @@ final class AppState {
         unfriendNotificationRepository: any UnfriendNotificationRepository = CloudKitUnfriendNotificationRepository(),
         shareCoordinator: ShareCoordinator = ShareCoordinator(),
         circleStore: CircleStore? = nil,
-        personalStore: PersonalStore? = nil
+        personalStore: PersonalStore? = nil,
+        demoMode: Bool = false
     ) {
+        self.isDemoMode = demoMode
         self.profileRepository = profileRepository
         self.circleRepository = circleRepository
         self.personalRepository = personalRepository
@@ -323,6 +329,11 @@ final class AppState {
             self.onboardingState = .enteredMainApp
         }
         NSLog("[Tally] AppState.init hasOnboarded=\(hasOnboarded) persistedStep=\(persistedStepRaw ?? "nil") state=\(self.onboardingState)")
+
+        // Demo/screenshot mode: the caller has seeded the stores directly and
+        // wants them left alone. Skip every CloudKit path (account check,
+        // background refresh, polling) so nothing overwrites the seed.
+        if demoMode { return }
 
         registerAccountChangeObserver()
         Task { await self.refreshAccountState() }
@@ -494,6 +505,7 @@ final class AppState {
     }
 
     func refreshAccountState() async {
+        if isDemoMode { return }   // demo/screenshot mode: seeded state is fixed
         if onboardingState != .enteredMainApp {
             onboardingState = .checkingICloud
         }
@@ -2793,6 +2805,7 @@ final class AppState {
     /// Pull the latest Circle + personal data from CloudKit. Called on
     /// scene-foreground and when a CloudKit push notification arrives.
     func refreshCircleData() async {
+        if isDemoMode { return }   // demo/screenshot mode: seeded state is fixed
         await circleStore.refresh()
         await personalStore.refresh()
         // The active circle is refreshed above; sweep the rest so an incoming
@@ -2830,3 +2843,116 @@ private final class NotificationObserverHolder {
         }
     }
 }
+
+#if DEBUG
+extension AppState {
+    /// Build a fully-seeded, EDITABLE AppState for App Store screenshots.
+    /// DEBUG-only; triggered by the `--demo` launch argument in `TallyApp`.
+    /// Uses in-memory mock repositories with `demoMode: true`, so no CloudKit
+    /// path ever runs — the seeded data is exactly what you see, and normal
+    /// edits (check off a habit, add one, add a goal, send a message) work and
+    /// stick for the session because the stores' writes are optimistic.
+    @MainActor
+    static func demo() -> AppState {
+        let me = "demo-me"
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: Date())
+        func day(_ back: Int) -> Date { cal.date(byAdding: .day, value: -back, to: today) ?? today }
+
+        func habit(_ title: String, agoDays: Int) -> Habit {
+            Habit(id: UUID(), userID: me, title: title, privacy: .shared,
+                  createdAt: day(agoDays), archivedAt: nil)
+        }
+        let hRun = habit("Morning run", agoDays: 40)
+        let hRead = habit("Read 20 pages", agoDays: 40)
+        let hWater = habit("Drink 2L water", agoDays: 40)
+        let hMeditate = habit("Meditate 10 min", agoDays: 30)
+        let hSleep = habit("No phone after 10pm", agoDays: 30)
+        let myHabits = [hRun, hRead, hWater, hMeditate, hSleep]
+
+        func comp(_ h: Habit, user: String, _ d: Date) -> HabitCompletion {
+            HabitCompletion(id: UUID(), habitID: h.id, userID: user, completedDate: d, createdAt: d)
+        }
+        var completions: [HabitCompletion] = []
+        // 35 days of history with texture, so the heatmap + streaks look real.
+        for back in 0..<35 {
+            let d = day(back)
+            if back % 7 != 6 { completions.append(comp(hRun, user: me, d)) }
+            if back % 3 != 2 { completions.append(comp(hRead, user: me, d)) }
+            completions.append(comp(hWater, user: me, d))
+            if back % 2 == 0 { completions.append(comp(hMeditate, user: me, d)) }
+            if back % 4 != 0 { completions.append(comp(hSleep, user: me, d)) }
+        }
+
+        let goals = [
+            Goal(id: UUID(), userID: me, title: "Run 3 times", period: .week,
+                 periodStartDate: today.startOfWeek, completedAt: nil, carriedFromID: nil, createdAt: day(3)),
+            Goal(id: UUID(), userID: me, title: "Finish 2 books", period: .month,
+                 periodStartDate: today.startOfMonth, completedAt: nil, carriedFromID: nil, createdAt: day(10)),
+        ]
+
+        // Friends, each with their own habits + recent completions so the
+        // leaderboard and their profiles show real activity.
+        let friendSpec: [(id: String, name: String, symbol: String, habits: [String])] = [
+            ("demo-sharol", "Sharol", "heart.fill",  ["Yoga", "Journal"]),
+            ("demo-maya",   "Maya",   "sparkles",     ["Sketch", "Walk 10k"]),
+            ("demo-jordan", "Jordan", "flame.fill",   ["Gym", "Cold plunge"]),
+        ]
+        var friends: [Friend] = []
+        var friendHabits: [Habit] = []
+        for (fi, f) in friendSpec.enumerated() {
+            friends.append(Friend(userID: f.id, displayName: f.name, avatarSymbol: f.symbol))
+            for (hi, title) in f.habits.enumerated() {
+                let h = Habit(id: UUID(), userID: f.id, title: title, privacy: .shared,
+                              createdAt: day(30), archivedAt: nil)
+                friendHabits.append(h)
+                for back in 0..<10 where (back + fi + hi) % 3 != 2 {
+                    completions.append(comp(h, user: f.id, day(back)))
+                }
+            }
+        }
+
+        let dm = TallyCircle(id: UUID(), name: "Sharol", emoji: nil, ownerID: me,
+                             createdAt: day(2), kind: .dm, dmPeerID: "demo-sharol")
+        let group = TallyCircle(id: UUID(), name: "Roommates", emoji: "🏠", ownerID: me,
+                                createdAt: day(5), kind: .group, dmPeerID: nil)
+        let base = day(0).addingTimeInterval(9 * 3600)
+        let messages = [
+            CircleMessage(id: UUID(), circleID: dm.id, senderID: "demo-sharol",
+                          body: "did you run today??", createdAt: base),
+            CircleMessage(id: UUID(), circleID: dm.id, senderID: me,
+                          body: "just finished 🏃‍♀️ 3 miles", createdAt: base.addingTimeInterval(300)),
+            CircleMessage(id: UUID(), circleID: dm.id, senderID: "demo-sharol",
+                          body: "let's gooo 🔥 6 day streak", createdAt: base.addingTimeInterval(600)),
+            CircleMessage(id: UUID(), circleID: dm.id, senderID: me,
+                          body: "your turn 👀", createdAt: base.addingTimeInterval(900)),
+        ]
+
+        let personalStore = PersonalStore(repository: MockPersonalRepository())
+        let circleStore = CircleStore(
+            dataRepo: MockCircleDataRepository(snapshot: CircleSnapshot(circleMessages: messages))
+        )
+        let app = AppState(
+            profileRepository: MockProfileRepository(),
+            circleRepository: MockCircleRepository(),
+            personalRepository: MockPersonalRepository(),
+            usernameRepository: MockUsernameRepository(),
+            friendRequestRepository: MockFriendRequestRepository(),
+            circleStore: circleStore,
+            personalStore: personalStore,
+            demoMode: true
+        )
+        app.currentUserID = me
+        app.ownCloudProfile = UserProfile(displayName: "Christy", avatarSymbol: "leaf",
+                                          avatarImageData: nil, username: "christy", createdAt: day(45))
+        personalStore.currentUserID = me
+        personalStore.habits = myHabits + friendHabits
+        personalStore.completions = completions
+        personalStore.goals = goals
+        personalStore.friends = friends
+        app.ownedCircles = [dm, group]
+        app.onboardingState = .enteredMainApp
+        return app
+    }
+}
+#endif

@@ -7,13 +7,39 @@ struct TallyApp: App {
     /// drains that buffer. No environment plumbing needed — the buffer is a singleton.
     @UIApplicationDelegateAdaptor(TallyAppDelegate.self) private var appDelegate
 
-    @State private var appState = AppState()
+    @State private var appState = TallyApp.makeAppState()
     @State private var themeManager = ThemeManager.shared
     /// Owns the RevenueCat session + entitlement state. Injected into the
     /// environment so downstream views (paywall, subscription gate, banner
     /// dismissals) can read `isSubscribed` and call purchase/restore via a
     /// single abstraction. No other module imports RevenueCat.
-    @State private var subscriptionManager = SubscriptionManager()
+    @State private var subscriptionManager = TallyApp.makeSubscriptionManager()
+
+    /// In DEBUG, launching with the `--demo` argument boots a fully-seeded,
+    /// editable app for App Store screenshots (see `AppState.demo()`). Always
+    /// the normal app in Release.
+    @MainActor private static var isDemoLaunch: Bool {
+        #if DEBUG
+        return ProcessInfo.processInfo.arguments.contains("--demo")
+        #else
+        return false
+        #endif
+    }
+
+    @MainActor private static func makeAppState() -> AppState {
+        #if DEBUG
+        if isDemoLaunch { return AppState.demo() }
+        #endif
+        return AppState()
+    }
+
+    @MainActor private static func makeSubscriptionManager() -> SubscriptionManager {
+        let manager = SubscriptionManager()
+        #if DEBUG
+        if isDemoLaunch { manager.debugBypassPaywall = true }
+        #endif
+        return manager
+    }
 
     var body: some Scene {
         WindowGroup {
