@@ -2863,12 +2863,13 @@ extension AppState {
             Habit(id: UUID(), userID: me, title: title, privacy: .shared,
                   createdAt: day(agoDays), archivedAt: nil)
         }
-        let hRun = habit("Morning run", agoDays: 40)
+        // Habits of highly successful people.
+        let hWake = habit("Wake up at 5 AM", agoDays: 40)
+        let hWorkout = habit("Workout", agoDays: 40)
         let hRead = habit("Read 20 pages", agoDays: 40)
-        let hWater = habit("Drink 2L water", agoDays: 40)
         let hMeditate = habit("Meditate 10 min", agoDays: 30)
-        let hSleep = habit("No phone after 10pm", agoDays: 30)
-        let myHabits = [hRun, hRead, hWater, hMeditate, hSleep]
+        let hPlan = habit("Journal & plan the day", agoDays: 30)
+        let myHabits = [hWake, hWorkout, hRead, hMeditate, hPlan]
 
         func comp(_ h: Habit, user: String, _ d: Date) -> HabitCompletion {
             HabitCompletion(id: UUID(), habitID: h.id, userID: user, completedDate: d, createdAt: d)
@@ -2877,26 +2878,34 @@ extension AppState {
         // 35 days of history with texture, so the heatmap + streaks look real.
         for back in 0..<35 {
             let d = day(back)
-            if back % 7 != 6 { completions.append(comp(hRun, user: me, d)) }
-            if back % 3 != 2 { completions.append(comp(hRead, user: me, d)) }
-            completions.append(comp(hWater, user: me, d))
+            if back % 7 != 6 { completions.append(comp(hWake, user: me, d)) }
+            if back % 3 != 2 { completions.append(comp(hWorkout, user: me, d)) }
+            completions.append(comp(hRead, user: me, d))
             if back % 2 == 0 { completions.append(comp(hMeditate, user: me, d)) }
-            if back % 4 != 0 { completions.append(comp(hSleep, user: me, d)) }
+            if back % 4 != 0 { completions.append(comp(hPlan, user: me, d)) }
         }
 
+        // Goals in the same "successful habits" spirit, across periods.
+        func goal(_ title: String, _ period: GoalPeriod, start: Date, ago: Int) -> Goal {
+            Goal(id: UUID(), userID: me, title: title, period: period,
+                 periodStartDate: start, completedAt: nil, carriedFromID: nil, createdAt: day(ago))
+        }
         let goals = [
-            Goal(id: UUID(), userID: me, title: "Run 3 times", period: .week,
-                 periodStartDate: today.startOfWeek, completedAt: nil, carriedFromID: nil, createdAt: day(3)),
-            Goal(id: UUID(), userID: me, title: "Finish 2 books", period: .month,
-                 periodStartDate: today.startOfMonth, completedAt: nil, carriedFromID: nil, createdAt: day(10)),
+            goal("Work out 5 times", .week, start: today.startOfWeek, ago: 3),
+            goal("Wake at 5 AM every day", .week, start: today.startOfWeek, ago: 3),
+            goal("Read 4 books", .month, start: today.startOfMonth, ago: 10),
+            goal("Save & invest 20% of income", .month, start: today.startOfMonth, ago: 10),
+            goal("Launch a side project", .year, start: today.startOfYear, ago: 20),
         ]
 
         // Friends, each with their own habits + recent completions so the
         // leaderboard and their profiles show real activity.
         let friendSpec: [(id: String, name: String, symbol: String, habits: [String])] = [
-            ("demo-sharol", "Sharol", "heart.fill",  ["Yoga", "Journal"]),
-            ("demo-maya",   "Maya",   "sparkles",     ["Sketch", "Walk 10k"]),
-            ("demo-jordan", "Jordan", "flame.fill",   ["Gym", "Cold plunge"]),
+            ("demo-emma",   "Emma",   "heart.fill",     ["Yoga", "Journal"]),
+            ("demo-chloe",  "Chloe",  "sparkles",       ["Sketch", "Walk 10k"]),
+            ("demo-jordan", "Jordan", "flame.fill",     ["Gym", "Cold plunge"]),
+            ("demo-grace",  "Grace",  "book.fill",      ["Study 1h", "Piano"]),
+            ("demo-leo",    "Leo",    "bolt.fill",      ["Run 5k", "No sugar"]),
         ]
         var friends: [Friend] = []
         var friendHabits: [Habit] = []
@@ -2912,17 +2921,17 @@ extension AppState {
             }
         }
 
-        let dm = TallyCircle(id: UUID(), name: "Sharol", emoji: nil, ownerID: me,
-                             createdAt: day(2), kind: .dm, dmPeerID: "demo-sharol")
+        let dm = TallyCircle(id: UUID(), name: "Emma", emoji: nil, ownerID: me,
+                             createdAt: day(2), kind: .dm, dmPeerID: "demo-emma")
         let group = TallyCircle(id: UUID(), name: "Roommates", emoji: "🏠", ownerID: me,
                                 createdAt: day(5), kind: .group, dmPeerID: nil)
         let base = day(0).addingTimeInterval(9 * 3600)
         let messages = [
-            CircleMessage(id: UUID(), circleID: dm.id, senderID: "demo-sharol",
+            CircleMessage(id: UUID(), circleID: dm.id, senderID: "demo-emma",
                           body: "did you run today??", createdAt: base),
             CircleMessage(id: UUID(), circleID: dm.id, senderID: me,
                           body: "just finished 🏃‍♀️ 3 miles", createdAt: base.addingTimeInterval(300)),
-            CircleMessage(id: UUID(), circleID: dm.id, senderID: "demo-sharol",
+            CircleMessage(id: UUID(), circleID: dm.id, senderID: "demo-emma",
                           body: "let's gooo 🔥 6 day streak", createdAt: base.addingTimeInterval(600)),
             CircleMessage(id: UUID(), circleID: dm.id, senderID: me,
                           body: "your turn 👀", createdAt: base.addingTimeInterval(900)),
@@ -2942,6 +2951,11 @@ extension AppState {
             personalStore: personalStore,
             demoMode: true
         )
+        // Hide the persistent "invite friends" nudge banner so screenshots are
+        // clean (it's a growth nudge, not a feature). Remove this line if you
+        // want the banner in a shot.
+        LocalCache.save(3, forKey: LocalCacheKey.inviteBannerDismissCount)
+
         app.currentUserID = me
         app.ownCloudProfile = UserProfile(displayName: "Christy", avatarSymbol: "leaf",
                                           avatarImageData: nil, username: "christy", createdAt: day(45))
