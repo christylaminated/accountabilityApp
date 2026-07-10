@@ -10,13 +10,27 @@ enum LocalCache {
     private static let encoder = JSONEncoder()
     private static let decoder = JSONDecoder()
 
+    #if DEBUG
+    /// Demo/screenshot mode: when true, every read returns nil and every write
+    /// is dropped, so seeded demo state neither reads FROM nor leaks INTO the
+    /// real app's persisted cache (they share `UserDefaults.standard`). Set once
+    /// at the start of `AppState.demo()`; only ever true in a `--demo` launch.
+    static var isEphemeral = false
+    #endif
+
     static func save<T: Encodable>(_ value: T, forKey key: String) {
+        #if DEBUG
+        if isEphemeral { return }
+        #endif
         if let data = try? encoder.encode(value) {
             defaults.set(data, forKey: key)
         }
     }
 
     static func load<T: Decodable>(_ type: T.Type, forKey key: String) -> T? {
+        #if DEBUG
+        if isEphemeral { return nil }
+        #endif
         guard let data = defaults.data(forKey: key) else { return nil }
         return try? decoder.decode(type, from: data)
     }

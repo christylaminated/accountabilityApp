@@ -2854,6 +2854,11 @@ extension AppState {
     /// stick for the session because the stores' writes are optimistic.
     @MainActor
     static func demo() -> AppState {
+        // Isolate the whole demo from the real app's on-disk cache: no reads,
+        // no writes. Without this, demo edits (or settings) would persist to the
+        // shared UserDefaults and reappear in a normal (non-demo) launch.
+        LocalCache.isEphemeral = true
+
         let me = "demo-me"
         let cal = Calendar.current
         let today = cal.startOfDay(for: Date())
@@ -2951,11 +2956,6 @@ extension AppState {
             personalStore: personalStore,
             demoMode: true
         )
-        // Hide the persistent "invite friends" nudge banner so screenshots are
-        // clean (it's a growth nudge, not a feature). Remove this line if you
-        // want the banner in a shot.
-        LocalCache.save(3, forKey: LocalCacheKey.inviteBannerDismissCount)
-
         app.currentUserID = me
         app.ownCloudProfile = UserProfile(displayName: "Christy", avatarSymbol: "leaf",
                                           avatarImageData: nil, username: "christy", createdAt: day(45))
